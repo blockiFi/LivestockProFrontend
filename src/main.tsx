@@ -1,0 +1,104 @@
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  redirect,
+  Route,
+  RouterProvider,
+} from "react-router-dom";
+import { Provider } from 'react-redux';
+import store from './store/index.js';
+import Landing from './pages/Landing.tsx';
+import Login from './pages/auth/Login.tsx';
+import FarmSelection from './pages/FarmSelection.tsx';
+import { Authenticated, LoadActiveFarm, LoadFarmData } from './lib/loader.ts';
+import Dashboard from './pages/Dashboard.tsx';
+import FarmPage from './pages/FarmPage.tsx';
+import PoultryRoutes from "./routes/poultryRoutes";
+
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element : <Landing />
+  },
+  {
+    path: "/login",
+    element : <Login />
+  },
+
+  {
+    path : '/farm-selection',
+    loader : async () => {
+      const authenticated : boolean = await Authenticated();
+      if(authenticated){
+
+      } else{
+        toast.error("You must be logged in to access this page.");
+        return redirect('/login')
+      }
+    },
+    element : <FarmSelection />
+
+  },
+  {
+    path : "/dashboard", 
+    loader : async () =>  {
+      const authenticated : boolean = await Authenticated();
+      if(authenticated){
+       await LoadActiveFarm();
+      } else{
+        toast.error("You must be logged in to access this page.");
+        return redirect('/login')
+      }
+
+    
+    },
+    element : <Dashboard />,
+    children : [
+      {
+        path: "",
+        loader: async ()   => {
+          const {farmStats ,currentFarm} = await LoadFarmData();
+       
+          console.log("current Farm in Loader :",currentFarm);
+          if(currentFarm === null){
+            toast.error("no Farm Selected!!!");
+            throw redirect('/farm-selection')
+           }
+          
+           return { currentFarm   , farmStats};
+        },
+        element: <FarmPage />
+      },
+      ...PoultryRoutes
+
+    ]
+  }
+
+]);
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <Provider store={store}>
+    <RouterProvider router={router} />
+        <ToastContainer  
+          position="top-right"
+          autoClose={10000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+        />
+    </Provider>
+   
+  </StrictMode>,
+)
