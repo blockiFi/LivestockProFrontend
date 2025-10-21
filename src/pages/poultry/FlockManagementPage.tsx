@@ -188,7 +188,7 @@ const FlockCard = ({ flock }: { flock: FlockRecord }) =>{
 
     const fetchFlocks = async (page?: number , perPage? : number) => {
         if (!farmId) return;
-        const response = await getFlocks(token, farmId, page , perPage);
+        const response = await getFlocks(token, farmId, true, page, perPage);
         console.log("Fetched flocks: ", response.data);
         if(response.success){
             console.log("Flocks fetched successfully");

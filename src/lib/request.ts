@@ -1,6 +1,6 @@
 import axios from "./axios"
 import type {    LoginData,  PaginatedRequestType,  RequestResponse } from "./interfaces"
-import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmStatsDataType, FlockRecord, PoultryDashboardData, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType } from "./types"
+import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmStatsDataType, FlockRecord, PoultryDashboardData, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, AdministrationMethod, Medication, MedicationInventory, vaccine, PoultryVaccineInventory } from "./types"
 import  { isAxiosError } from "axios"
 
 
@@ -234,108 +234,110 @@ import  { isAxiosError } from "axios"
     } 
   }
 
+  /* top-level sanitizer helpers so they can be reused across this module */
+  
+  // Helper to sanitize nested arrays
+  const sanitizeArray = (arr: any[], sanitizer: (item: any) => any) => Array.isArray(arr) ? arr.map(sanitizer) : [];
+  
+  // Helper to sanitize string|number fields
+  const toNumber = (val: any) => (val !== undefined && val !== null && val !== "" ? Number(val) : val);
+  
+  // Helper for MedicationInventory
+  const sanitizeMedicationInventory = (inv: any) => inv ? {
+    ...inv,
+    id: toNumber(inv.id),
+    medication_product_id: toNumber(inv.medication_product_id),
+    farm_id: toNumber(inv.farm_id),
+    quantity: toNumber(inv.quantity),
+    unit_cost: toNumber(inv.unit_cost),
+  } : undefined;
+  
+  // Helper for Medication
+  const sanitizeMedication = (med: any) => med ? {
+    ...med,
+    id: toNumber(med.id),
+    farm_id: med.farm_id !== undefined && med.farm_id !== null ? toNumber(med.farm_id) : null,
+  } : undefined;
+  
+  // Helper for AdministrationMethod
+  const sanitizeAdministrationMethod = (adm: any) => adm ? {
+    ...adm,
+    id: toNumber(adm.id),
+  } : undefined;
+  
+  // Helper for FeedInventoryType
+  const sanitizeFeedInventory = (inv: any) => inv ? {
+    ...inv,
+    id: toNumber(inv.id),
+    farm_id: toNumber(inv.farm_id),
+    poultry_feed_type_id: toNumber(inv.poultry_feed_type_id),
+    quantity: toNumber(inv.quantity),
+    unit_cost: toNumber(inv.unit_cost),
+    created_by: inv.created_by !== undefined && inv.created_by !== null ? toNumber(inv.created_by) : inv.created_by,
+    poultry_feed_type: inv.poultry_feed_type ? {
+      ...inv.poultry_feed_type,
+      id: toNumber(inv.poultry_feed_type.id),
+      poultry_type_id: toNumber(inv.poultry_feed_type.poultry_type_id),
+      start_age: inv.poultry_feed_type.start_age !== null && inv.poultry_feed_type.start_age !== undefined ? toNumber(inv.poultry_feed_type.start_age) : null,
+      end_age: inv.poultry_feed_type.end_age !== null && inv.poultry_feed_type.end_age !== undefined ? toNumber(inv.poultry_feed_type.end_age) : null,
+    } : undefined,
+  } : undefined;
+  
+  // Helper for PoultryVaccinationRecord
+  const sanitizeVaccinationRecord = (rec: any) => rec ? {
+    ...rec,
+    id: toNumber(rec.id),
+    farm_id: toNumber(rec.farm_id),
+    flock_id: toNumber(rec.flock_id),
+    poultry_vaccine_id: toNumber(rec.poultry_vaccine_id),
+    poultry_vaccine_inventory_id: toNumber(rec.poultry_vaccine_inventory_id),
+    dosage: toNumber(rec.dosage),
+    quantity: toNumber(rec.quantity),
+    cost: toNumber(rec.cost),
+    administration_method_id: toNumber(rec.administration_method_id),
+    notes: rec.notes, // notes is number in type, but may be string, so leave as-is
+    administration_method: sanitizeAdministrationMethod(rec.administration_method),
+  } : undefined;
+  
+  // Helper for PoultryMedicationRecord
+  const sanitizeMedicationRecord = (rec: any) => rec ? {
+    ...rec,
+    id: toNumber(rec.id),
+    farm_id: toNumber(rec.farm_id),
+    flock_id: toNumber(rec.flock_id),
+    poultry_medication_id: toNumber(rec.poultry_medication_id),
+    poultry_medication_inventory_id: toNumber(rec.poultry_medication_inventory_id),
+    dosage: toNumber(rec.dosage),
+    quantity: toNumber(rec.quantity),
+    cost: toNumber(rec.cost),
+    administration_method_id: toNumber(rec.administration_method_id),
+    medication: sanitizeMedication(rec.medication),
+    medication_inventory: sanitizeMedicationInventory(rec.medication_inventory),
+    administration_method: sanitizeAdministrationMethod(rec.administration_method),
+  } : undefined;
+  
+  // Helper for PoultryFeedUsageRecord
+  const sanitizeFeedUsage = (r: any) => r ? {
+    ...r,
+    id: toNumber(r.id),
+    farm_id: toNumber(r.farm_id),
+    poultry_feed_inventory_id: toNumber(r.poultry_feed_inventory_id),
+    poultry_feed_type_id: toNumber(r.poultry_feed_type_id),
+    flock_id: toNumber(r.flock_id),
+    quantity: toNumber(r.quantity),
+    unit_cost: toNumber(r.unit_cost),
+    created_by: toNumber(r.created_by),
+    feed_inventory: sanitizeFeedInventory(r.feed_inventory),
+    feed_type: r.feed_type ? {
+      ...r.feed_type,
+      id: toNumber(r.feed_type.id),
+      poultry_type_id: toNumber(r.feed_type.poultry_type_id),
+      start_age: r.feed_type.start_age !== null && r.feed_type.start_age !== undefined ? toNumber(r.feed_type.start_age) : null,
+      end_age: r.feed_type.end_age !== null && r.feed_type.end_age !== undefined ? toNumber(r.feed_type.end_age) : null,
+    } : undefined,
+  } : undefined;
+  
   function sanitizeFlockRecord(record: any) {
-    // Helper to sanitize nested arrays
-    const sanitizeArray = (arr: any[], sanitizer: (item: any) => any) => Array.isArray(arr) ? arr.map(sanitizer) : [];
-
-    // Helper to sanitize string|number fields
-    const toNumber = (val: any) => (val !== undefined && val !== null && val !== "" ? Number(val) : val);
-
-    // Helper for MedicationInventory
-    const sanitizeMedicationInventory = (inv: any) => inv ? {
-      ...inv,
-      id: toNumber(inv.id),
-      medication_product_id: toNumber(inv.medication_product_id),
-      farm_id: toNumber(inv.farm_id),
-      quantity: toNumber(inv.quantity),
-      unit_cost: toNumber(inv.unit_cost),
-    } : undefined;
-
-    // Helper for Medication
-    const sanitizeMedication = (med: any) => med ? {
-      ...med,
-      id: toNumber(med.id),
-      farm_id: med.farm_id !== undefined && med.farm_id !== null ? toNumber(med.farm_id) : null,
-    } : undefined;
-
-    // Helper for AdministrationMethod
-    const sanitizeAdministrationMethod = (adm: any) => adm ? {
-      ...adm,
-      id: toNumber(adm.id),
-    } : undefined;
-
-    // Helper for FeedInventoryType
-    const sanitizeFeedInventory = (inv: any) => inv ? {
-      ...inv,
-      id: toNumber(inv.id),
-      farm_id: toNumber(inv.farm_id),
-      poultry_feed_type_id: toNumber(inv.poultry_feed_type_id),
-      quantity: toNumber(inv.quantity),
-      unit_cost: toNumber(inv.unit_cost),
-      created_by: inv.created_by !== undefined && inv.created_by !== null ? toNumber(inv.created_by) : inv.created_by,
-      poultry_feed_type: inv.poultry_feed_type ? {
-        ...inv.poultry_feed_type,
-        id: toNumber(inv.poultry_feed_type.id),
-        poultry_type_id: toNumber(inv.poultry_feed_type.poultry_type_id),
-        start_age: inv.poultry_feed_type.start_age !== null && inv.poultry_feed_type.start_age !== undefined ? toNumber(inv.poultry_feed_type.start_age) : null,
-        end_age: inv.poultry_feed_type.end_age !== null && inv.poultry_feed_type.end_age !== undefined ? toNumber(inv.poultry_feed_type.end_age) : null,
-      } : undefined,
-    } : undefined;
-
-    // Helper for PoultryVaccinationRecord
-    const sanitizeVaccinationRecord = (rec: any) => rec ? {
-      ...rec,
-      id: toNumber(rec.id),
-      farm_id: toNumber(rec.farm_id),
-      flock_id: toNumber(rec.flock_id),
-      poultry_vaccine_id: toNumber(rec.poultry_vaccine_id),
-      poultry_vaccine_inventory_id: toNumber(rec.poultry_vaccine_inventory_id),
-      dosage: toNumber(rec.dosage),
-      quantity: toNumber(rec.quantity),
-      cost: toNumber(rec.cost),
-      administration_method_id: toNumber(rec.administration_method_id),
-      notes: rec.notes, // notes is number in type, but may be string, so leave as-is
-      administration_method: sanitizeAdministrationMethod(rec.administration_method),
-    } : undefined;
-
-    // Helper for PoultryMedicationRecord
-    const sanitizeMedicationRecord = (rec: any) => rec ? {
-      ...rec,
-      id: toNumber(rec.id),
-      farm_id: toNumber(rec.farm_id),
-      flock_id: toNumber(rec.flock_id),
-      poultry_medication_id: toNumber(rec.poultry_medication_id),
-      poultry_medication_inventory_id: toNumber(rec.poultry_medication_inventory_id),
-      dosage: toNumber(rec.dosage),
-      quantity: toNumber(rec.quantity),
-      cost: toNumber(rec.cost),
-      administration_method_id: toNumber(rec.administration_method_id),
-      medication: sanitizeMedication(rec.medication),
-      medication_inventory: sanitizeMedicationInventory(rec.medication_inventory),
-      administration_method: sanitizeAdministrationMethod(rec.administration_method),
-    } : undefined;
-
-    // Helper for PoultryFeedUsageRecord
-    const sanitizeFeedUsage = (r: any) => r ? {
-      ...r,
-      id: toNumber(r.id),
-      farm_id: toNumber(r.farm_id),
-      poultry_feed_inventory_id: toNumber(r.poultry_feed_inventory_id),
-      poultry_feed_type_id: toNumber(r.poultry_feed_type_id),
-      flock_id: toNumber(r.flock_id),
-      quantity: toNumber(r.quantity),
-      unit_cost: toNumber(r.unit_cost),
-      created_by: toNumber(r.created_by),
-      feed_inventory: sanitizeFeedInventory(r.feed_inventory),
-      feed_type: r.feed_type ? {
-        ...r.feed_type,
-        id: toNumber(r.feed_type.id),
-        poultry_type_id: toNumber(r.feed_type.poultry_type_id),
-        start_age: r.feed_type.start_age !== null && r.feed_type.start_age !== undefined ? toNumber(r.feed_type.start_age) : null,
-        end_age: r.feed_type.end_age !== null && r.feed_type.end_age !== undefined ? toNumber(r.feed_type.end_age) : null,
-      } : undefined,
-    } : undefined;
-
     // Sanitize nested objects
     const sanitized = {
       ...record,
@@ -558,30 +560,53 @@ import  { isAxiosError } from "axios"
     return sanitized;
   }
 
-  export const getFlocks = async (token : string, farmId : number, page: number = 1, perPage: number = 10): Promise<PaginatedRequestType<FlockRecord>> => {
+  // Overloaded function signatures for getFlocks
+  export function getFlocks(token: string, farmId: number, paginated: true, page?: number, perPage?: number): Promise<PaginatedRequestType<FlockRecord>>;
+  export function getFlocks(token: string, farmId: number, paginated?: false): Promise<RequestResponse<FlockRecord[]>>;
+  export async function getFlocks(
+    token: string, 
+    farmId: number, 
+    paginated: boolean = false, 
+    page: number = 1, 
+    perPage: number = 10
+  ): Promise<PaginatedRequestType<FlockRecord> | RequestResponse<FlockRecord[]>> {
     try {
-      const response = await  axios.get(`/api/farms/${farmId}/flocks?page=${page}&perPage=${perPage}` , { headers: {"Authorization" : `Bearer ${token}`} })
-      if(response.status === 200){
-        const sanitizedData = (response.data.data.data || []).map(sanitizeFlockRecord);
-        return {
-          success: true,
-          data : sanitizedData,
-          current_page: response.data.data.current_page,
-          total_pages: response.data.data.last_page,
-          per_page: response.data.data.per_page
+      let url = `/api/farms/${farmId}/flocks`;
+      if (paginated) {
+        url += `/paginated?page=${page}&perPage=${perPage}`;
+      }
+      
+      const response = await axios.get(url, { headers: {"Authorization": `Bearer ${token}`} });
+      
+      if (response.status === 200) {
+        if (paginated) {
+          const sanitizedData = (response.data.data.data || []).map(sanitizeFlockRecord);
+          return {
+            success: true,
+            data: sanitizedData,
+            current_page: response.data.data.current_page,
+            total_pages: response.data.data.last_page,
+            per_page: response.data.data.per_page
+          } as PaginatedRequestType<FlockRecord>;
+        } else {
+          const sanitizedData = (response.data.data || []).map(sanitizeFlockRecord);
+          return {
+            success: true,
+            data: sanitizedData
+          } as RequestResponse<FlockRecord[]>;
         }
-      }else{
+      } else {
         return { 
-          success : false,
+          success: false,
           error: [`Error getting Flocks Data!!! ${response.status}`]
-        }
+        };
       }
     } catch (error: unknown) {
       console.log(error);
       if (isAxiosError(error)) {
         return {
           success: false,
-          error: error.response?.data?.errors || ["Exois Request failed"],
+          error: error.response?.data?.errors || ["Axios Request failed"],
         };
       } else {
         return {
@@ -621,30 +646,56 @@ import  { isAxiosError } from "axios"
       }
     }
   }
-  export const getSchedules = async (
+  // Overloaded function signatures for getSchedules
+  export function getSchedules(
     token: string,
     farmId: number,
     type: "medication" | "vaccination",
+    paginated: true,
+    page?: number,
+    perPage?: number
+  ): Promise<PaginatedRequestType<DetailedSchedule[]>>;
+  export function getSchedules(
+    token: string,
+    farmId: number,
+    type: "medication" | "vaccination",
+    paginated?: false
+  ): Promise<RequestResponse<DetailedSchedule[]>>;
+  export async function getSchedules(
+    token: string,
+    farmId: number,
+    type: "medication" | "vaccination",
+    paginated: boolean = false,
     page: number = 1,
     perPage: number = 10
-  ): Promise<PaginatedRequestType<DetailedSchedule[]>> => {
+  ): Promise<PaginatedRequestType<DetailedSchedule[]> | RequestResponse<DetailedSchedule[]>> {
     try {
-      const response = await axios.get(
-        `/api/farms/${farmId}/${type}/schedules?page=${page}&perPage=${perPage}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      let url = `/api/farms/${farmId}/${type}/schedules`;
+      if (paginated) {
+        url += `/paginated?page=${page}&perPage=${perPage}`;
+      }
+      
+      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+      
       if (response.status === 200) {
-        return {
-          success: true,
-          data: response.data.data.data,
-          current_page: response.data.data.current_page,
-          total_pages: response.data.data.total,
-          per_page: response.data.data.per_page,
-        };
+        if (paginated) {
+          return {
+            success: true,
+            data: response.data.data.data,
+            current_page: response.data.data.current_page,
+            total_pages: response.data.data.total,
+            per_page: response.data.data.per_page,
+          } as PaginatedRequestType<DetailedSchedule[]>;
+        } else {
+          return {
+            success: true,
+            data: response.data.data || []
+          } as RequestResponse<DetailedSchedule[]>;
+        }
       } else {
         return {
           success: false,
-          error: [`Error getting Flock Data!!! ${response.status}`],
+          error: [`Error getting Schedules Data!!! ${response.status}`],
         };
       }
     } catch (error: unknown) {
@@ -652,7 +703,7 @@ import  { isAxiosError } from "axios"
       if (isAxiosError(error)) {
         return {
           success: false,
-          error: error.response?.data?.errors || ["Exois Request failed"],
+          error: error.response?.data?.errors || ["Axios Request failed"],
         };
       } else {
         return {
@@ -810,35 +861,64 @@ import  { isAxiosError } from "axios"
     }
   }
 
-  export const getFlockStages = async (token: string, farmId: number): Promise<RequestResponse<FlockStage[]>> => {
+  // Overloaded function signatures for getFlockStages
+  export function getFlockStages(
+    token: string, 
+    paginated: true, 
+    page?: number, 
+    perPage?: number
+  ): Promise<PaginatedRequestType<FlockStage>>;
+  export function getFlockStages(
+    token: string, 
+    paginated?: false
+  ): Promise<RequestResponse<FlockStage[]>>;
+  export async function getFlockStages(
+    token: string, 
+    paginated: boolean = false, 
+    page: number = 1, 
+    perPage: number = 10
+  ): Promise<PaginatedRequestType<FlockStage> | RequestResponse<FlockStage[]>> {
     try {
-      const response = await axios.get(
-        `/api/flock-stages/`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
+      let url = `/api/flock-stages`;
+      if (paginated) {
+        url += `/paginated?page=${page}&perPage=${perPage}`;
+      }
+      
+      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+      
       if (response.status === 200) {
-        return {
-          success: true,
-          data: response.data.data
+        if (paginated) {
+          return {
+            success: true,
+            data: response.data.data.data || [],
+            current_page: response.data.data.current_page,
+            total_pages: response.data.data.last_page,
+            per_page: response.data.data.per_page
+          } as PaginatedRequestType<FlockStage>;
+        } else {
+          return {
+            success: true,
+            data: response.data.data || []
+          } as RequestResponse<FlockStage[]>;
         }
       } else {
         return {
           success: false,
           error: [`Error getting flock stages: ${response.status}`]
-        }
+        };
       }
     } catch (error: unknown) {
-      console.log(error)
+      console.log(error);
       if (isAxiosError(error)) {
         return {
           success: false,
           error: error.response?.data?.errors || ["Failed to get flock stages"]
-        }
+        };
       } else {
         return {
           success: false,
           error: ["An unexpected error occurred"]
-        }
+        };
       }
     }
   }
@@ -891,6 +971,94 @@ import  { isAxiosError } from "axios"
         return {
           success: false,
           error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create daily record"]
+        }
+      } else {
+        return {
+          success: false,
+          error: ["An unexpected error occurred"]
+        }
+      }
+    }
+  }
+
+  export const createMedicationRecord = async (
+    token: string,
+    farmId: number,
+    recordData: {
+      farm_id: number
+      flock_id: number
+      poultry_medication_id: number
+      poultry_medication_inventory_id: number
+      date: string
+      administered_by: string
+      dosage: number
+      dosage_unit: string
+      quantity: number
+      cost: number
+      notes: string
+      administration_method_id: number
+    }
+  ): Promise<RequestResponse<any>> => {
+    try {
+      const response = await axios.post(
+        `/api/farms/${farmId}/medication-records`,
+        recordData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (response.status === 200 || response.status === 201) {
+        return {
+          success: true,
+          data: response.data.data
+        }
+      } else {
+        return {
+          success: false,
+          error: [`Error creating medication record: ${response.status}`]
+        }
+      }
+    } catch (error: unknown) {
+      console.log(error)
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create medication record"]
+        }
+      } else {
+        return {
+          success: false,
+          error: ["An unexpected error occurred"]
+        }
+      }
+    }
+  }
+
+  export const deleteMedicationRecord = async (
+    token: string,
+    farmId: number,
+    recordId: number
+  ): Promise<RequestResponse<any>> => {
+    try {
+      const response = await axios.delete(
+        `/api/farms/${farmId}/medication-records/${recordId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data.data
+        }
+      } else {
+        return {
+          success: false,
+          error: [`Error deleting medication record: ${response.status}`]
+        }
+      }
+    } catch (error: unknown) {
+      console.log(error)
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to delete medication record"]
         }
       } else {
         return {
@@ -1055,21 +1223,50 @@ import  { isAxiosError } from "axios"
     }
   };
 
-  export const getFeedInventories = async (
+  // Overloaded function signatures for getFeedInventories
+  export function getFeedInventories(
     token: string,
-    farmId: number
-  ): Promise<RequestResponse<FeedInventoryType[]>> => {
+    farmId: number,
+    paginated: true,
+    page?: number,
+    perPage?: number
+  ): Promise<PaginatedRequestType<FeedInventoryType>>;
+  export function getFeedInventories(
+    token: string,
+    farmId: number,
+    paginated?: false
+  ): Promise<RequestResponse<FeedInventoryType[]>>;
+  export async function getFeedInventories(
+    token: string,
+    farmId: number,
+    paginated: boolean = false,
+    page: number = 1,
+    perPage: number = 10
+  ): Promise<PaginatedRequestType<FeedInventoryType> | RequestResponse<FeedInventoryType[]>> {
     try {
-      const response = await axios.get(
-        `/api/farms/${farmId}/feed-inventories`,
-        { headers: { "Authorization": `Bearer ${token}` } }
-      );
+      let url = `/api/farms/${farmId}/feed-inventories`;
+      if (paginated) {
+        url += `/paginated?page=${page}&perPage=${perPage}`;
+      }
+      
+      const response = await axios.get(url, { headers: { "Authorization": `Bearer ${token}` } });
       
       if (response.status === 200) {
-        return {
-          success: true,
-          data: response.data.data || []
-        };
+        if (paginated) {
+          const sanitizedData = response.data.data.data || [];
+          return {
+            success: true,
+            data: sanitizedData,
+            current_page: response.data.data.current_page,
+            total_pages: response.data.data.last_page,
+            per_page: response.data.data.per_page
+          } as PaginatedRequestType<FeedInventoryType>;
+        } else {
+          return {
+            success: true,
+            data: response.data.data || []
+          } as RequestResponse<FeedInventoryType[]>;
+        }
       } else {
         return {
           success: false,
@@ -1090,25 +1287,56 @@ import  { isAxiosError } from "axios"
         };
       }
     }
-  };
+  }
 
-  export const getFeedTypes = async (
+  // Overloaded function signatures for getFeedTypes
+  export function getFeedTypes(
     token: string,
     farmId: number,
-    poultryTypeId: number
-  ): Promise<RequestResponse<FeedType[]>> => {
+    poultryTypeId: number,
+    paginated: true,
+    page?: number,
+    perPage?: number
+  ): Promise<PaginatedRequestType<FeedType>>;
+  export function getFeedTypes(
+    token: string,
+    farmId: number,
+    poultryTypeId: number,
+    paginated?: false
+  ): Promise<RequestResponse<FeedType[]>>;
+  export async function getFeedTypes(
+    token: string,
+    farmId: number,
+    poultryTypeId: number,
+    paginated: boolean = false,
+    page: number = 1,
+    perPage: number = 10
+  ): Promise<PaginatedRequestType<FeedType> | RequestResponse<FeedType[]>> {
     try {
-      const response = await axios.get(
-        `/api/farms/${farmId}/feed-types/${poultryTypeId}`,
-        { headers: { "Authorization": `Bearer ${token}` } }
-      );
+      let url = `/api/farms/${farmId}/feed-types/${poultryTypeId}`;
+      if (paginated) {
+        url += `/paginated?page=${page}&perPage=${perPage}`;
+      }
+      
+      const response = await axios.get(url, { headers: { "Authorization": `Bearer ${token}` } });
       
       if (response.status === 200) {
         console.log('Fetched feed types successfully:', response.data.data);
-        return {
-          success: true,
-          data: response.data.data || []
-        };
+        if (paginated) {
+          const sanitizedData = response.data.data.data || [];
+          return {
+            success: true,
+            data: sanitizedData,
+            current_page: response.data.data.current_page,
+            total_pages: response.data.data.last_page,
+            per_page: response.data.data.per_page
+          } as PaginatedRequestType<FeedType>;
+        } else {
+          return {
+            success: true,
+            data: response.data.data || []
+          } as RequestResponse<FeedType[]>;
+        }
       } else {
         return {
           success: false,
@@ -1129,7 +1357,7 @@ import  { isAxiosError } from "axios"
         };
       }
     }
-  };
+  }
 
   export const deleteFeedUsageRecord = async (
     token: string,
@@ -1138,7 +1366,7 @@ import  { isAxiosError } from "axios"
   ): Promise<RequestResponse<void>> => {
     try {
       const response = await axios.delete(
-        `/api/farms/${farmId}/flock-feed-usage-records/${recordId}`,
+        `/api/farms/${farmId}/feed-usages/${recordId}`,
         { headers: { "Authorization": `Bearer ${token}` } }
       );
       
@@ -1168,4 +1396,312 @@ import  { isAxiosError } from "axios"
       }
     }
   };
+
+  // Overloaded function signatures for getMedications
+  export function getMedications(
+    token: string, 
+    farmId: number, 
+    paginated: true, 
+    page?: number, 
+    perPage?: number
+  ): Promise<PaginatedRequestType<Medication>>;
+  export function getMedications(
+    token: string, 
+    farmId: number, 
+    paginated?: false
+  ): Promise<RequestResponse<Medication[]>>;
+  export async function getMedications(
+    token: string, 
+    farmId: number, 
+    paginated: boolean = false, 
+    page: number = 1, 
+    perPage: number = 10
+  ): Promise<PaginatedRequestType<Medication> | RequestResponse<Medication[]>> {
+    try {
+      let url = `/api/farms/${farmId}/medications`;
+      if (paginated) {
+        url += `/paginated?page=${page}&perPage=${perPage}`;
+      }
+      
+      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+      
+      if (response.status === 200) {
+        if (paginated) {
+          const sanitizedData = response.data.data.data?.map(sanitizeMedication) || [];
+          return {
+            success: true,
+            data: sanitizedData,
+            current_page: response.data.data.current_page,
+            total_pages: response.data.data.last_page,
+            per_page: response.data.data.per_page
+          } as PaginatedRequestType<Medication>;
+        } else {
+          const sanitizedData = response.data.data?.map(sanitizeMedication) || [];
+          return {
+            success: true,
+            data: sanitizedData
+          } as RequestResponse<Medication[]>;
+        }
+      } else {
+        return {
+          success: false,
+          error: [`Error fetching medications: ${response.status}`]
+        };
+      }
+    } catch (error: unknown) {
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch medications"]
+        };
+      } else {
+        return {
+          success: false,
+          error: ["An unexpected error occurred"]
+        };
+      }
+    }
+  }
+
+  // Overloaded function signatures for getMedicationInventories
+  export function getMedicationInventories(
+    token: string, 
+    farmId: number, 
+    paginated: true, 
+    page?: number, 
+    perPage?: number
+  ): Promise<PaginatedRequestType<MedicationInventory>>;
+  export function getMedicationInventories(
+    token: string, 
+    farmId: number, 
+    paginated?: false
+  ): Promise<RequestResponse<MedicationInventory[]>>;
+  export async function getMedicationInventories(
+    token: string, 
+    farmId: number, 
+    paginated: boolean = false, 
+    page: number = 1, 
+    perPage: number = 10
+  ): Promise<PaginatedRequestType<MedicationInventory> | RequestResponse<MedicationInventory[]>> {
+    try {
+      let url = `/api/farms/${farmId}/medication-inventory`;
+      if (paginated) {
+        url += `/paginated?page=${page}&perPage=${perPage}`;
+      }
+      
+      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+      
+      if (response.status === 200) {
+        if (paginated) {
+          const sanitizedData = response.data.data.data?.map(sanitizeMedicationInventory) || [];
+          return {
+            success: true,
+            data: sanitizedData,
+            current_page: response.data.data.current_page,
+            total_pages: response.data.data.last_page,
+            per_page: response.data.data.per_page
+          } as PaginatedRequestType<MedicationInventory>;
+        } else {
+          const sanitizedData = response.data.data?.map(sanitizeMedicationInventory) || [];
+          return {
+            success: true,
+            data: sanitizedData
+          } as RequestResponse<MedicationInventory[]>;
+        }
+      } else {
+        return {
+          success: false,
+          error: [`Error fetching medication inventories: ${response.status}`]
+        };
+      }
+    } catch (error: unknown) {
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch medication inventories"]
+        };
+      } else {
+        return {
+          success: false,
+          error: ["An unexpected error occurred"]
+        };
+      }
+    }
+  }
+
+  export const getAdministrationMethods = async (token: string, farmId: number): Promise<RequestResponse<AdministrationMethod[]>> => {
+    try {
+      const url = `/api/administration-methods?farm_id=${farmId}`;
+      
+      const response = await axios.get(
+        url,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: response.data.data?.map(sanitizeAdministrationMethod) || []
+        }
+      } else {
+        return {
+          success: false,
+          error: [`Error fetching administration methods: ${response.status}`]
+        }
+      }
+    } catch (error: unknown) {
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch administration methods"]
+        }
+      } else {
+        return {
+          success: false,
+          error: ["An unexpected error occurred"]
+        }
+      }
+    }
+  }
+
+  // Vaccine API functions
+export const getVaccines = async (token: string, farmId: number): Promise<RequestResponse<vaccine[]>> => {
+  try {
+    const response = await axios.get(
+      `/api/farms/${farmId}/vaccines`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200) {
+      console.log('Fetched vaccines successfully:', response.data.data);
+      return {
+        success: true,
+        data: response.data.data
+      }
+    } else {
+      console.error('Error fetching vaccines:', response.status);
+      return {
+        success: false,
+        error: [`Error getting vaccines: ${response.status}`]
+      }
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch vaccines"]
+      }
+    } else {
+      return {
+        success: false,
+        error: ["An unexpected error occurred"]
+      }
+    }
+  }
+}
+
+export const getVaccineInventories = async (token: string, farmId: number): Promise<RequestResponse<PoultryVaccineInventory[]>> => {
+  try {
+    const response = await axios.get(
+      `/api/farms/${farmId}/vaccine-inventory`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200) {
+      console.log('Fetched vaccine inventories successfully:', response.data.data);
+      return {
+        success: true,
+        data: response.data.data
+      }
+    } else {
+      console.error('Error fetching vaccine inventories:', response.status);
+      return {
+        success: false,
+        error: [`Error getting vaccine inventories: ${response.status}`]
+      }
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch vaccine inventories"]
+      }
+    } else {
+      return {
+        success: false,
+        error: ["An unexpected error occurred"]
+      }
+    }
+  }
+}
+
+export const createVaccinationRecord = async (
+  token: string, 
+  farmId: number, 
+  recordData: any
+): Promise<RequestResponse<any>> => {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/vaccination-records`,
+      recordData,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200 || response.status === 201) {
+      return {
+        success: true,
+        data: response.data.data
+      }
+    } else {
+      return {
+        success: false,
+        error: [`Error creating vaccination record: ${response.status}`]
+      }
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create vaccination record"]
+      }
+    } else {
+      return {
+        success: false,
+        error: ["An unexpected error occurred"]
+      }
+    }
+  }
+}
+
+export const deleteVaccinationRecord = async (
+  token: string, 
+  farmId: number, 
+  recordId: number
+): Promise<RequestResponse<any>> => {
+  try {
+    const response = await axios.delete(
+      `/api/farms/${farmId}/vaccination-records/${recordId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200 || response.status === 204) {
+      return {
+        success: true,
+        data: response.data?.data || null
+      }
+    } else {
+      return {
+        success: false,
+        error: [`Error deleting vaccination record: ${response.status}`]
+      }
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to delete vaccination record"]
+      }
+    } else {
+      return {
+        success: false,
+        error: ["An unexpected error occurred"]
+      }
+    }
+  }
+}
 

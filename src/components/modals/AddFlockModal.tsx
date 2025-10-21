@@ -75,7 +75,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
         const [typesResponse, housesResponse, stagesResponse] = await Promise.all([
           getPoultryTypes(token, farmId),
           getPoultryHouses(token, farmId),
-          getFlockStages(token, farmId) 
+          getFlockStages(token) 
        
         ])
         console.log('getPoultryTypes response:', typesResponse);

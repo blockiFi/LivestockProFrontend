@@ -2,13 +2,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import type { PoultryVaccinationRecord } from "@/lib/types";
+import type { PoultryVaccinationRecord, vaccine, PoultryVaccineInventory, AdministrationMethod } from "@/lib/types";
 import { formatDate, Naira } from "@/lib/utils";
-import { Activity, AlertTriangle, Calendar, Download, Eye, Factory, Package2, Shield, User, Users } from "lucide-react";
+import { Activity, AlertTriangle, Calendar, Download, Eye, Factory, Package2, Shield, User, Users, Plus, Edit, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import AddVaccinationRecordModal, { type VaccinationRecordFormData } from "@/components/modals/AddVaccinationRecordModal"
+import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDialog"
+
+interface VaccinationRecordViewProps {
+  records: PoultryVaccinationRecord[]
+  flockId: number
+  farmId: number
+  vaccines?: vaccine[]
+  vaccineInventories?: PoultryVaccineInventory[]
+  administrationMethods?: AdministrationMethod[]
+  onAddVaccinationRecord?: (recordData: VaccinationRecordFormData) => Promise<void>
+  onDeleteVaccinationRecord?: (recordId: number) => Promise<void>
+}
 
 const vaccineStatusColors: Record<string, string> = {
   available: "bg-green-100 text-green-800 border-green-200",
@@ -16,49 +29,58 @@ const vaccineStatusColors: Record<string, string> = {
   used: "bg-gray-100 text-gray-700 border-gray-200",
   // Add more statuses as needed
   }
-const upcomingVaccinations = [
-    {
-      id: 1,
-      vaccine_name: "IBD Vaccine - Booster",
-      scheduled_date: "2025-01-15",
-      days_until: 13,
-      flock_age_at_vaccination: 28,
-      administration_method: "Oral",
-      estimated_cost: 450.0,
-      priority: "high",
-      notes: "Second dose required for full immunity",
-    },
-    {
-      id: 2,
-      vaccine_name: "Newcastle Disease - Booster",
-      scheduled_date: "2025-01-20",
-      days_until: 18,
-      flock_age_at_vaccination: 33,
-      administration_method: "Eye Drop",
-      estimated_cost: 890.5,
-      priority: "medium",
-      notes: "Annual booster vaccination",
-    },
-    {
-      id: 3,
-      vaccine_name: "Fowl Pox Vaccine",
-      scheduled_date: "2025-01-25",
-      days_until: 23,
-      flock_age_at_vaccination: 38,
-      administration_method: "Wing-Web",
-      estimated_cost: 320.75,
-      priority: "low",
-      notes: "Optional vaccination based on regional risk",
-    },
-  ]
+
 const priorityColors: Record<string, string> = {
   available: "bg-red-100 text-red-800 border-red-200",
   medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
   low: "bg-green-100 text-green-800 border-green-200",
 }
-const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecord[]}) => {
-
+const VaccinationRecordView = ({ 
+  records, 
+  flockId, 
+  farmId, 
+  vaccines = [], 
+  vaccineInventories = [], 
+  administrationMethods = [],
+  onAddVaccinationRecord,
+  onDeleteVaccinationRecord
+}: VaccinationRecordViewProps) => {
   const [dateFilter, setDateFilter] = useState("")
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [deletingRecordId, setDeletingRecordId] = useState<number | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [recordToDelete, setRecordToDelete] = useState<PoultryVaccinationRecord | null>(null)
+
+  const handleAddVaccinationRecord = async (recordData: VaccinationRecordFormData) => {
+    if (onAddVaccinationRecord) {
+      await onAddVaccinationRecord(recordData)
+      setIsAddModalOpen(false)
+    }
+  }
+
+  const handleDeleteClick = (record: PoultryVaccinationRecord) => {
+    setRecordToDelete(record)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (recordToDelete && onDeleteVaccinationRecord) {
+      setDeletingRecordId(recordToDelete.id)
+      try {
+        await onDeleteVaccinationRecord(recordToDelete.id)
+        setIsDeleteDialogOpen(false)
+        setRecordToDelete(null)
+      } finally {
+        setDeletingRecordId(null)
+      }
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setIsDeleteDialogOpen(false)
+    setRecordToDelete(null)
+  }
+
   // Pagination state
   const [page, setPage] = useState(1);
   const rowsPerPage = 10;
@@ -72,7 +94,7 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
   const paginatedRecords = filteredRecords.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   const totalVaccinations = records.length
-  const totalCost = records.reduce((sum, record) => sum + record.cost, 0)
+  const totalCost = records.reduce((sum, record) => sum + (Number(record.cost) || 0), 0)
   const uniqueVaccines = new Set(records.map((r) => r.vaccine.name)).size
 
   // Add this mock data for upcoming vaccinations after the existing calculations
@@ -135,7 +157,7 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Cost</p>
-              <p className="text-2xl font-bold text-green-600">${totalCost.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-600">${(totalCost || 0).toFixed(2)}</p>
             </div>
           </div>
         </Card>
@@ -255,6 +277,12 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
             className="max-w-xs"
           />
         </div>
+        {onAddVaccinationRecord && (
+          <Button onClick={() => setIsAddModalOpen(true)} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Vaccination
+          </Button>
+        )}
         <Button variant="outline" size="sm">
           <Download className="h-4 w-4 mr-2" />
           Export
@@ -277,6 +305,7 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
                 <TableHead>Batch</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Notes</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -313,8 +342,8 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
                         {record.dosage} {record.dosage_unit}
                       </span>
                     </TableCell>
-                    <TableCell>{record.quantity.toFixed(2)}</TableCell>
-                    <TableCell className="font-medium">${record.cost.toFixed(2)}</TableCell>
+                    <TableCell>{(Number(record.quantity) || 0).toFixed(2)}</TableCell>
+                    <TableCell className="font-medium">${(Number(record.cost) || 0).toFixed(2)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-gray-400" />
@@ -371,6 +400,31 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
                         </TooltipProvider>
                       )}
                     </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0"
+                          onClick={() => {/* TODO: Implement edit */}}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteClick(record)}
+                          disabled={deletingRecordId === record.id}
+                        >
+                          {deletingRecordId === record.id ? (
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 )
               })}
@@ -411,8 +465,8 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from(new Set(records.map((r) => r.vaccine.name))).map((vaccineName) => {
               const vaccineRecords = records.filter((r) => r.vaccine.name === vaccineName)
-              const vaccineQuantity = vaccineRecords.reduce((sum, r) => sum + r.quantity, 0)
-              const vaccineCost = vaccineRecords.reduce((sum, r) => sum + r.cost, 0)
+              const vaccineQuantity = vaccineRecords.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0)
+              const vaccineCost = vaccineRecords.reduce((sum, r) => sum + (Number(r.cost) || 0), 0)
               const vaccine = vaccineRecords[0].vaccine
               const lastAdministered = vaccineRecords.sort(
                 (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -429,11 +483,11 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <p className="text-gray-500">Total Quantity</p>
-                        <p className="font-medium">{vaccineQuantity.toFixed(2)}</p>
+                        <p className="font-medium">{(vaccineQuantity || 0).toFixed(2)}</p>
                       </div>
                       <div>
                         <p className="text-gray-500">Total Cost</p>
-                        <p className="font-medium">${vaccineCost.toFixed(2)}</p>
+                        <p className="font-medium">${(vaccineCost || 0).toFixed(2)}</p>
                       </div>
                       <div>
                         <p className="text-gray-500">Administrations</p>
@@ -464,6 +518,29 @@ const VaccinationRecordView = ({ records  } : {records : PoultryVaccinationRecor
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Vaccination Record Modal */}
+      <AddVaccinationRecordModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSubmit={handleAddVaccinationRecord}
+        flockId={flockId}
+        farmId={farmId}
+        vaccines={vaccines}
+        vaccineInventories={vaccineInventories}
+        administrationMethods={administrationMethods}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Vaccination Record"
+        description={`Are you sure you want to delete the vaccination record for "${recordToDelete?.vaccine?.name || 'this vaccine'}" administered on ${recordToDelete ? formatDate(recordToDelete.date) : ''}? This action cannot be undone and will restore the vaccine inventory.`}
+        itemName={recordToDelete?.vaccine?.name}
+        isLoading={deletingRecordId === recordToDelete?.id}
+      />
     </div>
   )
 }
