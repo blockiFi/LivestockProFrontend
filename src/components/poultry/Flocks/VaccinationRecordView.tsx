@@ -278,7 +278,11 @@ const VaccinationRecordView = ({
           />
         </div>
         {onAddVaccinationRecord && (
-          <Button onClick={() => setIsAddModalOpen(true)} size="sm">
+          <Button 
+            onClick={() => setIsAddModalOpen(true)} 
+            size="sm"
+            className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add Vaccination
           </Button>

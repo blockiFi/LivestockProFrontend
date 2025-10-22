@@ -30,7 +30,7 @@ import { NotificationSystem } from "@/components/poultry/Flocks/Notification"
 import { useState, useEffect } from "react"
 import BatchScheduleView from "@/components/poultry/Flocks/batchSchedule/BatchScheduleView"
 import AddDailyRecordModal from "@/components/modals/AddDailyRecordModal"
-import { createDailyRecord, createMortalityRecord, createWeightReport, deleteWeightReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods } from "@/lib/request"
+import { createDailyRecord, createMortalityRecord, createWeightReport, deleteWeightReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, getMedicationInventories, createMedicationRecord, deleteMedicationRecord } from "@/lib/request"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import { toast } from "react-toastify"
@@ -44,6 +44,8 @@ const FlockPage = () => {
     const [vaccines, setVaccines] = useState<any[]>([]);
     const [vaccineInventories, setVaccineInventories] = useState<any[]>([]);
     const [administrationMethods, setAdministrationMethods] = useState<any[]>([]);
+    const [medications, setMedications] = useState<any[]>([]);
+    const [medicationInventories, setMedicationInventories] = useState<any[]>([]);
     
     const token = useSelector((state: RootState) => state.authentication.token);
     const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id);
@@ -59,13 +61,17 @@ const FlockPage = () => {
                     typesResponse, 
                     vaccinesResponse, 
                     vaccineInventoriesResponse, 
-                    administrationMethodsResponse
+                    administrationMethodsResponse,
+                    medicationsResponse,
+                    medicationInventoriesResponse
                 ] = await Promise.all([
                     getFeedInventories(token, farmId),
                     getFeedTypes(token, farmId, flock.poultry_type_id),
                     getVaccines(token, farmId),
                     getVaccineInventories(token, farmId),
-                    getAdministrationMethods(token, farmId)
+                    getAdministrationMethods(token, farmId),
+                    getMedications(token, farmId),
+                    getMedicationInventories(token, farmId)
                 ]);
                 
                 if (inventoriesResponse.success && Array.isArray(inventoriesResponse.data)) {
@@ -96,6 +102,18 @@ const FlockPage = () => {
                     setAdministrationMethods(administrationMethodsResponse.data);
                 } else {
                     setAdministrationMethods([]);
+                }
+
+                if (medicationsResponse.success && Array.isArray(medicationsResponse.data)) {
+                    setMedications(medicationsResponse.data);
+                } else {
+                    setMedications([]);
+                }
+
+                if (medicationInventoriesResponse.success && Array.isArray(medicationInventoriesResponse.data)) {
+                    setMedicationInventories(medicationInventoriesResponse.data);
+                } else {
+                    setMedicationInventories([]);
                 }
             } catch (error) {
                 console.error("Error fetching data:", error);
@@ -476,6 +494,82 @@ const FlockPage = () => {
         }
     };
 
+    const handleCreateMedicationRecord = async (recordData: any) => {
+        if (!farmId || !token) return;
+        
+        try {
+            const response = await createMedicationRecord(token, farmId, recordData);
+            if (response.success) {
+                console.log("Medication record created successfully:", response.data);
+                toast.success("Medication record created successfully!");
+                
+                // Update the local flock state with the new medication record
+                setFlock(prevFlock => ({
+                    ...prevFlock,
+                    poultry_medication_records: [...prevFlock.poultry_medication_records, response.data]
+                }));
+            } else {
+                console.error("Failed to create medication record:", response);
+                let errorMessage = "Unknown error occurred";
+                
+                if (response.error && Array.isArray(response.error) && response.error.length > 0) {
+                    errorMessage = response.error.join(", ");
+                } else if (response.error) {
+                    errorMessage = Array.isArray(response.error) ? response.error.join(", ") : response.error;
+                }
+                
+                toast.error(errorMessage);
+                throw new Error(errorMessage);
+            }
+        } catch (error) {
+            console.error("Error creating medication record:", error);
+            if (error instanceof Error && error.message !== "Unknown error occurred") {
+                throw error;
+            } else {
+                toast.error("An error occurred while creating the medication record. Please try again.");
+                throw new Error("Network or unexpected error occurred");
+            }
+        }
+    };
+
+    const handleDeleteMedicationRecord = async (recordId: number) => {
+        if (!farmId || !token) return;
+        
+        try {
+            const response = await deleteMedicationRecord(token, farmId, recordId);
+            if (response.success) {
+                console.log("Medication record deleted successfully");
+                toast.success("Medication record deleted successfully! Inventory has been restored.");
+                
+                // Update the local flock state by removing the deleted medication record
+                setFlock(prevFlock => ({
+                    ...prevFlock,
+                    poultry_medication_records: prevFlock.poultry_medication_records.filter(record => record.id !== recordId)
+                }));
+            } else {
+                console.error("Failed to delete medication record:", response);
+                let errorMessage = "Unknown error occurred";
+                
+                if (response.error && Array.isArray(response.error) && response.error.length > 0) {
+                    errorMessage = response.error.join(", ");
+                } else if (response.error) {
+                    errorMessage = Array.isArray(response.error) ? response.error.join(", ") : response.error;
+                }
+                
+                toast.error(errorMessage);
+                throw new Error(errorMessage);
+            }
+        } catch (error) {
+            console.error("Error deleting medication record:", error);
+            if (error instanceof Error && error.message !== "Unknown error occurred") {
+                throw error;
+            } else {
+                toast.error("An error occurred while deleting the medication record. Please try again.");
+                throw new Error("Network or unexpected error occurred");
+            }
+        }
+    };
+
     console.log("Flock Data: ", flock);
   return (
      <TooltipProvider>
@@ -626,9 +720,11 @@ const FlockPage = () => {
                         records={flock.poultry_medication_records} 
                         flockId={flock.id} 
                         farmId={farmId || 0}
-                        medications={[]}
-                        medicationInventories={[]}
+                        medications={medications}
+                        medicationInventories={medicationInventories}
                         administrationMethods={administrationMethods}
+                        onAddMedicationRecord={handleCreateMedicationRecord}
+                        onDeleteMedicationRecord={handleDeleteMedicationRecord}
                     />
                 </TabsContent>
                 <TabsContent value="vaccination" className="mt-6">
