@@ -1702,6 +1702,5 @@ export const deleteVaccinationRecord = async (
         error: ["An unexpected error occurred"]
       }
     }
-  }
-}
+  }  }
 
