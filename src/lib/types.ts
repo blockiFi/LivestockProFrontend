@@ -262,11 +262,34 @@ export type Medication  = {
   updated_at: string;
 }
 
+export type MedicationData = Medication & {
+  products: MedicationProduct[];
+};
+export type MedicationProduct = {
+  id: number;
+  farm_id: number | null;
+  poultry_medication_id: number;
+  name: string;
+  image_url: string | null;
+  manufacturer: string;
+  administration_method_id: number;
+  withdrawal_period: number;
+  withdrawal_period_unit: string; // e.g., "days"
+  dosage: string;
+  created_at: string;
+  updated_at: string;
+  inventory? : MedicationInventory[];
+  min_stock_level?: number;
+};
+
+
+
 export type MedicationInventory  = {
   id: number;
   medication_product_id: number;
   farm_id: number;
   quantity: number; // or number, depending on your backend design
+  available_quantity: number; // current available quantity
   manufacturer: string;
   notes: string;
   batch_number: string;
@@ -514,6 +537,7 @@ export type vaccine = {
     poultry_vaccine_product_id: number;
     farm_id: number;
     quantity: string;
+    available_quantity: string; // current available quantity
     status: string; // e.g., "available"
     manufacturer: string;
     notes: string;
@@ -527,26 +551,6 @@ export type vaccine = {
     deleted_at: string | null;
     created_by: number | null;
   }
-export type PoultryVaccinationRecord ={
-  id: number;
-  farm_id: number;
-  flock_id: number;
-  poultry_vaccine_id: number;
-  poultry_vaccine_inventory_id: number;
-  date: string; // ISO datetime string
-  administered_by: number;
-  dosage: number;
-  dosage_unit: string; // e.g., "drops"
-  quantity: number; // often returned as string from DB
-  cost: number; // same as quantity
-  notes: number;
-  administration_method_id: number;
-  created_at: string;
-  updated_at: string;
-  vaccine: vaccine;
-  vaccine_inventory: PoultryVaccineInventory;
-  administration_method: AdministrationMethod;
-}
 export type FeedType = {
   id: number;
   farm_id: number | null;
@@ -565,6 +569,7 @@ export type FeedInventoryType = {
     farm_id: number;
     poultry_feed_type_id: number;
     quantity: string;
+    available_quantity: string; // current available quantity
     batch_number: string;
     manufacturer: string;
     manufacture_date: string | null;
@@ -646,6 +651,58 @@ export type DetailedFlockRecord = FlockRecord & {
       feedConsumptionData :feedConsumptionDataType[]
     
   }
-  
-  
+export type FeedingSchedule = {
+  id: number;
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date?: string | null;
+  type: 'default' | 'user';
+  farm_id?: number | null;
+  items: feedingScheduleItem[];
+};
+
+export type PoultryVaccinationRecord ={
+  id: number;
+  farm_id: number;
+  flock_id: number;
+  poultry_vaccine_id: number;
+  poultry_vaccine_inventory_id: number;
+  date: string; // ISO datetime string
+  administered_by: number;
+  dosage: number;
+  dosage_unit: string; // e.g., "drops"
+  quantity: number; // often returned as string from DB
+  cost: number; // same as quantity
+  notes: number;
+  administration_method_id: number;
+  created_at: string;
+  updated_at: string;
+  vaccine: vaccine;
+  vaccine_inventory: PoultryVaccineInventory;
+  administration_method: AdministrationMethod;
+}
+export type VaccineProduct = {
+  id: number;
+  farm_id: number | null;
+  poultry_vaccine_id: number;
+  name: string;
+  image_url: string | null;
+  manufacturer: string;
+  administration_method_id?: number;
+  withdrawal_period?: number;
+  withdrawal_period_unit?: string; // e.g., "days"
+  dosage?: string | number;
+  dosage_unit?: string;
+  created_at: string;
+  updated_at: string;
+  min_stock_level?: number;
+  inventories?: PoultryVaccineInventory[];
+};
+
+export type VaccineData = vaccine & {
+  products: VaccineProduct[];
+};
+
+
 

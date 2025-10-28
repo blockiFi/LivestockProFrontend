@@ -34,22 +34,17 @@ import { useLocation } from "react-router-dom";
     Truck,
     Users,
     X,
+    Heart,
   } from "lucide-react"
   import {
     Sidebar,
     SidebarContent,
-    SidebarGroup,
-    SidebarGroupContent,
-    SidebarGroupLabel,
     SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
     useSidebar,
   } from "@/components/ui/sidebar"
 import Logo from "./Logo"
 import { cn } from "@/lib/utils"
 import { Link } from "react-router-dom"
-import { Button } from "../ui/button"
 import { useState } from "react";
 interface NavItemProps {
     to: string
@@ -162,9 +157,10 @@ interface NavItemProps {
 //   }
 const SideBarCom = () => {
     // Get the current pathname using React Router's useLocation hook
-    const { open, setOpen } = useSidebar()
+    const { open } = useSidebar()
     const { pathname } = useLocation();
     const [poultryOpen, setPoultryOpen] = useState(pathname?.includes("/poultry"))
+    const [healthOpen, setHealthOpen] = useState(pathname?.includes("/poultry/health"))
 
     return (
         <Sidebar>
@@ -215,6 +211,51 @@ const SideBarCom = () => {
                   >
                    Schedule Management
                   </SubNavItem>
+
+                  {/* Health dropdown */}
+                  <div className="pt-1">
+                    <button
+                      onClick={() => setHealthOpen(!healthOpen)}
+                      className={cn(
+                        "w-full flex items-center justify-between text-sm px-3 py-2 rounded-md",
+                        pathname?.includes("/poultry/health")
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <span className="flex items-center gap-2"><Heart className="h-4 w-4" /> Health</span>
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", healthOpen && "rotate-180")} />
+                    </button>
+                    {healthOpen && (
+                      <div className="ml-4 mt-1 space-y-1">
+                        <SubNavItem
+                          to="/dashboard/poultry/health/medications"
+                          active={pathname?.includes("/poultry/health/medications")}
+                        >
+                          Medications
+                        </SubNavItem>
+                        <SubNavItem
+                          to="/dashboard/poultry/health/medication-products"
+                          active={pathname?.includes("/poultry/health/medication-products")}
+                        >
+                          Medication Products
+                        </SubNavItem>
+                        <SubNavItem
+                          to="/dashboard/poultry/health/vaccinations"
+                          active={pathname?.includes("/poultry/health/vaccinations")}
+                        >
+                          Vaccinations
+                        </SubNavItem>
+                        <SubNavItem
+                          to="/dashboard/poultry/health/vaccination-products"
+                          active={pathname?.includes("/poultry/health/vaccination-products")}
+                        >
+                          Vaccination Products
+                        </SubNavItem>
+                      </div>
+                    )}
+                  </div>
+
                   <SubNavItem
                     to="/livestock/poultry/housing-management"
                     active={pathname?.includes("/housing-management")}

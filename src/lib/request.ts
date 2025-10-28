@@ -1,6 +1,6 @@
 import axios from "./axios"
 import type {    LoginData,  PaginatedRequestType,  RequestResponse } from "./interfaces"
-import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmStatsDataType, FlockRecord, PoultryDashboardData, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, AdministrationMethod, Medication, MedicationInventory, vaccine, PoultryVaccineInventory } from "./types"
+import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmStatsDataType, FlockRecord, PoultryDashboardData, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory } from "./types"
 import  { isAxiosError } from "axios"
 
 
@@ -1463,131 +1463,143 @@ import  { isAxiosError } from "axios"
     }
   }
 
-  // Overloaded function signatures for getMedicationInventories
-  export function getMedicationInventories(
-    token: string, 
-    farmId: number, 
-    paginated: true, 
-    page?: number, 
-    perPage?: number
-  ): Promise<PaginatedRequestType<MedicationInventory>>;
-  export function getMedicationInventories(
-    token: string, 
-    farmId: number, 
-    paginated?: false
-  ): Promise<RequestResponse<MedicationInventory[]>>;
-  export async function getMedicationInventories(
-    token: string, 
-    farmId: number, 
-    paginated: boolean = false, 
-    page: number = 1, 
-    perPage: number = 10
-  ): Promise<PaginatedRequestType<MedicationInventory> | RequestResponse<MedicationInventory[]>> {
+  // Create a medication category (not a product)
+  export const createMedication = async (
+    token: string,
+    farmId: number,
+    data: { name: string; description?: string }
+  ): Promise<RequestResponse<Medication>> => {
     try {
-      let url = `/api/farms/${farmId}/medication-inventory`;
-      if (paginated) {
-        url += `/paginated?page=${page}&perPage=${perPage}`;
-      }
-      
-      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
-      
-      if (response.status === 200) {
-        if (paginated) {
-          const sanitizedData = response.data.data.data?.map(sanitizeMedicationInventory) || [];
-          return {
-            success: true,
-            data: sanitizedData,
-            current_page: response.data.data.current_page,
-            total_pages: response.data.data.last_page,
-            per_page: response.data.data.per_page
-          } as PaginatedRequestType<MedicationInventory>;
-        } else {
-          const sanitizedData = response.data.data?.map(sanitizeMedicationInventory) || [];
-          return {
-            success: true,
-            data: sanitizedData
-          } as RequestResponse<MedicationInventory[]>;
-        }
-      } else {
-        return {
-          success: false,
-          error: [`Error fetching medication inventories: ${response.status}`]
-        };
-      }
-    } catch (error: unknown) {
-      if (isAxiosError(error)) {
-        return {
-          success: false,
-          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch medication inventories"]
-        };
-      } else {
-        return {
-          success: false,
-          error: ["An unexpected error occurred"]
-        };
-      }
-    }
-  }
-
-  export const getAdministrationMethods = async (token: string, farmId: number): Promise<RequestResponse<AdministrationMethod[]>> => {
-    try {
-      const url = `/api/administration-methods?farm_id=${farmId}`;
-      
-      const response = await axios.get(
-        url,
+      const response = await axios.post(
+        `/api/farms/${farmId}/medications`,
+        data,
         { headers: { Authorization: `Bearer ${token}` } }
       )
-      if (response.status === 200) {
+      if (response.status === 200 || response.status === 201) {
         return {
           success: true,
-          data: response.data.data?.map(sanitizeAdministrationMethod) || []
+          data: sanitizeMedication(response.data.data)
         }
       } else {
         return {
           success: false,
-          error: [`Error fetching administration methods: ${response.status}`]
+          error: [`Error creating medication: ${response.status}`]
         }
       }
     } catch (error: unknown) {
       if (isAxiosError(error)) {
         return {
           success: false,
-          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch administration methods"]
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create medication"],
         }
       } else {
         return {
           success: false,
-          error: ["An unexpected error occurred"]
+          error: ["An unexpected error occurred"],
         }
       }
     }
   }
 
-  // Vaccine API functions
-export const getVaccines = async (token: string, farmId: number): Promise<RequestResponse<vaccine[]>> => {
+  // Update a medication category (not a product)
+export const updateMedication = async (
+  token: string,
+  farmId: number,
+  medicationId: number,
+  data: { name?: string; description?: string }
+): Promise<RequestResponse<Medication>> => {
   try {
-    const response = await axios.get(
-      `/api/farms/${farmId}/vaccines`,
+    const response = await axios.put(
+      `/api/farms/${farmId}/medications/${medicationId}`,
+      data,
       { headers: { Authorization: `Bearer ${token}` } }
     )
     if (response.status === 200) {
-      console.log('Fetched vaccines successfully:', response.data.data);
       return {
         success: true,
-        data: response.data.data
+        data: sanitizeMedication(response.data.data)
       }
     } else {
-      console.error('Error fetching vaccines:', response.status);
       return {
         success: false,
-        error: [`Error getting vaccines: ${response.status}`]
+        error: [`Error updating medication: ${response.status}`]
       }
     }
   } catch (error: unknown) {
     if (isAxiosError(error)) {
       return {
         success: false,
-        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch vaccines"]
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to update medication"],
+      }
+    } else {
+      return {
+        success: false,
+        error: ["An unexpected error occurred"],
+      }
+    }
+  }
+}
+
+// Restore poultry data endpoints (used by loaders)
+export const getPoultryMedicationData = async (
+  token: string,
+  farmId: number
+): Promise<RequestResponse<MedicationData>> => {
+  try { 
+    const response = await axios.get(
+      `/api/farms/${farmId}/medications/data`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200) {
+      return {
+        success: true,
+        data: response.data.data
+      }
+    } else {
+      return {
+        success: false,
+        error: [`Error fetching poultry medication data: ${response.status}`]
+      }
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch poultry medication data"]
+      }
+    }
+    return {
+      success: false,
+      error: ["An unexpected error occurred"]
+    }
+  }
+}
+
+export const getPoultryVaccineData = async (
+  token: string,
+  farmId: number
+): Promise<RequestResponse<VaccineData>> => {
+  try {
+    const response = await axios.get(
+      `/api/farms/${farmId}/vaccines/data`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200) {
+      return {
+        success: true,
+        data: response.data.data
+      }
+    } else {
+      return {
+        success: false,
+        error: [`Error fetching poultry vaccine data: ${response.status}`]
+      }
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch poultry vaccine data"]
       }
     } else {
       return {
@@ -1598,44 +1610,140 @@ export const getVaccines = async (token: string, farmId: number): Promise<Reques
   }
 }
 
-export const getVaccineInventories = async (token: string, farmId: number): Promise<RequestResponse<PoultryVaccineInventory[]>> => {
+export const createVaccineProduct = async (
+  token: string,
+  farmId: number,
+  productData: {
+    poultry_vaccine_id: number
+    name: string
+    manufacturer: string
+    administration_method_id: number
+    withdrawal_period?: number
+    withdrawal_period_unit?: "days" | "hours"
+    dosage?: number
+    dosage_unit?: string
+    image_url?: string
+    min_stock_level?: number
+    type?: "default" | "user"
+  }
+): Promise<RequestResponse<VaccineProduct>> => {
   try {
-    const response = await axios.get(
-      `/api/farms/${farmId}/vaccine-inventory`,
+    const response = await axios.post(
+      `/api/farms/${farmId}/vaccine-products`,
+      // Default to user-defined products if not explicitly provided
+      { type: "user", ...productData },
       { headers: { Authorization: `Bearer ${token}` } }
     )
-    if (response.status === 200) {
-      console.log('Fetched vaccine inventories successfully:', response.data.data);
+    if (response.status === 200 || response.status === 201) {
       return {
         success: true,
-        data: response.data.data
+        data: response.data.data,
       }
     } else {
-      console.error('Error fetching vaccine inventories:', response.status);
       return {
         success: false,
-        error: [`Error getting vaccine inventories: ${response.status}`]
+        error: [`Error creating vaccine product: ${response.status}`],
       }
     }
   } catch (error: unknown) {
     if (isAxiosError(error)) {
       return {
         success: false,
-        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch vaccine inventories"]
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create vaccine product"],
       }
     } else {
       return {
         success: false,
-        error: ["An unexpected error occurred"]
+        error: ["An unexpected error occurred"],
       }
     }
   }
 }
 
+// Create a medication product
+export const createMedicationProduct = async (
+  token: string,
+  farmId: number,
+  productData: {
+    poultry_medication_id: number
+    name: string
+    manufacturer: string
+    administration_method_id: number
+    withdrawal_period?: number
+    withdrawal_period_unit?: "days" | "hours"
+    dosage?: number
+    dosage_unit?: string
+    image_url?: string
+    min_stock_level?: number
+    type?: "default" | "user"
+  }
+): Promise<RequestResponse<MedicationProduct>> => {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/medication-products`,
+      { type: "user", ...productData },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200 || response.status === 201) {
+      return { success: true, data: response.data.data }
+    } else {
+      return { success: false, error: [`Error creating medication product: ${response.status}`] }
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create medication product"],
+      }
+    }
+    return { success: false, error: ["An unexpected error occurred"] }
+  }
+}
+
+// Get administration methods (global)
+export const getAdministrationMethods = async (
+  token: string,
+  farmId: number
+): Promise<RequestResponse<AdministrationMethod[]>> => {
+  try {
+    const response = await axios.get(
+      `/api/administration-methods?farm_id=${farmId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200) {
+      return { success: true, data: response.data.data }
+    } else {
+      return { success: false, error: [`Error fetching administration methods: ${response.status}`] }
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch administration methods"],
+      }
+    }
+    return { success: false, error: ["An unexpected error occurred"] }
+  }
+}
+
+// Create a vaccination record
 export const createVaccinationRecord = async (
-  token: string, 
-  farmId: number, 
-  recordData: any
+  token: string,
+  farmId: number,
+  recordData: {
+    farm_id: number
+    flock_id: number
+    poultry_vaccine_id: number
+    poultry_vaccine_inventory_id: number
+    date: string
+    administered_by: number | string
+    dosage: number
+    dosage_unit: string
+    quantity: number
+    cost: number
+    notes: string | number
+    administration_method_id: number
+  }
 ): Promise<RequestResponse<any>> => {
   try {
     const response = await axios.post(
@@ -1644,34 +1752,25 @@ export const createVaccinationRecord = async (
       { headers: { Authorization: `Bearer ${token}` } }
     )
     if (response.status === 200 || response.status === 201) {
-      return {
-        success: true,
-        data: response.data.data
-      }
+      return { success: true, data: response.data.data }
     } else {
-      return {
-        success: false,
-        error: [`Error creating vaccination record: ${response.status}`]
-      }
+      return { success: false, error: [`Error creating vaccination record: ${response.status}`] }
     }
   } catch (error: unknown) {
     if (isAxiosError(error)) {
       return {
         success: false,
-        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create vaccination record"]
-      }
-    } else {
-      return {
-        success: false,
-        error: ["An unexpected error occurred"]
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create vaccination record"],
       }
     }
+    return { success: false, error: ["An unexpected error occurred"] }
   }
 }
 
+// Delete a vaccination record
 export const deleteVaccinationRecord = async (
-  token: string, 
-  farmId: number, 
+  token: string,
+  farmId: number,
   recordId: number
 ): Promise<RequestResponse<any>> => {
   try {
@@ -1679,28 +1778,116 @@ export const deleteVaccinationRecord = async (
       `/api/farms/${farmId}/vaccination-records/${recordId}`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
-    if (response.status === 200 || response.status === 204) {
-      return {
-        success: true,
-        data: response.data?.data || null
-      }
+    if (response.status === 200) {
+      return { success: true, data: response.data.data }
     } else {
-      return {
-        success: false,
-        error: [`Error deleting vaccination record: ${response.status}`]
-      }
+      return { success: false, error: [`Error deleting vaccination record: ${response.status}`] }
     }
   } catch (error: unknown) {
     if (isAxiosError(error)) {
       return {
         success: false,
-        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to delete vaccination record"]
-      }
-    } else {
-      return {
-        success: false,
-        error: ["An unexpected error occurred"]
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to delete vaccination record"],
       }
     }
-  }  }
+    return { success: false, error: ["An unexpected error occurred"] }
+  }
+}
 
+// Overloads for getVaccines
+export function getVaccines(
+  token: string,
+  farmId: number,
+  paginated: true,
+  page?: number,
+  perPage?: number
+): Promise<PaginatedRequestType<vaccine>>
+export function getVaccines(
+  token: string,
+  farmId: number,
+  paginated?: false
+): Promise<RequestResponse<vaccine[]>>
+export async function getVaccines(
+  token: string,
+  farmId: number,
+  paginated: boolean = false,
+  page: number = 1,
+  perPage: number = 10
+): Promise<PaginatedRequestType<vaccine> | RequestResponse<vaccine[]>> {
+  try {
+    let url = `/api/farms/${farmId}/vaccines`;
+    if (paginated) {
+      url += `/${true}?page=${page}&perPage=${perPage}`;
+    }
+    const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (response.status === 200) {
+      if (paginated) {
+        return {
+          success: true,
+          data: response.data.data.data || [],
+          current_page: response.data.data.current_page,
+          total_pages: response.data.data.last_page,
+          per_page: response.data.data.per_page
+        } as PaginatedRequestType<vaccine>;
+      } else {
+        return { success: true, data: response.data.data || [] } as RequestResponse<vaccine[]>;
+      }
+    } else {
+      return { success: false, error: [`Error fetching vaccines: ${response.status}`] };
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return { success: false, error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch vaccines"] };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+}
+
+// Overloads for getVaccineInventories
+export function getVaccineInventories(
+  token: string,
+  farmId: number,
+  paginated: true,
+  page?: number,
+  perPage?: number
+): Promise<PaginatedRequestType<PoultryVaccineInventory>>
+export function getVaccineInventories(
+  token: string,
+  farmId: number,
+  paginated?: false
+): Promise<RequestResponse<PoultryVaccineInventory[]>>
+export async function getVaccineInventories(
+  token: string,
+  farmId: number,
+  paginated: boolean = false,
+  page: number = 1,
+  perPage: number = 10
+): Promise<PaginatedRequestType<PoultryVaccineInventory> | RequestResponse<PoultryVaccineInventory[]>> {
+  try {
+    let url = `/api/farms/${farmId}/vaccine-inventory`;
+    if (paginated) {
+      url += `/${true}?page=${page}&perPage=${perPage}`;
+    }
+    const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (response.status === 200) {
+      if (paginated) {
+        return {
+          success: true,
+          data: response.data.data.data || [],
+          current_page: response.data.data.current_page,
+          total_pages: response.data.data.last_page,
+          per_page: response.data.data.per_page
+        } as PaginatedRequestType<PoultryVaccineInventory>;
+      } else {
+        return { success: true, data: response.data.data || [] } as RequestResponse<PoultryVaccineInventory[]>;
+      }
+    } else {
+      return { success: false, error: [`Error fetching vaccine inventories: ${response.status}`] };
+    }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return { success: false, error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch vaccine inventories"] };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+}

@@ -30,7 +30,7 @@ import { NotificationSystem } from "@/components/poultry/Flocks/Notification"
 import { useState, useEffect } from "react"
 import BatchScheduleView from "@/components/poultry/Flocks/batchSchedule/BatchScheduleView"
 import AddDailyRecordModal from "@/components/modals/AddDailyRecordModal"
-import { createDailyRecord, createMortalityRecord, createWeightReport, deleteWeightReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, getMedicationInventories, createMedicationRecord, deleteMedicationRecord } from "@/lib/request"
+import { createDailyRecord, createMortalityRecord, createWeightReport, deleteWeightReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, createMedicationRecord, deleteMedicationRecord } from "@/lib/request"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import { toast } from "react-toastify"
@@ -62,16 +62,14 @@ const FlockPage = () => {
                     vaccinesResponse, 
                     vaccineInventoriesResponse, 
                     administrationMethodsResponse,
-                    medicationsResponse,
-                    medicationInventoriesResponse
+                    medicationsResponse
                 ] = await Promise.all([
                     getFeedInventories(token, farmId),
                     getFeedTypes(token, farmId, flock.poultry_type_id),
                     getVaccines(token, farmId),
                     getVaccineInventories(token, farmId),
                     getAdministrationMethods(token, farmId),
-                    getMedications(token, farmId),
-                    getMedicationInventories(token, farmId)
+                    getMedications(token, farmId)
                 ]);
                 
                 if (inventoriesResponse.success && Array.isArray(inventoriesResponse.data)) {
@@ -110,18 +108,23 @@ const FlockPage = () => {
                     setMedications([]);
                 }
 
-                if (medicationInventoriesResponse.success && Array.isArray(medicationInventoriesResponse.data)) {
-                    setMedicationInventories(medicationInventoriesResponse.data);
-                } else {
-                    setMedicationInventories([]);
-                }
+                // Medication inventories are not provided by the current request exports; default to empty.
+                setMedicationInventories([]);
             } catch (error) {
-                console.error("Error fetching data:", error);
+                console.error("Error fetching flock page data:", error);
+                // Reset to safe defaults on failure
+                setFeedInventories([]);
+                setFeedTypes([]);
+                setVaccines([]);
+                setVaccineInventories([]);
+                setAdministrationMethods([]);
+                setMedications([]);
+                setMedicationInventories([]);
             }
         };
         
         fetchData();
-    }, [farmId, token]);
+    }, [farmId, token, flock.poultry_type_id]);
 
     const handleCreateDailyRecord = async (recordData: any) => {
         if (!farmId || !token) return;

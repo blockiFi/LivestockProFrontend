@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronDown, ChevronUp, Clock, Pill, Shield, Wheat } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Pill, Shield, Syringe, Wheat } from "lucide-react";
 import ItemView from "./ItemView";
 import { useEffect, useMemo, useState } from "react";
 import { getSchedules } from "@/lib/request";
@@ -29,7 +29,7 @@ const ScheduleView = ({type, schedule} : {type: string, schedule: any | undefine
    
     const [expand , SetExpand] = useState(false);
 
-   
+    const displayName = schedule?.name ?? schedule?.title ?? "Untitled";
 
     console.log("Schedule : ",  schedule);
   return (
@@ -44,11 +44,11 @@ const ScheduleView = ({type, schedule} : {type: string, schedule: any | undefine
                 {scheduleTypeIcons[ type as keyof typeof scheduleTypeIcons]}
               </div>
               <div>
-                <CardTitle className="text-xl font-bold text-gray-900">name</CardTitle>
+                <CardTitle className="text-xl font-bold text-gray-900">{displayName}</CardTitle>
                 <p className="text-sm text-gray-600 mt-1">
                   Type:{ type}
                   
-                  • Flock #34
+               
                 </p>
               </div>
             </div>
@@ -65,22 +65,8 @@ const ScheduleView = ({type, schedule} : {type: string, schedule: any | undefine
               
             </div>
             </div>
-            <p className="text-sm text-gray-700 mb-3">description</p>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500">Created</p>
-                <p className="font-medium">
-                 date
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">Last Updated</p>
-                <p className="font-medium">date</p>
-              </div>
-             
-             
-            </div>
+            <p className="text-sm text-gray-700 mb-3">{schedule?.description}</p>
           </div>
 
           
@@ -102,10 +88,41 @@ const ScheduleView = ({type, schedule} : {type: string, schedule: any | undefine
                           if (!schedule?.items || schedule.items.length === 0) {
                             return (
                               <div className="text-center text-gray-500 py-6">
-                                No  Schedules for  {schedule?.name}.
+                                No  Schedules for  {displayName}.
                               </div>
                             );
                           }
+
+                          if (type === 'feeding') {
+                            return schedule.items.map((item: any, index: number) => (
+                              <div className="py-2 px-10" key={index} >
+                                <div className="flex items-center justify-between ">
+                                   
+                                   <div className=" font-medium text-gray-800 ">
+                                    {item.feed_type?.name || item.feedType?.name || `Feed Type #${item.feed_type_id}`}
+                                  </div>
+                                  <div className="text-sm text-gray-600">Day {item.feeding_day ?? index + 1}</div>
+                                </div>
+                                <div className="text-sm text-gray-600">Total Qty: {Number(item.quantity) || 0} g</div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {
+                                    (() => {
+                                      const totalQty = Number(item.quantity) || 0;
+                                      const times = (item.feeding_times || []).map((t: any) => {
+                                        const pct = Number(t.percentage) || 0;
+                                        const grams = (totalQty * pct) / 100;
+                                        return `${t.time} (${pct}% • ${grams}g)`;
+                                      }).join(', ');
+                                      return <>Times: {times}</>;
+                                    })()
+                                  }
+                                </div>
+                                <div className="border-b border-gray-200 my-2"></div>
+                              </div>
+                            ));
+                          }
+
+                          // medication / vaccination items
                           return schedule.items.map((item: any, index: number) => (
                             <div className="" key={index}>
                               <ItemView schedule={schedule} item={item} />

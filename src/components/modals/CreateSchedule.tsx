@@ -1,19 +1,20 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
 import { Card } from "../ui/card"
 import { Label } from "../ui/label"
 import { Input } from "../ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
 import { Button } from "../ui/button"
-import { CalendarIcon, Edit, Package, Pill, Plus, Shield, Trash2, Wheat, X } from "lucide-react"
-import { Calendar } from "../ui/calendar"
+import { Edit, Package, Pill, Plus, Shield, Trash2, Wheat, X } from "lucide-react"
 import { Textarea } from "../ui/textarea"
 import { Badge } from "../ui/badge"
-import { cn } from "@/lib/utils"
 import type { NewScheduleForm, NewScheduleItem } from "@/lib/interfaces"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
+import { getPoultryTypes, getMedications, getVaccines, getFeedTypes } from "@/lib/request"
+import type { PoultryType, Medication, vaccine, FeedType } from "@/lib/types"
+import { AlertDialog } from "@/components/ui/alert-dialog"
+import { Naira } from "@/lib/utils"
 const scheduleTypeIcons = {
     medication: <Pill className="h-5 w-5" />,
     vaccination: <Shield className="h-5 w-5" />,
@@ -32,13 +33,20 @@ const CreateSchedule  =({
     isOpen,
     onClose,
     onSubmit,
+    isLoading = false,
   }: {
     isOpen: boolean
     onClose: () => void
     onSubmit: (schedule: NewScheduleForm<any>) => void
+    isLoading?: boolean
   })  => {
 
     const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id || 0)
+    const token = useSelector((state: RootState) => state.authentication.token)
+    const [poultryTypes, setPoultryTypes] = useState<PoultryType[]>([])
+    const [medications, setMedications] = useState<Medication[]>([])
+    const [vaccines, setVaccines] = useState<vaccine[]>([])
+    const [feedTypes, setFeedTypes] = useState<FeedType[]>([])
     const [formData, setFormData] = useState<NewScheduleForm<any>>({
       name: "",
       description: "",
@@ -61,15 +69,146 @@ const CreateSchedule  =({
   
     const [isAddingItem, setIsAddingItem] = useState(false)
     const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
+    
+    // Alert dialog state
+    const [alertDialog, setAlertDialog] = useState<{
+      isOpen: boolean;
+      title: string;
+      description: string;
+      type: "success" | "error" | "warning" | "info";
+    }>({
+      isOpen: false,
+      title: "",
+      description: "",
+      type: "info"
+    });
+
+    // Load data when modal opens
+    useEffect(() => {
+      if (isOpen && token && farmId) {
+        const loadData = async () => {
+          try {
+            const [poultryTypesRes, medicationsRes, vaccinesRes] = await Promise.all([
+              getPoultryTypes(token, farmId),
+              getMedications(token, farmId),
+              getVaccines(token, farmId)
+            ])
+            
+            if (poultryTypesRes.success && poultryTypesRes.data) {
+              setPoultryTypes(poultryTypesRes.data)
+            }
+            if (medicationsRes.success && medicationsRes.data) {
+              setMedications(medicationsRes.data)
+            }
+            if (vaccinesRes.success && vaccinesRes.data) {
+              setVaccines(vaccinesRes.data)
+            }
+          } catch (error) {
+            console.error("Error loading data:", error)
+          }
+        }
+        loadData()
+      }
+    }, [isOpen, token, farmId])
+
+    // Load feed types when poultry type changes
+    const loadFeedTypes = async (poultryTypeId: number) => {
+      if (token && farmId && poultryTypeId > 0) {
+        try {
+          const response = await getFeedTypes(token, farmId, poultryTypeId)
+          if (response.success && response.data) {
+            setFeedTypes(response.data)
+          }
+        } catch (error) {
+          console.error("Error loading feed types:", error)
+        }
+      }
+    }
+
+    // Load feed types when schedule type changes to feeding
+    useEffect(() => {
+      if (formData.schedule_type === "feeding" && formData.poultry_type_id > 0) {
+        loadFeedTypes(formData.poultry_type_id)
+      }
+    }, [formData.schedule_type, formData.poultry_type_id])
   
+    const validateForm = () => {
+      const errors: string[] = []
+      
+      // Basic form validation
+      if (!formData.name?.trim()) {
+        errors.push("Schedule name is required")
+      }
+      
+      if (!formData.poultry_type_id || formData.poultry_type_id === 0) {
+        errors.push("Poultry type selection is required")
+      }
+      
+      if (formData.items.length === 0) {
+        errors.push("At least one schedule item is required")
+        return errors
+      }
+      
+      // Validate each item
+      formData.items.forEach((item, index) => {
+        const itemErrors: string[] = []
+        
+        if (!item.name?.trim()) {
+          itemErrors.push(`Item ${index + 1}: Name is required`)
+        }
+        
+       
+        
+        if (item.age_days < 1) {
+          itemErrors.push(`Item ${index + 1}: Age must be at least 1 day`)
+        }
+        
+        // Schedule type specific validations
+        if (formData.schedule_type === "feeding") {
+          if (!item.feed_type_id) {
+            itemErrors.push(`Item ${index + 1}: Feed type is required`)
+          }
+          
+          if (!item.feeding_times || item.feeding_times.length === 0) {
+            itemErrors.push(`Item ${index + 1}: At least one feeding time is required`)
+          } else {
+            const totalPercentage = item.feeding_times.reduce((sum: number, ft: any) => sum + (ft.percentage || 0), 0)
+            if (Math.abs(totalPercentage - 100) > 0.01) {
+              itemErrors.push(`Item ${index + 1}: Feeding time percentages must total 100%`)
+            }
+          }
+        } else if (formData.schedule_type === "medication") {
+          if (!item.medication_id) {
+            itemErrors.push(`Item ${index + 1}: Medication selection is required`)
+          }
+        } else if (formData.schedule_type === "vaccination") {
+          if (!item.vaccine_id) {
+            itemErrors.push(`Item ${index + 1}: Vaccine selection is required`)
+          }
+        }
+        
+        errors.push(...itemErrors)
+      })
+      
+      return errors
+    }
+
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault()
-      if (formData.items.length === 0) {
-        alert("Please add at least one schedule item")
+      
+      const validationErrors = validateForm()
+      
+      if (validationErrors.length > 0) {
+        showAlert(
+          "Form Validation Failed", 
+          `Please fix the following issues:\n• ${validationErrors.join('\n• ')}`, 
+          "warning"
+        )
         return
       }
+      
       onSubmit(formData)
-      handleClose()
+      // Don't close the modal here - let the parent component handle it based on success/error
     }
   
     const handleClose = () => {
@@ -90,6 +229,7 @@ const CreateSchedule  =({
         description: "",
         quantity: "",
         feeding_times: [],
+        feed_type_id: undefined,
       })
       setIsAddingItem(false)
       setEditingItemIndex(null)
@@ -109,9 +249,88 @@ const CreateSchedule  =({
       })
     }
   
+    const validateScheduleItem = () => {
+      const errors: string[] = []
+      
+      // Common required fields for all schedule types
+      if (!currentItem.name?.trim()) {
+        errors.push("Item name is required")
+      }
+      
+      
+      
+      if (currentItem.age_days < 1) {
+        errors.push("Age must be at least 1 day")
+      }
+      
+      // Schedule type specific validations
+      if (formData.schedule_type === "feeding") {
+        // Feeding specific validations
+        if (!currentItem.feed_type_id) {
+          errors.push("Feed type is required for feeding schedules")
+        }
+        
+        if (!currentItem.quantity || isNaN(Number(currentItem.quantity)) || Number(currentItem.quantity) <= 0) {
+          errors.push("Valid quantity in grams is required for feeding schedules")
+        }
+        
+        // Check if feeding times are provided and valid
+        if (!currentItem.feeding_times || currentItem.feeding_times.length === 0) {
+          errors.push("At least one feeding time is required for feeding schedules")
+        } else {
+          const totalPercentage = currentItem.feeding_times.reduce((sum, ft) => sum + (ft.percentage || 0), 0)
+          if (Math.abs(totalPercentage - 100) > 0.01) {
+            errors.push("Feeding time percentages must total 100%")
+          }
+          
+          // Check for valid times
+          const invalidTimes = currentItem.feeding_times.some(ft => 
+            !ft.time || !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(ft.time)
+          )
+          if (invalidTimes) {
+            errors.push("All feeding times must be in valid HH:MM format")
+          }
+        }
+      } else if (formData.schedule_type === "medication") {
+        // Medication specific validations
+        if (!currentItem.medication_id) {
+          errors.push("Medication selection is required for medication schedules")
+        }
+        
+        if (!currentItem.dose || currentItem.dose < 1) {
+          errors.push("Valid dose is required for medication schedules")
+        }
+        
+        if ((currentItem.withdrawal_period_days || 0) < 0) {
+          errors.push("Withdrawal period cannot be negative")
+        }
+      } else if (formData.schedule_type === "vaccination") {
+        // Vaccination specific validations
+        if (!currentItem.vaccine_id) {
+          errors.push("Vaccine selection is required for vaccination schedules")
+        }
+        
+        if (!currentItem.dose || currentItem.dose < 1) {
+          errors.push("Valid dose is required for vaccination schedules")
+        }
+        
+        if ((currentItem.withdrawal_period_days || 0) < 0) {
+          errors.push("Withdrawal period cannot be negative")
+        }
+      }
+      
+      return errors
+    }
+
     const addItem = () => {
-      if (!currentItem.name || !currentItem.quantity) {
-        alert("Please fill in all required fields (Name, Quantity.)")
+      const validationErrors = validateScheduleItem()
+      
+      if (validationErrors.length > 0) {
+        showAlert(
+          "Validation Failed", 
+          `Please fix the following issues:\n• ${validationErrors.join('\n• ')}`, 
+          "warning"
+        )
         return
       }
   
@@ -153,20 +372,59 @@ const CreateSchedule  =({
       setEditingItemIndex(null)
     }
   
-    const formatDate = (date: Date | undefined) => {
-      if (!date) return "Select date"
-      return date.toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    }
   
     const getTotalCost = () => {
       return formData.items.reduce((sum, item) => sum + (Number.parseFloat(item.cost) || 0), 0).toFixed(2)
     }
+
+    const getFeedTypeName = (feedTypeId: number | undefined) => {
+      if (!feedTypeId) return "No feed type"
+      const feedType = feedTypes.find(ft => ft.id === feedTypeId)
+      return feedType ? feedType.name : "Unknown feed type"
+    }
+
+    const showAlert = (title: string, description: string, type: "success" | "error" | "warning" | "info" = "info") => {
+      setAlertDialog({
+        isOpen: true,
+        title,
+        description,
+        type
+      });
+    };
+
+    const closeAlert = () => {
+      setAlertDialog(prev => ({ ...prev, isOpen: false }));
+    };
+
+    const isFieldValid = (fieldName: string, value: any) => {
+      switch (fieldName) {
+        case 'name':
+          return value?.trim() && value.trim().length > 0
+        case 'quantity':
+          return value?.trim() && !isNaN(Number(value)) && Number(value) > 0
+        case 'age_days':
+          return value && value >= 1
+        case 'feed_type_id':
+          return formData.schedule_type === "feeding" ? value && value > 0 : true
+        case 'medication_id':
+          return formData.schedule_type === "medication" ? value && value > 0 : true
+        case 'vaccine_id':
+          return formData.schedule_type === "vaccination" ? value && value > 0 : true
+        case 'dose':
+          return formData.schedule_type !== "feeding" ? value && value >= 1 : true
+        case 'feeding_times':
+          if (formData.schedule_type === "feeding") {
+            return value && value.length > 0 && 
+                   Math.abs(value.reduce((sum: number, ft: any) => sum + (ft.percentage || 0), 0) - 100) < 0.01
+          }
+          return true
+        default:
+          return true
+      }
+    };
   
     return (
+      <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent style={{
             maxWidth: "1280px",
@@ -204,9 +462,13 @@ const CreateSchedule  =({
                   <Label htmlFor="schedule-type">Schedule Type *</Label>
                   <Select
                     value={formData.schedule_type}
-                    onValueChange={(value: "medication" | "vaccination" | "feeding") =>
+                    onValueChange={(value: "medication" | "vaccination" | "feeding") => {
                       setFormData((prev) => ({ ...prev, schedule_type: value }))
-                    }
+                      // Load feed types if switching to feeding and poultry type is selected
+                      if (value === "feeding" && formData.poultry_type_id > 0) {
+                        loadFeedTypes(formData.poultry_type_id)
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -223,17 +485,24 @@ const CreateSchedule  =({
                   <Label htmlFor="schedule-type">Poultry Type *</Label>
                   <Select
                     value={formData.poultry_type_id.toString()}
-                    onValueChange={(value: string) =>
-                      setFormData((prev) => ({ ...prev, poultry_type_id: Number(value) }))
-                    }
+                    onValueChange={(value: string) => {
+                      const poultryTypeId = Number(value)
+                      setFormData((prev) => ({ ...prev, poultry_type_id: poultryTypeId }))
+                      // Load feed types when poultry type changes
+                      if (formData.schedule_type === "feeding") {
+                        loadFeedTypes(poultryTypeId)
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue />
+                      <SelectValue placeholder="Select poultry type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">Medication</SelectItem>
-                      <SelectItem value="2">Vaccination</SelectItem>
-                      <SelectItem value="3">Feeding</SelectItem>
+                      {poultryTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id.toString()}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -294,11 +563,15 @@ const CreateSchedule  =({
                               Day {item.age_days}
                             </Badge>
                             <Badge variant="outline" className="bg-green-50">
-                              {item.quantity} {formData.schedule_type === "feeding" ? "kg" : "units"}
+                              {item.quantity} {formData.schedule_type === "feeding" ? "g" : "units"}
                             </Badge>
-                            <Badge variant="outline" className="bg-purple-50">
-                              ${item.cost}
-                            </Badge>
+                          
+                            {formData.schedule_type === "feeding" && item.feed_type_id && (
+                              <Badge variant="outline" className="bg-yellow-50">
+                                {getFeedTypeName(item.feed_type_id)}
+                              </Badge>
+                            )}
+                            
                             {formData.schedule_type !== "feeding" && item.withdrawal_period_days > 0 && (
                               <Badge variant="outline" className="bg-orange-50">
                                 {item.withdrawal_period_days}d withdrawal
@@ -356,7 +629,11 @@ const CreateSchedule  =({
                           onChange={(e) => setCurrentItem((prev) => ({ ...prev, name: e.target.value }))}
                           placeholder={`Enter ${formData.schedule_type} name`}
                           required
+                          className={!isFieldValid('name', currentItem.name) ? 'border-red-500 focus:border-red-500' : ''}
                         />
+                        {!isFieldValid('name', currentItem.name) && currentItem.name && (
+                          <p className="text-xs text-red-500">Item name is required</p>
+                        )}
                       </div>
   
                       <div  className="flex flex-col gap-2">
@@ -378,7 +655,7 @@ const CreateSchedule  =({
                      (
                       <div  className="flex flex-col gap-2">
                       <Label htmlFor="quantity">
-                         Quantity (g)
+                         Quantity (g) *
                       </Label>
                       <Input
                         id="quantity"
@@ -386,7 +663,11 @@ const CreateSchedule  =({
                         onChange={(e) => setCurrentItem((prev) => ({ ...prev, quantity: e.target.value }))}
                         placeholder={"Enter quantity in g"}
                         required
+                        className={!isFieldValid('quantity', currentItem.quantity) ? 'border-red-500 focus:border-red-500' : ''}
                       />
+                      {!isFieldValid('quantity', currentItem.quantity) && currentItem.quantity && (
+                        <p className="text-xs text-red-500">Valid quantity in grams is required</p>
+                      )}
                     </div>
                      )
                      }
@@ -490,22 +771,25 @@ const CreateSchedule  =({
                           </div>
   
                           <div  className="flex flex-col gap-2">
-                            <Label htmlFor="feed-type">Feed Type</Label>
+                            <Label htmlFor="feed-type">Feed Type *</Label>
                             <Select
                               value={currentItem.feed_type_id?.toString() || ""}
                               onValueChange={(value) => setCurrentItem((prev) => ({ ...prev, feed_type_id: Number(value) }))}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className={!isFieldValid('feed_type_id', currentItem.feed_type_id) ? 'border-red-500 focus:border-red-500' : ''}>
                                 <SelectValue placeholder="Select feed type" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="1">Starter Feed</SelectItem>
-                                <SelectItem value="2">Grower Feed</SelectItem>
-                                <SelectItem value="3">Finisher Feed</SelectItem>
-                                <SelectItem value="4">Layer Feed</SelectItem>
-                                <SelectItem value="5">Breeder Feed</SelectItem>
+                                {feedTypes.map((feedType) => (
+                                  <SelectItem key={feedType.id} value={feedType.id.toString()}>
+                                    {feedType.name}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
+                            {!isFieldValid('feed_type_id', currentItem.feed_type_id) && currentItem.feed_type_id !== undefined && (
+                              <p className="text-xs text-red-500">Feed type selection is required</p>
+                            )}
                           </div>
                         </>
                       )}
@@ -534,9 +818,18 @@ const CreateSchedule  =({
                               <SelectValue placeholder={formData.schedule_type === "medication"  ? "Select Medication": "Select Vaccine"} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">Live Vaccine</SelectItem>
-                              <SelectItem value="2">Inactivated Vaccine</SelectItem>
-                              <SelectItem value="3">Recombinant Vaccine</SelectItem>
+                              {formData.schedule_type === "medication" 
+                                ? medications.map((medication) => (
+                                    <SelectItem key={medication.id} value={medication.id.toString()}>
+                                      {medication.name}
+                                    </SelectItem>
+                                  ))
+                                : vaccines.map((vaccine) => (
+                                    <SelectItem key={vaccine.id} value={vaccine.id.toString()}>
+                                      {vaccine.name}
+                                    </SelectItem>
+                                  ))
+                              }
                             </SelectContent>
                           </Select>
                         </div>
@@ -614,7 +907,7 @@ const CreateSchedule  =({
                 {formData.items.length > 0 && (
                   <div className="text-sm text-gray-600">
                     <span className="font-medium">{formData.items.length}</span> items •
-                    <span className="font-medium"> Total: ${getTotalCost()}</span>
+                    <span className="font-medium"> Total: {Naira}{getTotalCost()}</span>
                   </div>
                 )}
               </div>
@@ -622,14 +915,23 @@ const CreateSchedule  =({
                 <Button type="button" variant="outline" onClick={handleClose}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={formData.items.length === 0}>
-                  Create Schedule ({formData.items.length} items)
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={formData.items.length === 0 || isLoading}>
+                  {isLoading ? "Creating..." : `Create Schedule (${formData.items.length} items)`}
                 </Button>
               </div>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+      
+      <AlertDialog
+        isOpen={alertDialog.isOpen}
+        onClose={closeAlert}
+        title={alertDialog.title}
+        description={alertDialog.description}
+        type={alertDialog.type}
+      />
+      </>
     )
   }
 

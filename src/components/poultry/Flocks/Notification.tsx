@@ -1,10 +1,9 @@
-
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Bell, X, Shield, Pill, AlertTriangle, Clock, Users, ChevronRight, Settings } from "lucide-react"
+import { Naira, formatCurrency } from "@/lib/utils"
 
 interface Notification {
   id: string
@@ -217,8 +216,8 @@ export function NotificationSystem() {
                         </div>
                         {notification.estimatedCost && (
                           <div className="flex items-center gap-1">
-                            <span className="text-gray-400">$</span>
-                            <span className="font-medium text-gray-600">{notification.estimatedCost.toFixed(2)}</span>
+                            <span className="text-gray-600">{Naira}</span>
+                            <span className="font-medium text-gray-600">{formatCurrency(notification.estimatedCost)}</span>
                           </div>
                         )}
                       </div>

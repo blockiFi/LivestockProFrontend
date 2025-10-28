@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Calendar } from "../ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
 import { CalendarIcon, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, Naira, formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
 import type { vaccine, PoultryVaccineInventory, AdministrationMethod } from "@/lib/types"
 
@@ -263,7 +263,7 @@ const AddVaccinationRecordModal = ({
               <Input
                 id="quantity"
                 type="number"
-                min="0"
+                min={0}
                 max={availableQuantity}
                 step="0.01"
                 value={formData.quantity}
@@ -315,10 +315,10 @@ const AddVaccinationRecordModal = ({
           {selectedInventory && formData.quantity > 0 && (
             <div className="bg-gray-50 p-3 rounded-lg">
               <p className="text-sm text-gray-600">
-                Estimated Cost: ${(Number(selectedInventory.unit_cost) * formData.quantity).toFixed(2)}
+                Estimated Cost: {Naira}{formatCurrency((Number(selectedInventory.unit_cost) || 0) * formData.quantity)}
               </p>
               <p className="text-xs text-gray-500">
-                Unit Cost: ${selectedInventory.unit_cost} × Quantity: {formData.quantity}
+                Unit Cost: {Naira}{formatCurrency(Number(selectedInventory.unit_cost) || 0)} × Quantity: {formData.quantity}
               </p>
             </div>
           )}

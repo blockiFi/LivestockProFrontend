@@ -35,7 +35,7 @@ const ItemView = ({ schedule , item }: { schedule: DetailedSchedule , item:  Sch
  
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-gray-50/50 transition-colors duration-150 pb-3">
+          <CardHeader className="cursor-pointer hover:bg-gray-50/50 transition-colors duration-150 pb-3 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${scheduleTypeColors[schedule.schedule_type as keyof typeof scheduleTypeColors]}`}>
@@ -62,7 +62,7 @@ const ItemView = ({ schedule , item }: { schedule: DetailedSchedule , item:  Sch
         </CollapsibleTrigger>
 
         <CollapsibleContent>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 px-4 pb-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               <div className="flex items-center gap-2">
                 <Syringe className="h-4 w-4 text-gray-500" />
@@ -70,14 +70,14 @@ const ItemView = ({ schedule , item }: { schedule: DetailedSchedule , item:  Sch
                   <p className="text-xs text-gray-500">
                   {
                     schedule.schedule_type != 'feeding' ? 
-                    "Quantity Per Bird - Total Quantity" :
+                    "" :
                     "Dosage & Quantity"
                   }
                   </p>
                   <p className="font-medium">
                    {
                     schedule.schedule_type != 'feeding' ?
-                  `${item.dose} •  ${item.dose_unit}`
+                  ``
                    :
                    `${item.dose} • ${item.dose} Kg` 
                    }
@@ -86,7 +86,7 @@ const ItemView = ({ schedule , item }: { schedule: DetailedSchedule , item:  Sch
               </div>
 
              
-              { schedule.schedule_type != 'feeding' &&
+              {/* { schedule.schedule_type != 'feeding' &&
                  <div className="flex items-center gap-2">
                  <Clock className="h-4 w-4 text-gray-500" />
                  <div>
@@ -95,12 +95,7 @@ const ItemView = ({ schedule , item }: { schedule: DetailedSchedule , item:  Sch
                  </div>
                 
                </div>
-              }
-               
-              
-
-      
-            
+              } */}
                </div>
 
                { schedule.schedule_type != 'feeding' &&

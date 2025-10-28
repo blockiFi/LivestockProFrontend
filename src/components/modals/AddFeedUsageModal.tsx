@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { PoultryFeedUsageRecord, FlockRecord, FeedInventoryType, FeedType } from "@/lib/types"
+import { Naira, formatCurrency } from "@/lib/utils"
 
 interface AddFeedUsageModalProps {
   isOpen: boolean
@@ -200,7 +201,7 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
                           Batch: {inventory.batch_number} - {inventory.manufacturer}
                         </div>
                         <div className="text-sm text-gray-500">
-                          Available: {inventory.quantity} kg | ${inventory.unit_cost}/kg
+                          Available: {inventory.quantity} kg | {Naira}{formatCurrency(Number(inventory.unit_cost))}/kg
                         </div>
                         <div className="text-xs text-gray-400">
                           Expires: {new Date(inventory.expiry_date).toLocaleDateString()}
@@ -238,7 +239,7 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
 
             {/* Unit Cost */}
             <div className="space-y-2">
-              <Label htmlFor="unit-cost">Unit Cost ($)</Label>
+              <Label htmlFor="unit-cost">Unit Cost ({Naira})</Label>
               <Input
                 id="unit-cost"
                 type="number"
@@ -281,7 +282,7 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
             <div className="p-3 bg-gray-50 rounded-lg">
               <div className="text-sm text-gray-600">Total Cost</div>
               <div className="text-lg font-semibold text-green-600">
-                ${(parseFloat(formData.quantity) * parseFloat(formData.unit_cost)).toFixed(2)}
+                {Naira}{formatCurrency(parseFloat(formData.quantity) * parseFloat(formData.unit_cost))}
               </div>
             </div>
           )}

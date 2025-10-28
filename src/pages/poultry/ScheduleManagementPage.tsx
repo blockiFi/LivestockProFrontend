@@ -6,11 +6,75 @@ import type { NewScheduleForm, PaginatedRequestType } from "@/lib/interfaces";
 import { getSchedules } from "@/lib/request";
 import type { DetailedSchedule } from "@/lib/types";
 import type { RootState } from "@/store";
-import { Activity, BarChart3, CheckCircle, Package, Plus, Settings2, Syringe, WheatIcon } from "lucide-react"
+import { Activity, BarChart3, CheckCircle, Package, Plus, Settings2, Syringe } from "lucide-react"
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
+
+// Local fallback for creating schedule items when the shared request module does not export createScheduleItems.
+// Replace this implementation with your real API client if available.
+const createScheduleItems = async (token: string, scheduleId: number, items: any[]) => {
+  try {
+    // Attempt a conventional POST to a predictable endpoint; adjust the URL as needed for your backend.
+    const res = await fetch(`/api/schedules/${scheduleId}/items`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : ""
+      },
+      body: JSON.stringify({ items })
+    });
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      const message = payload?.message || `HTTP ${res.status}`;
+      return { success: false, error: [message] };
+    }
+
+    const data = await res.json().catch(() => null);
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: [err?.message || "Network error"] };
+  }
+};
+
+// Local fallback for creating schedules when the shared request module does not export createSchedule.
+// Adjust endpoint and payload to match your backend's API.
+const createSchedule = async (
+  token: string,
+  farmId: number,
+  scheduleType: "medication" | "vaccination",
+  payload: { name: string; description?: string; poultry_type_id?: number; farm_id?: number }
+) => {
+  try {
+    const res = await fetch(`/api/schedules`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : ""
+      },
+      body: JSON.stringify({
+        ...payload,
+        schedule_type: scheduleType,
+        farm_id: farmId
+      })
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      const message = data?.message || `HTTP ${res.status}`;
+      return { success: false, error: [message] };
+    }
+
+    const data = await res.json().catch(() => null);
+    return { success: true, data };
+  } catch (err: any) {
+    return { success: false, error: [err?.message || "Network error"] };
+  }
+};
+
 import Pagination from "@/components/general/Pagination";
 import CreateSchedule from "@/components/modals/CreateSchedule";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 
 const ScheduleManagementPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -20,18 +84,127 @@ const ScheduleManagementPage = () => {
 
    const [schedules, setSchedules] = useState<{ 
      medicationSchedules?: PaginatedRequestType<DetailedSchedule[]>, 
-     vaccinationSchedules?: PaginatedRequestType<DetailedSchedule[]>, 
-     feedingSchedules?: PaginatedRequestType<DetailedSchedule[]> 
+     vaccinationSchedules?: PaginatedRequestType<DetailedSchedule[]> 
    }>({});
-   const [medicationPage, setMedicationPage] = useState(1);
-   const [medicationTotalPages, setMedicationTotalPages] = useState(1);
-   const [vaccinationPage, setVaccinationPage] = useState(1);
-   const [vaccinationTotalPages, setVaccinationTotalPages] = useState(1);
-   const handleCreateSchedule = (scheduleData: NewScheduleForm<any>) => {
-    console.log("Creating new schedule:", scheduleData)
-    // Implementation would send data to backend
-    // For now, we'll just log it and show a success message
-    alert(`Successfully created ${scheduleData.schedule_type} schedule: ${scheduleData.name}`)
+  const [medicationPage, setMedicationPage] = useState(1);
+  const [medicationTotalPages, setMedicationTotalPages] = useState(1);
+  const [vaccinationPage, setVaccinationPage] = useState(1);
+  const [vaccinationTotalPages, setVaccinationTotalPages] = useState(1);
+  const [isCreating, setIsCreating] = useState(false);
+  
+  // Alert dialog state
+  const [alertDialog, setAlertDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    type: "success" | "error" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    type: "info"
+  });
+
+  const showAlert = (title: string, description: string, type: "success" | "error" | "warning" | "info" = "info") => {
+    setAlertDialog({
+      isOpen: true,
+      title,
+      description,
+      type
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertDialog(prev => ({ ...prev, isOpen: false }));
+  };
+  
+  const handleCreateSchedule = async (scheduleData: NewScheduleForm<any>) => {
+    if (!token || !farmId) {
+      showAlert("Authentication Required", "Please log in to create schedules.", "error");
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const scheduleResponse = await createSchedule(
+        token,
+        farmId,
+        scheduleData.schedule_type as "medication" | "vaccination",
+        {
+          name: scheduleData.name,
+          description: scheduleData.description,
+          poultry_type_id: scheduleData.poultry_type_id,
+          farm_id: farmId
+        }
+      );
+
+      if (!scheduleResponse.success || !scheduleResponse.data) {
+        showAlert("Schedule Creation Failed", scheduleResponse.error?.join(", ") || "Unknown error occurred while creating the schedule.", "error");
+        setIsCreating(false); // Reset loading state
+        return;
+      }
+
+      // Then create the schedule items
+      if (scheduleData.items.length > 0) {
+        const itemsResponse = await createScheduleItems(
+          token,
+          scheduleResponse.data.id,
+          scheduleData.items.map(item => ({
+            age_days: item.age_days,
+            poultry_vaccine_id: item.vaccine_id,
+            poultry_medication_id: item.medication_id,
+            name: item.name,
+            dose: item.dose || 1,
+            withdrawal_period_days: item.withdrawal_period_days || 0,
+            storage_instructions: item.storage_instructions || "",
+            description: item.description || ""
+          }))
+        );
+
+        if (!itemsResponse.success) {
+          showAlert("Items Creation Failed", `Schedule created but failed to add items: ${itemsResponse.error?.join(", ") || "Unknown error"}`, "error");
+          setIsCreating(false); // Reset loading state
+          return;
+        }
+      }
+
+      showAlert("Schedule Created Successfully", `${scheduleData.schedule_type.charAt(0).toUpperCase() + scheduleData.schedule_type.slice(1)} schedule "${scheduleData.name}" has been created successfully.`, "success");
+      
+      // Close the modal only on success
+      setIsCreateModalOpen(false);
+      
+      // Refresh the schedules
+      const fetchSchedules = async () => {
+        try {
+          const [medicationRes, vaccinationRes] = await Promise.all([
+            getSchedules(token, farmId, "medication", true, medicationPage, 10),
+            getSchedules(token, farmId, "vaccination", true, vaccinationPage, 10)
+          ]);
+
+          const updatedSchedules: typeof schedules = {} as any;
+
+          if ((medicationRes as any).success && (medicationRes as any).data) {
+            updatedSchedules.medicationSchedules = medicationRes as any;
+            setMedicationTotalPages((medicationRes as any).total_pages || 1);
+          }
+          if ((vaccinationRes as any).success && (vaccinationRes as any).data) {
+            updatedSchedules.vaccinationSchedules = vaccinationRes as any;
+            setVaccinationTotalPages((vaccinationRes as any).total_pages || 1);
+          }
+
+          setSchedules(prev => ({ ...prev, ...updatedSchedules }));
+        } catch (error) {
+          console.error("Error refreshing schedules:", error);
+        }
+      };
+
+      await fetchSchedules();
+    } catch (error) {
+      console.error("Error creating schedule:", error);
+      showAlert("Creation Failed", "Failed to create schedule. Please try again.", "error");
+    } finally {
+      setIsCreating(false);
+    }
   }
     useEffect(() => {
      
@@ -41,19 +214,19 @@ const ScheduleManagementPage = () => {
             try {
               const [medicationRes, vaccinationRes] = await Promise.all([
                 getSchedules(token, farmId, "medication", true, medicationPage, 10),
-                getSchedules(token, farmId, "vaccination", true, vaccinationPage, 10),
+                getSchedules(token, farmId, "vaccination", true, vaccinationPage, 10)
               ]);
       
-              const updatedSchedules: typeof schedules = {};
+              const updatedSchedules: typeof schedules = {} as any;
       
-              if (medicationRes.success && medicationRes.data) {
-                console.log("Fetched Medication Schedules: ", medicationRes.data);
-                updatedSchedules.medicationSchedules = medicationRes;
-                setMedicationTotalPages(medicationRes.total_pages || 1);
+              if ((medicationRes as any).success && (medicationRes as any).data) {
+                console.log("Fetched Medication Schedules: ", (medicationRes as any).data);
+                updatedSchedules.medicationSchedules = medicationRes as any;
+                setMedicationTotalPages((medicationRes as any).total_pages || 1);
               }
-              if (vaccinationRes.success && vaccinationRes.data) {
-                updatedSchedules.vaccinationSchedules = vaccinationRes;
-                setVaccinationTotalPages(vaccinationRes.total_pages || 1);
+              if ((vaccinationRes as any).success && (vaccinationRes as any).data) {
+                updatedSchedules.vaccinationSchedules = vaccinationRes as any;
+                setVaccinationTotalPages((vaccinationRes as any).total_pages || 1);
               }
       
               setSchedules(prev => ({ ...prev, ...updatedSchedules }));
@@ -72,7 +245,7 @@ const ScheduleManagementPage = () => {
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900 mb-2"> Schedule Management</h1>
                   <p className="text-gray-600">
-                    Comprehensive management of medication, vaccination, and feeding schedules
+                    Comprehensive management of medication and vaccination schedules
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -91,7 +264,7 @@ const ScheduleManagementPage = () => {
                 
              </div>
               </div>
-       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -126,19 +299,7 @@ const ScheduleManagementPage = () => {
                       <p className="text-purple-100 text-sm">Vacination Schedules</p>
                       <p className="text-2xl font-bold">{(schedules.vaccinationSchedules?.data?.length ?? 0)}</p>
                     </div>
-                    <Syringe className="h-8 w-8 text-purple-200" />
-                  </div>
-                </CardContent>
-              </Card>
-  
-              <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-red-100 text-sm">Feeding Schedules</p>
-                      <p className="text-2xl font-bold">0</p>
-                    </div>
-                    <WheatIcon className="h-8 w-8 text-red-200" />
+                    <CheckCircle className="h-8 w-8 text-purple-200" />
                   </div>
                 </CardContent>
               </Card>
@@ -159,25 +320,7 @@ const ScheduleManagementPage = () => {
               Vaccination
             </TabsTrigger>
           </TabsList>
-
-                  {/* <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex-1">
-                      <Label htmlFor="search" className="text-sm font-medium text-gray-700 mb-2 block">
-                        Search Schedules
-                      </Label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                        <Input
-                          id="search"
-                          placeholder="Search by schedule name or description..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 border-gray-200 focus:border-blue-300 focus:ring-blue-200"
-                        />
-                      </div>
-                    </div>
-  
-                  </div> */}
+                
                <TabsContent value="medication" className="mt-0">
                 {(!schedules.medicationSchedules || (schedules.medicationSchedules.data?.length ?? 0) === 0) ? (
                     <div className="text-center text-gray-500 py-6">
@@ -229,7 +372,16 @@ const ScheduleManagementPage = () => {
                     isOpen={isCreateModalOpen}
                     onClose={() => setIsCreateModalOpen(false)}
                     onSubmit={handleCreateSchedule}
+                    isLoading={isCreating}
                 />
+    
+    <AlertDialog
+      isOpen={alertDialog.isOpen}
+      onClose={closeAlert}
+      title={alertDialog.title}
+      description={alertDialog.description}
+      type={alertDialog.type}
+    />
     </>
   )
 }

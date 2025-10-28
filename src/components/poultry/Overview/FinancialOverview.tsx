@@ -12,7 +12,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { formatCurrency, getPoultryBreakDownReport } from "@/lib/utils"
+import { formatCurrency, getPoultryBreakDownReport, Naira } from "@/lib/utils"
 import type { feedConsumptionDataType } from "@/lib/types"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
@@ -47,7 +47,7 @@ const FinancialOverview = () => {
       <CardContent>
         <ChartContainer
           config={{
-            cost: { label: "Cost ($)", color: "#8884d8" },
+            cost: { label: `Cost (${Naira})`, color: "#8884d8" },
           }}
           className="h-[300px]"
         >
@@ -73,7 +73,7 @@ const FinancialOverview = () => {
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) => new Date(value).toLocaleDateString("en-US")}
-                    formatter={(value) => `$${(value as number).toFixed(2)}`}
+                    formatter={(value) => `${Naira}${(value as number).toFixed(2)}`}
                   />
                 }
               />

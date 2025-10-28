@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import type { PoultryVaccinationRecord, vaccine, PoultryVaccineInventory, AdministrationMethod } from "@/lib/types";
-import { formatDate, Naira } from "@/lib/utils";
+import { formatDate, Naira, formatCurrency } from "@/lib/utils";
 import { Activity, AlertTriangle, Calendar, Download, Eye, Factory, Package2, Shield, User, Users, Plus, Edit, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useMemo, useState } from "react";
@@ -157,7 +157,7 @@ const VaccinationRecordView = ({
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Cost</p>
-              <p className="text-2xl font-bold text-green-600">${(totalCost || 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-600">{Naira}{formatCurrency(totalCost || 0)}</p>
             </div>
           </div>
         </Card>
@@ -224,7 +224,7 @@ const VaccinationRecordView = ({
 
                 <div className="flex flex-col items-end gap-2">
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">${vaccination.estimated_cost.toFixed(2)}</p>
+                    <p className="text-sm font-medium text-gray-900">{Naira}{formatCurrency(vaccination.estimated_cost)}</p>
                     <p className="text-xs text-gray-500">Estimated Cost</p>
                   </div>
 
@@ -347,7 +347,7 @@ const VaccinationRecordView = ({
                       </span>
                     </TableCell>
                     <TableCell>{(Number(record.quantity) || 0).toFixed(2)}</TableCell>
-                    <TableCell className="font-medium">${(Number(record.cost) || 0).toFixed(2)}</TableCell>
+                    <TableCell className="font-medium">{Naira}{formatCurrency(Number(record.cost) || 0)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-gray-400" />
@@ -491,7 +491,7 @@ const VaccinationRecordView = ({
                       </div>
                       <div>
                         <p className="text-gray-500">Total Cost</p>
-                        <p className="font-medium">${(vaccineCost || 0).toFixed(2)}</p>
+                        <p className="font-medium">{Naira}{formatCurrency(vaccineCost || 0)}</p>
                       </div>
                       <div>
                         <p className="text-gray-500">Administrations</p>
