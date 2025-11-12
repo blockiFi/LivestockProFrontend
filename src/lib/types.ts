@@ -13,12 +13,8 @@ export type User = {
 
 }
 
-export type Role = {
 
-}
-export type Permission = {
 
-}
 export type Country = {
             id: number,
             iso_code: string,
@@ -302,6 +298,29 @@ export type MedicationInventory  = {
   updated_at: string;
   deleted_at: string | null;
   created_by: string | null;
+  product?: MedicationProduct;
+
+}
+export type VaccineInventory = {
+  id: number;
+  poultry_vaccine_product_id: number;
+  farm_id: number;
+  quantity: number; // or number, depending on your backend design
+  available_quantity: number; // current available quantity
+  manufacturer: string;
+  notes: string;
+  batch_number: string;
+  status: string; // e.g., "available"
+  manufacture_date: string | null;
+  last_restocked: string | null;
+  expiry_date: string;
+  unit_cost: number; // or number
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  created_by: string | null;
+  product?: VaccineProduct;
+
 }
 
 export type AdministrationMethod =  {
@@ -553,6 +572,7 @@ export type vaccine = {
   }
 export type FeedType = {
   id: number;
+  min_stock_level : number,
   farm_id: number | null;
   type: string; // e.g., "default"
   poultry_type_id: number;
@@ -581,7 +601,7 @@ export type FeedInventoryType = {
     updated_at: string;
     deleted_at: string | null;
     created_by: number | null;
-    poultry_feed_type?: FeedType;
+    feed_type?: FeedType;
   };
 export type PoultryFeedUsageRecord =  {
   id: number;
@@ -704,5 +724,62 @@ export type VaccineData = vaccine & {
   products: VaccineProduct[];
 };
 
+export type PoultryFeedProduct = {
+  id: number;
+  farm_id: number | null;
+  poultry_feed_type_id: number | null;
+  name: string;
+  sku?: string | null;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
 
 
+export type Permission = {
+  id: number;
+  name: string;
+  guard_name: string;
+  group_id: number;
+  created_at: string;
+  updated_at: string;
+}
+export type PermissionGroup =  {
+  id: number;
+  name: string;
+  description: string;
+  color: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  permissions: Permission[];
+}
+
+export type Role = {
+  id: number;
+  name: string; 
+  created_at: string;
+  updated_at: string;
+  permissions?: Permission[];
+}
+export interface InvoiceItem {
+  description: string
+  quantity: number
+  unitPrice: number
+  total: number
+}
+
+export interface Invoice {
+  id: number
+  invoiceNumber: string
+  date: string
+  dueDate: string
+  status: "Paid" | "Pending" | "Overdue"
+  clientName: string
+  clientEmail: string
+  items: InvoiceItem[]
+  subtotal: number
+  tax: number
+  total: number
+  notes: string
+}

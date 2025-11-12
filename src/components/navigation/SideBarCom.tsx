@@ -35,6 +35,7 @@ import { useLocation } from "react-router-dom";
     Users,
     X,
     Heart,
+    Package,
   } from "lucide-react"
   import {
     Sidebar,
@@ -161,6 +162,8 @@ const SideBarCom = () => {
     const { pathname } = useLocation();
     const [poultryOpen, setPoultryOpen] = useState(pathname?.includes("/poultry"))
     const [healthOpen, setHealthOpen] = useState(pathname?.includes("/poultry/health"))
+    const [inventoryOpen, setInventoryOpen] = useState(pathname?.includes("/poultry/inventory"))
+    const [permissionOpen, setPermissionOpen] = useState(pathname?.includes("/poultry/permission"))
 
     return (
         <Sidebar>
@@ -256,6 +259,82 @@ const SideBarCom = () => {
                     )}
                   </div>
 
+                  {/* Inventory Management dropdown */}
+                  <div className="pt-1">
+                    <button
+                      onClick={() => setInventoryOpen(!inventoryOpen)}
+                      className={cn(
+                        "w-full flex items-center justify-between text-sm px-3 py-2 rounded-md",
+                        pathname?.includes("/poultry/inventory")
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <span className="flex items-center gap-2 "><Package className="h-4 w-4" /> Inventory </span>
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", inventoryOpen && "rotate-180")} />
+                    </button>
+                    {inventoryOpen && (
+                      <div className="ml-4 mt-1 space-y-1">
+                        <SubNavItem
+                          to="/dashboard/poultry/inventory/medications"
+                          active={pathname?.includes("/poultry/inventory/medications")}
+                        >
+                          Medication Inventory
+                        </SubNavItem>
+                        <SubNavItem
+                          to="/dashboard/poultry/inventory/vaccination"
+                          active={pathname?.includes("/poultry/inventory/vaccination")}
+                        >
+                          Vaccination Inventory
+                        </SubNavItem>
+                        <SubNavItem
+                          to="/dashboard/poultry/inventory/feeds"
+                          active={pathname?.includes("/poultry/inventory/feeds")}
+                        >
+                          Feed Inventory
+                        </SubNavItem>
+                      </div>
+                    )}
+                  </div>
+                    {/* //Permission  Management */}
+                      <div className="pt-1">
+                    <button
+                      onClick={() => setPermissionOpen(!permissionOpen)}
+                      className={cn(
+                        "w-full flex items-center justify-between text-sm px-3 py-2 rounded-md",
+                        pathname?.includes("/poultry/permission")
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <span className="flex items-center gap-2 "><Users className="h-4 w-4" /> Permissions </span>
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", permissionOpen && "rotate-180")} />
+                    </button>
+                    {permissionOpen && (
+                      <div className="ml-4 mt-1 space-y-1">
+                        <SubNavItem
+                          to="/dashboard/poultry/permission/permissions"
+                          active={pathname?.includes("/poultry/permission/permissions")}
+                        >
+                          Permission
+                        </SubNavItem>
+                        <SubNavItem
+                          to="/dashboard/poultry/permission/roles"
+                          active={pathname?.includes("/poultry/permission/roles")}
+                        >
+                          Roles
+                        </SubNavItem>
+                        <SubNavItem
+                          to="/dashboard/poultry/permission/user-roles"
+                          active={pathname?.includes("/poultry/permission/user-roles")}
+                        >
+                          Users
+                        </SubNavItem>
+
+                        
+                      </div>
+                    )}
+                  </div>
                   <SubNavItem
                     to="/livestock/poultry/housing-management"
                     active={pathname?.includes("/housing-management")}
@@ -271,6 +350,8 @@ const SideBarCom = () => {
             <NavItem to="/livestock/fishery" icon={Fish} active={pathname?.includes("/livestock/fishery")}>
               Fishery
             </NavItem>
+
+
             <NavItem to="/soil-water" icon={Droplet} active={pathname?.includes("/soil-water")}>
               Soil & Water
             </NavItem>
@@ -300,6 +381,9 @@ const SideBarCom = () => {
             </NavItem>
             <NavItem to="/settings" icon={Settings} active={pathname?.includes("/settings")}>
               Settings
+            </NavItem>
+            <NavItem to="/dashboard/invoices" icon={Layers} active={pathname?.includes("/dashboard/invoices")}>
+              Invoices
             </NavItem>
           </nav>
         </div>

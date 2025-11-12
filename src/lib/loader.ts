@@ -1,7 +1,7 @@
 import { setActiveFarm, setToken, setUser } from '@/store/AuthenticationSlice';
 import store from '../store/index';
-import { getFarm, getFarmStatistics, getFlock, getPoultryMedicationData, getPoultryStatistics, GetToken, getUser, getPoultryVaccineData } from './request';
-import type { DetailedFlockRecord, Farm, MedicationData } from './types';
+import { getFarm, getFarmStatistics, getFlock, getPoultryMedicationData, getPoultryStatistics, GetToken, getUser, getPoultryVaccineData, getFeedinVentories, getMedicationInventories, getVaccineInventories, getGroupedPermisssions, getRolesWithPermissions } from './request';
+import type { DetailedFlockRecord, Farm, FeedInventoryType, MedicationData, MedicationInventory, PermissionGroup, Role, VaccineInventory } from './types';
 import type { VaccineData } from './types';
 import type { LoadFarmDataType, LoadPoultryOverviewDataType } from './interfaces';
 import { setPoultryStatistics } from '@/store/StatisticsSlice';
@@ -139,5 +139,131 @@ export const LoadVaccineData = async (): Promise<{ vaccines: VaccineData[] | nul
     } catch (err) {
         console.error('Error loading vaccine data:', err);
         return { vaccines: null };
+    }
+};
+export const LoadFeedinVentories = async (): Promise<{ feedInventories: FeedInventoryType[] | null }> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+
+    try {
+        const response = await getFeedinVentories(state.authentication.token, currentFarm?.id ? currentFarm.id : 0);
+        console.log('Feed Inventory Response:', response);
+        if (response.success) {
+            const feedInventories = response.data == null
+                ? null
+                : (Array.isArray(response.data) ? response.data : [response.data]);
+            return { feedInventories };
+        } else {
+            console.error('Error loading vaccine data: ', response.error);
+            return { feedInventories: null };
+        }
+    } catch (err) {
+        console.error('Error loading vaccine data:', err);
+        return { feedInventories: null };
+    }
+};
+
+export const LoadMedicationInventories = async (): Promise<{ medicationInventories: MedicationInventory[] | null }> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+    
+    try {
+        const response = await getMedicationInventories (state.authentication.token, currentFarm?.id ? currentFarm.id : 0);
+        console.log('Medication Inventory Response:', response);
+        if (response.success) {
+            const medicationInventories = response.data == null
+
+                ? null
+                : (Array.isArray(response.data) ? response.data : [response.data]);
+            return { medicationInventories };
+        }
+            else {
+            console.error('Error loading medication inventory data: ', response.error);
+            return { medicationInventories: null };
+        }
+    } catch (err) {
+        console.error('Error loading medication inventory data:', err);
+        return { medicationInventories: null };
+    }
+};
+
+export const LoadVaccineInventories = async (): Promise<{  vaccineInventories: VaccineInventory[] | null} > => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+
+    try {
+        const response = await getVaccineInventories(state.authentication.token, currentFarm?.id ? currentFarm.id : 0);
+        console.log('Vaccine Inventory Response:', response);
+        if (response.success) {
+            console.log('Raw Vaccine Inventory Data:', response.data);
+            const vaccineInventories = response.data == null
+            
+                ? null
+                : (Array.isArray(response.data) ? response.data : [response.data]).map((v: any) => {
+                    // Ensure quantity is a number (API may return it as a string)
+                    const rawQty = v?.quantity;
+                    const qty = typeof rawQty === 'string'
+                        ? (isNaN(parseFloat(rawQty)) ? 0 : parseFloat(rawQty))
+                        : rawQty;
+                    return {
+                        ...v,
+                        quantity: qty,
+                    } as VaccineInventory;
+                });
+                console.log("vaccineInventories data : ", vaccineInventories);
+            return { vaccineInventories };
+        } else {
+            console.error('Error loading vaccine inventory data: ', response.error);
+            return { vaccineInventories: null };
+        }
+    } catch (err) {
+        console.error('Error loading vaccine inventory data:', err);
+        return { vaccineInventories: null };
+    }
+};
+
+export const LoadPermissionGroups = async (): Promise<{ PermissionGroups: PermissionGroup[] | null }> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+
+    try {
+        const response = await getGroupedPermisssions(state.authentication.token, currentFarm?.id ? currentFarm.id : 0);
+        console.log('Permission Groups Response:', response);
+        if (response.success) {
+            return { PermissionGroups: response.data ?? null };
+        } else {
+            console.error('Error loading permission groups data: ', response.error);
+            return { PermissionGroups: null };
+        }
+    } catch (err) {
+        console.error('Error loading permission groups data:', err);
+        return { PermissionGroups: null };
+    }
+};
+
+export const LoadRolesWithPermissions = async (): Promise<{ roles: Role[] | null }> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+    
+    try {   
+        const response = await getRolesWithPermissions(state.authentication.token, currentFarm?.id ? currentFarm.id : 0);
+        console.log('Roles with Permissions Response:', response);
+
+        if (response.success) {
+            return { roles: response.data ?? null };
+        }
+        else {
+            console.error('Error loading roles with permissions data: ', response.error);
+            return { roles: null };
+        }
+    }
+    catch (err) {
+        console.error('Error loading roles with permissions data:', err);
+        return { roles: null };
     }
 };

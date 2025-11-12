@@ -19,6 +19,7 @@ import { Authenticated, LoadActiveFarm, LoadFarmData } from './lib/loader.ts';
 import Dashboard from './pages/Dashboard.tsx';
 import FarmPage from './pages/FarmPage.tsx';
 import PoultryRoutes from "./routes/poultryRoutes";
+import { InvoicesPage } from './pages/Invoice.tsx';
 
 
 const router = createBrowserRouter([
@@ -74,6 +75,10 @@ const router = createBrowserRouter([
            return { currentFarm   , farmStats};
         },
         element: <FarmPage />
+      },
+      {
+        path: "invoices",
+        element: <InvoicesPage />
       },
       ...PoultryRoutes
 

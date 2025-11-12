@@ -1,5 +1,5 @@
 import type { LoadPoultryOverviewDataType } from "@/lib/interfaces";
-import { Authenticated, LoadFlockData, LoadMedicationData, LoadPoultryOverviewData, LoadVaccineData } from "@/lib/loader";
+import { Authenticated, LoadFeedinVentories, LoadFlockData, LoadMedicationData, LoadMedicationInventories, LoadPermissionGroups, LoadPoultryOverviewData, LoadRolesWithPermissions, LoadVaccineData, LoadVaccineInventories } from "@/lib/loader";
 import type { DetailedFlockRecord } from "@/lib/types";
 import { exportRoutes } from "@/lib/utils";
 import FlockManagementPage from "@/pages/poultry/FlockManagementPage";
@@ -12,6 +12,12 @@ import VaccinationsPage from "@/pages/poultry/health/VaccinationsPage";
 import VaccinationProductsPage from "@/pages/poultry/health/VaccinationProductsPage";
 import { redirect } from "react-router-dom";
 import { toast } from "react-toastify";
+import MedicationInventoriesPage from "@/pages/poultry/inventory/MedicationInventoriesPage";
+import VaccinationInventoriesPage from "@/pages/poultry/inventory/VaccinationInventoriesPage";
+import FeedInventoriesPage from "@/pages/poultry/inventory/FeedInventoriesPage";
+import PermissionManagementPage from "@/pages/poultry/permission/permissionManagementPage";
+import RoleManagementPage from "@/pages/poultry/permission/roleManagementPage";
+import UserRoleManagementPage from "@/pages/poultry/permission/userRoleManagementPage";
 
 const PoultryRoutes = [
     {
@@ -82,7 +88,7 @@ const PoultryRoutes = [
       toast.error("You must be logged in to access this page.");
       return redirect('/login');
     }
-     const {medications} = await LoadMedicationData();
+    const {medications} = await LoadMedicationData();
     return {medications};
   },
   element: <MedicationProductsPage />
@@ -108,9 +114,94 @@ const PoultryRoutes = [
       toast.error("You must be logged in to access this page.");
       return redirect('/login');
     }
+     const { vaccines } = await LoadVaccineData();
+    return { vaccines };
   },
   element: <VaccinationProductsPage />
+}, 
+{
+  path: "/inventory/medications",
+  loader: async () => {
+    const authenticated: boolean = await Authenticated();
+    if (!authenticated) {
+      toast.error("You must be logged in to access this page.");
+      return redirect('/login');
+    }
+    const {medicationInventories} = await LoadMedicationInventories();
+    return {medicationInventories}
+    
+  },
+  element: <MedicationInventoriesPage />  
+
+},
+{
+  path: "/inventory/vaccination"  , 
+  loader: async () => {
+    const authenticated: boolean = await Authenticated();
+    if (!authenticated) {
+      toast.error("You must be logged in to access this page.");
+      return redirect('/login');
+    }
+    const {vaccineInventories} = await LoadVaccineInventories();
+    console.log("Vaccine Inventories: loader ", vaccineInventories);
+    return {vaccineInventories}
+  },
+  element: <VaccinationInventoriesPage />  
+
+},
+{
+  path: "/inventory/feeds",
+  loader: async () => {
+    const authenticated: boolean = await Authenticated();
+    if (!authenticated) {
+      toast.error("You must be logged in to access this page.");
+      return redirect('/login');
+    }
+    const {feedInventories} = await LoadFeedinVentories();
+    return {feedInventories}
+  },
+  element: <FeedInventoriesPage />
+},
+{
+  path: '/permission/permissions',
+  loader: async () => {
+    const authenticated: boolean = await Authenticated();
+    if (!authenticated) {
+      toast.error("You must be logged in to access this page.");
+      return redirect('/login');
+    }
+    const { PermissionGroups } = await LoadPermissionGroups();
+    return { PermissionGroups };
+  },
+  element: <PermissionManagementPage />
+},
+{
+  path: '/permission/roles',
+  loader: async () => {
+    const authenticated: boolean = await Authenticated();
+    if (!authenticated) {
+      toast.error("You must be logged in to access this page.");
+      return redirect('/login');
+    }
+    const { roles } = await LoadRolesWithPermissions();
+    return { roles };
+  },
+  element: <RoleManagementPage />
+},
+{
+  path: '/permission/user-roles',
+  loader: async () => {
+    const authenticated: boolean = await Authenticated();
+    if (!authenticated) {
+      toast.error("You must be logged in to access this page.");
+      return redirect('/login');
+    }
+    return null
+  },
+  element: <UserRoleManagementPage />
 }
+
+
 ]
 
 const routes  = exportRoutes("poultry" ,  PoultryRoutes);
