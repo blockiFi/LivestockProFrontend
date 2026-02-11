@@ -411,7 +411,8 @@ export type Schedule = {
   name: string;
   description: string;
   created_at: string;          // ISO datetime string
-  updated_at: string;          // ISO datetime string
+  updated_at: string; 
+  items : ScheduleItem[]       // ISO datetime string
 }
 
 export type DetailedSchedule =Schedule & {
@@ -426,6 +427,7 @@ export type feedingSchedule = {
   end_date: string;   // Format: YYYY-MM-DD
   created_at: string; // ISO timestamp
   updated_at: string; // ISO timestamp
+  items: feedingScheduleItem[];
 }
 interface FeedingTime {
   time: string;       // Format: "HH:MM"

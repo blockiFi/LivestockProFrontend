@@ -94,32 +94,65 @@ const ScheduleView = ({type, schedule} : {type: string, schedule: any | undefine
                           }
 
                           if (type === 'feeding') {
-                            return schedule.items.map((item: any, index: number) => (
-                              <div className="py-2 px-10" key={index} >
-                                <div className="flex items-center justify-between ">
-                                   
-                                   <div className=" font-medium text-gray-800 ">
-                                    {item.feed_type?.name || item.feedType?.name || `Feed Type #${item.feed_type_id}`}
+                            return schedule.items.map((item: any, index: number) => {
+                              const totalQty = Number(item.quantity) || 0;
+                              const feedingTimes = item.feeding_times || [];
+                              
+                              return (
+                                <div className="py-4 px-6 hover:bg-gray-50 transition-colors" key={index}>
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="p-2 bg-green-100 rounded-lg">
+                                        <Wheat className="h-4 w-4 text-green-600" />
+                                      </div>
+                                      <div>
+                                        <div className="font-semibold text-gray-800">
+                                          {item.feed_type?.name || item.feedType?.name || `Feed Type #${item.feed_type_id}`}
+                                        </div>
+                                        <div className="text-sm text-gray-500">Day {item.feeding_day ?? index + 1}</div>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-sm text-gray-500">Total Daily</div>
+                                      <div className="text-lg font-bold text-gray-800">{totalQty.toFixed(1)} g</div>
+                                    </div>
                                   </div>
-                                  <div className="text-sm text-gray-600">Day {item.feeding_day ?? index + 1}</div>
+                                  
+                                  {feedingTimes.length > 0 && (
+                                    <div className="mt-3">
+                                      <div className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        Feeding Schedule
+                                      </div>
+                                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                        {feedingTimes.map((t: any, idx: number) => {
+                                          const pct = Number(t.percentage) || 0;
+                                          const grams = (totalQty * pct) / 100;
+                                          return (
+                                            <div 
+                                              key={idx} 
+                                              className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-2"
+                                            >
+                                              <div className="flex items-center gap-1 mb-1">
+                                                <Clock className="h-3 w-3 text-blue-600" />
+                                                <span className="text-sm font-semibold text-blue-900">{t.time}</span>
+                                              </div>
+                                              <div className="text-xs text-gray-600">
+                                                <span className="font-medium text-blue-700">{pct}%</span>
+                                                <span className="text-gray-400 mx-1">•</span>
+                                                <span className="font-medium text-gray-700">{grams.toFixed(1)}g</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="border-b border-gray-200 mt-4"></div>
                                 </div>
-                                <div className="text-sm text-gray-600">Total Qty: {Number(item.quantity) || 0} g</div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {
-                                    (() => {
-                                      const totalQty = Number(item.quantity) || 0;
-                                      const times = (item.feeding_times || []).map((t: any) => {
-                                        const pct = Number(t.percentage) || 0;
-                                        const grams = (totalQty * pct) / 100;
-                                        return `${t.time} (${pct}% • ${grams}g)`;
-                                      }).join(', ');
-                                      return <>Times: {times}</>;
-                                    })()
-                                  }
-                                </div>
-                                <div className="border-b border-gray-200 my-2"></div>
-                              </div>
-                            ));
+                              );
+                            });
                           }
 
                           // medication / vaccination items

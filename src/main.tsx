@@ -78,6 +78,17 @@ const router = createBrowserRouter([
       },
       {
         path: "invoices",
+        loader : async ()   => {
+          const {farmStats ,currentFarm} = await LoadFarmData();
+
+          if(currentFarm === null){
+            toast.error("no Farm Selected!!!");
+            throw redirect('/farm-selection')
+          }
+
+          return { currentFarm , farmStats};
+        },
+        
         element: <InvoicesPage />
       },
       ...PoultryRoutes

@@ -1,6 +1,5 @@
-
 import { useState } from "react"
-import type { Invoice } from "@/lib/types"
+import type { Farm, FarmStatsDataType, Invoice } from "@/lib/types"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, Printer, Eye, Trash2 } from "lucide-react"
 import { CreateInvoiceModal } from "@/components/modals/CreateIvoiceModal"
 import { InvoicePreview } from "@/components/general/invoice-preview"
+import { useLoaderData } from "react-router-dom"
 
 
  const SAMPLE_INVOICES: Invoice[] = [
@@ -102,7 +102,7 @@ export function InvoicesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [showPreview, setShowPreview] = useState(false)
-
+  const { currentFarm } = useLoaderData() as { currentFarm: Farm | null; farmStats: FarmStatsDataType | null }
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesSearch =
       invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -141,6 +141,7 @@ export function InvoicesPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <style>{`@media print { .no-print { display: none !important; } }`}</style>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -279,9 +280,9 @@ export function InvoicesPage() {
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Invoice Preview</DialogTitle>
+            <DialogTitle className="no-print">Invoice Preview</DialogTitle>
           </DialogHeader>
-          {selectedInvoice && <InvoicePreview invoice={selectedInvoice} />}
+          {selectedInvoice && <InvoicePreview  farm={currentFarm} invoice={selectedInvoice} />}
         </DialogContent>
       </Dialog>
     </div>

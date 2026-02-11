@@ -30,7 +30,7 @@ import { NotificationSystem } from "@/components/poultry/Flocks/Notification"
 import { useState, useEffect } from "react"
 import BatchScheduleView from "@/components/poultry/Flocks/batchSchedule/BatchScheduleView"
 import AddDailyRecordModal from "@/components/modals/AddDailyRecordModal"
-import { createDailyRecord, createMortalityRecord, createWeightReport, deleteWeightReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, createMedicationRecord, deleteMedicationRecord } from "@/lib/request"
+import { createDailyRecord, createMortalityRecord, createWeightReport, deleteWeightReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, createMedicationRecord, deleteMedicationRecord, getFlock } from "@/lib/request"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import { toast } from "react-toastify"
@@ -49,6 +49,20 @@ const FlockPage = () => {
     
     const token = useSelector((state: RootState) => state.authentication.token);
     const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id);
+
+    // Function to refresh flock data
+    const refreshFlock = async () => {
+        if (!farmId || !token || !flock.id) return;
+        
+        try {
+            const response = await getFlock(token, farmId, flock.id);
+            if (response.success && response.data) {
+                setFlock(response.data);
+            }
+        } catch (error) {
+            console.error("Error refreshing flock data:", error);
+        }
+    };
 
     // Fetch feed inventories, feed types, vaccines, vaccine inventories, and administration methods
     useEffect(() => {
@@ -759,7 +773,7 @@ const FlockPage = () => {
             </Button>
           </div>
 
-          <BatchScheduleView  feedingSchedule =  {flock.batch_feeding_schedules}  vaccinationSchedule = {flock.batch_vaccination_schedules} medicationSchedule={flock.batch_medication_schedules} />
+          <BatchScheduleView  feedingSchedule =  {flock.batch_feeding_schedules}  vaccinationSchedule = {flock.batch_vaccination_schedules} medicationSchedule={flock.batch_medication_schedules} flockQuantity={flock.quantity} onRefresh={refreshFlock} />
 
           </div>
         

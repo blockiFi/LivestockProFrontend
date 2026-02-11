@@ -1,6 +1,6 @@
 "use client"
 
-import type { Invoice } from "@/lib/types"
+import type { Farm, Invoice } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Printer } from "lucide-react"
 
@@ -8,7 +8,7 @@ interface InvoicePreviewProps {
   invoice: Invoice
 }
 
-export function InvoicePreview({ invoice }: InvoicePreviewProps) {
+export function InvoicePreview({ invoice , farm }: {invoice: Invoice , farm: Farm | null}) {
   return (
     <div className="space-y-4">
       <div className="flex justify-end mb-4">
@@ -23,7 +23,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         <div className="flex justify-between items-start mb-8 print:mb-6">
           <div>
             <h1 className="text-2xl font-bold text-blue-600">INVOICE</h1>
-            <p className="text-sm text-muted-foreground mt-1">LiveStockPro Farm Management</p>
+            <p className="text-sm text-muted-foreground mt-1">{farm?.name}</p>
+            <p className="text-sm text-muted-foreground mt-1">{farm?.address}</p>
           </div>
           <div className="text-right text-sm">
             <p className="font-semibold">{invoice.invoiceNumber}</p>

@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { NewScheduleForm, PaginatedRequestType } from "@/lib/interfaces";
-import { getSchedules } from "@/lib/request";
-import type { DetailedSchedule } from "@/lib/types";
+import { getSchedules, getFeedingSchedules } from "@/lib/request";
+import type { DetailedSchedule, FeedingSchedule } from "@/lib/types";
 import type { RootState } from "@/store";
-import { Activity, BarChart3, CheckCircle, Package, Plus, Settings2, Syringe } from "lucide-react"
+import { Activity, BarChart3, CheckCircle, Package, Plus, Settings2, Syringe, UtensilsCrossed } from "lucide-react"
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 
@@ -84,12 +84,15 @@ const ScheduleManagementPage = () => {
 
    const [schedules, setSchedules] = useState<{ 
      medicationSchedules?: PaginatedRequestType<DetailedSchedule[]>, 
-     vaccinationSchedules?: PaginatedRequestType<DetailedSchedule[]> 
+     vaccinationSchedules?: PaginatedRequestType<DetailedSchedule[]>,
+     feedingSchedules?: PaginatedRequestType<FeedingSchedule[]>
    }>({});
   const [medicationPage, setMedicationPage] = useState(1);
   const [medicationTotalPages, setMedicationTotalPages] = useState(1);
   const [vaccinationPage, setVaccinationPage] = useState(1);
   const [vaccinationTotalPages, setVaccinationTotalPages] = useState(1);
+  const [feedingPage, setFeedingPage] = useState(1);
+  const [feedingTotalPages, setFeedingTotalPages] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
   
   // Alert dialog state
@@ -212,9 +215,10 @@ const ScheduleManagementPage = () => {
             if (!token || !farmId) return;
       
             try {
-              const [medicationRes, vaccinationRes] = await Promise.all([
+              const [medicationRes, vaccinationRes, feedingRes] = await Promise.all([
                 getSchedules(token, farmId, "medication", true, medicationPage, 10),
-                getSchedules(token, farmId, "vaccination", true, vaccinationPage, 10)
+                getSchedules(token, farmId, "vaccination", true, vaccinationPage, 10),
+                getFeedingSchedules(token, farmId, true, feedingPage, 10)
               ]);
       
               const updatedSchedules: typeof schedules = {} as any;
@@ -228,6 +232,11 @@ const ScheduleManagementPage = () => {
                 updatedSchedules.vaccinationSchedules = vaccinationRes as any;
                 setVaccinationTotalPages((vaccinationRes as any).total_pages || 1);
               }
+              if ((feedingRes as any).success && (feedingRes as any).data) {
+                console.log("Fetched Feeding Schedules: ", (feedingRes as any).data);
+                updatedSchedules.feedingSchedules = feedingRes as any;
+                setFeedingTotalPages((feedingRes as any).total_pages || 1);
+              }
       
               setSchedules(prev => ({ ...prev, ...updatedSchedules }));
             } catch (error) {
@@ -236,7 +245,7 @@ const ScheduleManagementPage = () => {
           };
       
           fetchSchedules();
-    }, [token, farmId, medicationPage, vaccinationPage]);
+    }, [token, farmId, medicationPage, vaccinationPage, feedingPage]);
   return (
     <>
      
@@ -264,7 +273,7 @@ const ScheduleManagementPage = () => {
                 
              </div>
               </div>
-       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -272,7 +281,8 @@ const ScheduleManagementPage = () => {
                       <p className="text-blue-100 text-sm">Total Schedules</p>
                       <p className="text-2xl font-bold">
                         {(schedules.medicationSchedules?.data?.length ?? 0) +
-                        (schedules.vaccinationSchedules?.data?.length ?? 0)}
+                        (schedules.vaccinationSchedules?.data?.length ?? 0) +
+                        (schedules.feedingSchedules?.data?.length ?? 0)}
                         </p>
                     </div>
                     <Package className="h-8 w-8 text-blue-200" />
@@ -296,10 +306,22 @@ const ScheduleManagementPage = () => {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-purple-100 text-sm">Vacination Schedules</p>
+                      <p className="text-purple-100 text-sm">Vaccination Schedules</p>
                       <p className="text-2xl font-bold">{(schedules.vaccinationSchedules?.data?.length ?? 0)}</p>
                     </div>
                     <CheckCircle className="h-8 w-8 text-purple-200" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-orange-100 text-sm">Feeding Schedules</p>
+                      <p className="text-2xl font-bold">{(schedules.feedingSchedules?.data?.length ?? 0)}</p>
+                    </div>
+                    <UtensilsCrossed className="h-8 w-8 text-orange-200" />
                   </div>
                 </CardContent>
               </Card>
@@ -310,7 +332,7 @@ const ScheduleManagementPage = () => {
        <CardContent className="p-6">
 
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="medication" className="flex items-center gap-2">      
               <Syringe className="h-4 w-4" />
               Medication
@@ -318,6 +340,10 @@ const ScheduleManagementPage = () => {
             <TabsTrigger value="vaccination" className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4" />
               Vaccination
+            </TabsTrigger>
+            <TabsTrigger value="feeding" className="flex items-center gap-2">
+              <UtensilsCrossed className="h-4 w-4" />
+              Feeding
             </TabsTrigger>
           </TabsList>
                 
@@ -356,6 +382,27 @@ const ScheduleManagementPage = () => {
           currentPage={vaccinationPage}
           totalPages={vaccinationTotalPages}
           onPageChange={setVaccinationPage}
+        />
+      )}
+    </>
+  )}
+</TabsContent>
+
+                <TabsContent value="feeding" className="mt-0">
+  {(!schedules.feedingSchedules || (schedules.feedingSchedules.data?.length ?? 0) === 0) ? (
+    <div className="text-center text-gray-500 py-6">
+      No Feeding Schedules.
+    </div>
+  ) : (
+    <>
+      {(schedules.feedingSchedules.data ?? []).map((schedule: any, index: number) => (
+        <ScheduleView key={index} type="feeding" schedule={schedule} />
+      ))}
+      {feedingTotalPages > 1 && (
+        <Pagination
+          currentPage={feedingPage}
+          totalPages={feedingTotalPages}
+          onPageChange={setFeedingPage}
         />
       )}
     </>
