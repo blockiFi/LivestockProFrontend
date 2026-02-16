@@ -19,8 +19,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Loader2, Plus, X } from "lucide-react"
+import {
+  CalendarIcon,
+  Loader2,
+  Plus,
+  X,
+  Wheat,
+  ClipboardCheck,
+  Clock,
+  StickyNote,
+  ChevronDown,
+  ChevronUp
+} from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import type { feedingScheduleItem, FeedingTimeEntry } from "@/lib/types"
@@ -48,6 +58,7 @@ const ImplementFeedingScheduleModal = ({
 }: ImplementFeedingScheduleModalProps) => {
   const [loading, setLoading] = useState(false)
   const [feedingDate, setFeedingDate] = useState<Date>(new Date())
+  const [showCalendar, setShowCalendar] = useState(false)
   const token = useSelector((state: RootState) => state.authentication.token);
   const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id);
   
@@ -141,88 +152,98 @@ const ImplementFeedingScheduleModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Implement Feeding Schedule</DialogTitle>
-          <DialogDescription>
-            Record the details of the feeding for Day {scheduleItem.feeding_day}.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Gradient Header */}
+        <div className="bg-gradient-to-r from-amber-600 to-yellow-600 px-6 py-5 rounded-t-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white text-xl">Implement Feeding Schedule</DialogTitle>
+            <DialogDescription className="text-amber-100">
+              Record the details of the feeding for Day {scheduleItem.feeding_day}.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Status */}
-          <div className="space-y-2">
-            <Label htmlFor="status">Status *</Label>
-            <Select
-              value={formData.status}
-              onValueChange={(value) => handleInputChange("status", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="scheduled">Scheduled</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="missed">Missed</SelectItem>
-              </SelectContent>
-            </Select>
+        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
+          {/* ── Status Section ── */}
+          <div className="space-y-3 pt-2">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4 text-amber-500" />
+              Status
+            </h3>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-600">Status *</Label>
+              <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="missed">Missed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Feeding Date */}
-          <div className="space-y-2">
-            <Label>Feeding Date *</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !feedingDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {feedingDate ? format(feedingDate, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={feedingDate} onSelect={(date) => date && setFeedingDate(date)} initialFocus />
-              </PopoverContent>
-            </Popover>
+          {/* ── Feeding Date (inline calendar) ── */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-blue-500" />
+              Feeding Date
+            </h3>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowCalendar(!showCalendar)}
+                className={cn(
+                  "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50 border-gray-300",
+                  showCalendar && "border-amber-500 ring-2 ring-amber-100"
+                )}
+              >
+                <span className="text-gray-900 font-medium">
+                  {format(feedingDate, "EEEE, MMMM d, yyyy")}
+                </span>
+                {showCalendar ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+              </button>
+              {showCalendar && (
+                <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
+                  <Calendar mode="single" selected={feedingDate} onSelect={(date) => { if (date) { setFeedingDate(date); setShowCalendar(false) } }} />
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Quantity Information */}
-          <div className="space-y-2">
-            <Label htmlFor="actual_quantity">Actual Quantity per Bird (grams) *</Label>
-            <Input
-              id="actual_quantity"
-              type="number"
-              min="0"
-              step="0.1"
-              value={formData.actual_quantity}
-              onChange={(e) => handleInputChange("actual_quantity", e.target.value)}
-              placeholder="e.g., 50"
-            />
-            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+          {/* ── Quantity Section ── */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <Wheat className="h-4 w-4 text-amber-500" />
+              Quantity
+            </h3>
+            <div className="space-y-1">
+              <Label htmlFor="actual_quantity" className="text-xs text-gray-600 flex items-center gap-1.5">
+                <Wheat className="h-3.5 w-3.5 text-amber-400" />
+                Actual Quantity per Bird (grams) *
+              </Label>
+              <Input id="actual_quantity" type="number" min="0" step="0.1" value={formData.actual_quantity} onChange={(e) => handleInputChange("actual_quantity", e.target.value)} placeholder="e.g., 50" className="h-9 text-sm" />
+            </div>
+            <div className="text-sm text-gray-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
               <div className="font-semibold mb-1">Total Quantity Calculation:</div>
               <div className="space-y-1">
                 <div>Per Bird: <span className="font-bold">{totalDailyQuantityPerBird.toFixed(1)} grams</span></div>
                 <div>Flock Size: <span className="font-bold">{flockQuantity} birds</span></div>
-                <div className="text-blue-700 font-bold">Total: {(totalDailyQuantity / 1000).toFixed(2)} kg</div>
+                <div className="text-amber-700 font-bold">Total: {(totalDailyQuantity / 1000).toFixed(2)} kg</div>
               </div>
             </div>
           </div>
 
-          {/* Feeding Times */}
+          {/* ── Feeding Times Section ── */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Feeding Times & Distribution</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addFeedingTime}
-                className="h-8"
-              >
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-blue-500" />
+                Feeding Times &amp; Distribution
+              </h3>
+              <Button type="button" variant="outline" size="sm" onClick={addFeedingTime} className="h-8">
                 <Plus className="h-4 w-4 mr-1" />
                 Add Time
               </Button>
@@ -233,39 +254,20 @@ const ImplementFeedingScheduleModal = ({
                 <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border">
                   <div className="flex-1">
                     <Label className="text-xs text-gray-600">Time</Label>
-                    <Input
-                      type="time"
-                      value={ft.time}
-                      onChange={(e) => updateFeedingTime(index, "time", e.target.value)}
-                      className="mt-1"
-                    />
+                    <Input type="time" value={ft.time} onChange={(e) => updateFeedingTime(index, "time", e.target.value)} className="mt-1 h-9 text-sm" />
                   </div>
                   <div className="flex-1">
                     <Label className="text-xs text-gray-600">Percentage (%)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={ft.percentage}
-                      onChange={(e) => updateFeedingTime(index, "percentage", Number(e.target.value))}
-                      className="mt-1"
-                    />
+                    <Input type="number" min="0" max="100" step="0.1" value={ft.percentage} onChange={(e) => updateFeedingTime(index, "percentage", Number(e.target.value))} className="mt-1 h-9 text-sm" />
                   </div>
                   <div className="flex-1">
                     <Label className="text-xs text-gray-600">Quantity</Label>
-                    <div className="mt-1 text-sm font-semibold text-gray-700 p-2 bg-white rounded border">
+                    <div className="mt-1 text-sm font-semibold text-gray-700 p-2 bg-white rounded border h-9 flex items-center">
                       {((totalDailyQuantity * Number(ft.percentage)) / 100 / 1000).toFixed(2)} kg
                     </div>
                   </div>
                   {feedingTimes.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeFeedingTime(index)}
-                      className="h-8 w-8 p-0 mt-5"
-                    >
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeFeedingTime(index)} className="h-8 w-8 p-0 mt-5">
                       <X className="h-4 w-4 text-red-600" />
                     </Button>
                   )}
@@ -284,23 +286,21 @@ const ImplementFeedingScheduleModal = ({
             </div>
           </div>
 
-          {/* Notes */}
+          {/* ── Notes ── */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleInputChange("notes", e.target.value)}
-              placeholder="Add any observations about feed quality, bird appetite, etc..."
-              rows={3}
-            />
+            <Label htmlFor="notes" className="text-sm font-semibold flex items-center gap-2">
+              <StickyNote className="h-4 w-4 text-gray-500" />
+              Notes
+            </Label>
+            <Textarea id="notes" value={formData.notes} onChange={(e) => handleInputChange("notes", e.target.value)} placeholder="Add any observations about feed quality, bird appetite, etc..." rows={3} className="resize-none" />
           </div>
 
-          <DialogFooter>
+          {/* ── Footer ── */}
+          <DialogFooter className="pt-2 border-t">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white">
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {loading ? "Implementing..." : "Implement Feeding"}
             </Button>

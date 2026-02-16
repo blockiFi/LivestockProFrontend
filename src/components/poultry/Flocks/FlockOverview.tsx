@@ -62,7 +62,7 @@ if (flock.status === "completed" && flock.actual_end_date) {
             </div>
             <div>
               <p className="text-sm text-gray-500">Quantity</p>
-              <p className="font-semibold">{flock.quantity.toLocaleString()}</p>
+              <p className="font-semibold">{flock.actual_quantity.toLocaleString()}</p>
             </div>
           </div>
 

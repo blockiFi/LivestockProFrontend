@@ -111,7 +111,7 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
             <div>
               <p className="text-sm text-gray-500">Current Bird Count</p>
               <p className="text-2xl font-bold text-blue-600">
-                {flock?.quantity ? ((flock.quantity - totalMortality).toLocaleString()) : "N/A"}
+                {flock?.actual_quantity ? flock.actual_quantity.toLocaleString() : "N/A"}
               </p>
             </div>
           </div>

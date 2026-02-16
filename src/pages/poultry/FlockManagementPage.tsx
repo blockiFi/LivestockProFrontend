@@ -81,7 +81,7 @@ const FlockCard = ({ flock }: { flock: FlockRecord }) =>{
               <img src={chicken} className="h-4 w-4 text-gray-500" />
               <div>
                 <p className="text-xs text-gray-500">Quantity</p>
-                <p className="font-semibold">{flock.quantity.toLocaleString()}</p>
+                <p className="font-semibold">{flock.actual_quantity.toLocaleString()}</p>
               </div>
             </div>
   

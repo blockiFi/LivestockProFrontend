@@ -29,11 +29,13 @@ import { Button } from "@/components/ui/button"
 import { NotificationSystem } from "@/components/poultry/Flocks/Notification"
 import { useState, useEffect } from "react"
 import BatchScheduleView from "@/components/poultry/Flocks/batchSchedule/BatchScheduleView"
+// import TodayActivities from "@/components/poultry/Flocks/TodayActivities 
 import AddDailyRecordModal from "@/components/modals/AddDailyRecordModal"
 import { createDailyRecord, createMortalityRecord, createWeightReport, deleteWeightReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, createMedicationRecord, deleteMedicationRecord, getFlock } from "@/lib/request"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import { toast } from "react-toastify"
+import TodayActivities from "@/components/poultry/Flocks/TodayActivities"
 const FlockPage = () => {
     const {Flock: initialFlock} = useLoaderData() as {Flock: DetailedFlockRecord};
     const [flock, setFlock] = useState<DetailedFlockRecord>(initialFlock);
@@ -603,7 +605,8 @@ const FlockPage = () => {
           </div>
         
         <FlockOverview flock={flock}/>
-        <PoultryPenOverview house={flock.poultry_house} quantity={flock.quantity} />
+        <TodayActivities flock={flock} />
+        <PoultryPenOverview house={flock.poultry_house} quantity={flock.actual_quantity} />
 
          {/* Metrics Tabs */}
        {
@@ -766,14 +769,14 @@ const FlockPage = () => {
         ) : (
           <div className="flex flex-col gap-4">
 
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Batch Schedule</h2>
-            <Button variant="outline" size="sm" onClick={() => setView("metrics")}>
-              View Metrics
-            </Button>
-          </div>
-
-          <BatchScheduleView  feedingSchedule =  {flock.batch_feeding_schedules}  vaccinationSchedule = {flock.batch_vaccination_schedules} medicationSchedule={flock.batch_medication_schedules} flockQuantity={flock.quantity} onRefresh={refreshFlock} />
+          <BatchScheduleView  
+            feedingSchedule={flock.batch_feeding_schedules}  
+            vaccinationSchedule={flock.batch_vaccination_schedules} 
+            medicationSchedule={flock.batch_medication_schedules} 
+            flockQuantity={flock.actual_quantity} 
+            onRefresh={refreshFlock}
+            onBack={() => setView("metrics")}
+          />
 
           </div>
         
@@ -789,6 +792,9 @@ const FlockPage = () => {
           onClose={() => setIsAddDailyRecordModalOpen(false)}
           onSubmit={handleCreateDailyRecord}
           flockId={flock.id}
+          flockQuantity={flock.actual_quantity}
+          farmId={farmId!}
+          token={token!}
           poultryType={flock.poultry_type.name}
         />
     </TooltipProvider>

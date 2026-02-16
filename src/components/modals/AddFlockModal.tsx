@@ -1,19 +1,36 @@
-import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
+import { useState, useEffect, useCallback } from "react"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../ui/sheet"
 import { Label } from "../ui/label"
 import { Input } from "../ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Button } from "../ui/button"
 import { Textarea } from "../ui/textarea"
 import { Calendar } from "../ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
-import { CalendarIcon, Loader2 } from "lucide-react"
+import {
+  CalendarIcon,
+  Loader2,
+  Bird,
+  Hash,
+  Dna,
+  MapPin,
+  Package,
+  Clock,
+  Layers,
+  Home,
+  StickyNote,
+  ChevronDown,
+  ChevronUp,
+  Pill,
+  Syringe,
+  Wheat,
+  Check,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
-import type { PoultryType, PoultryHouse, FlockStage } from "@/lib/types"
-import { getPoultryTypes, getPoultryHouses, getFlockStages } from "@/lib/request"
+import type { PoultryType, PoultryHouse, FlockStage, Schedule, FeedingSchedule } from "@/lib/types"
+import { getPoultryTypes, getPoultryHouses, getFlockStages, getSchedules, getFeedingSchedules } from "@/lib/request"
 
 interface AddFlockModalProps {
   isOpen: boolean
@@ -23,7 +40,6 @@ interface AddFlockModalProps {
 
 interface FlockFormData {
   name: string
-  batch_number: string
   breed: string
   source: string
   quantity: number
@@ -35,6 +51,9 @@ interface FlockFormData {
   house_id: number
   farm_id: number
   notes: string
+  medication_schedule_id: number | null
+  vaccination_schedule_id: number | null
+  feeding_schedule_id: number | null
 }
 
 const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
@@ -43,7 +62,6 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
 
   const [formData, setFormData] = useState<FlockFormData>({
     name: "",
-    batch_number: "",
     breed: "",
     source: "",
     quantity: 0,
@@ -54,17 +72,29 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
     flock_stage_id: 0,
     house_id: 0,
     farm_id: farmId || 0,
-    notes: ""
+    notes: "",
+    medication_schedule_id: null,
+    vaccination_schedule_id: null,
+    feeding_schedule_id: null
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [warningsConfirmed, setWarningsConfirmed] = useState(false)
+  const [showArrivalCalendar, setShowArrivalCalendar] = useState(false)
+  const [showEndCalendar, setShowEndCalendar] = useState(false)
   const [poultryTypes, setPoultryTypes] = useState<PoultryType[]>([])
   const [poultryHouses, setPoultryHouses] = useState<PoultryHouse[]>([])
   const [flockStages, setFlockStages] = useState<FlockStage[]>([])
   const [filteredHouses, setFilteredHouses] = useState<PoultryHouse[]>([])
   const [filteredStages, setFilteredStages] = useState<FlockStage[]>([])
+
+  // Schedule states
+  const [medicationSchedules, setMedicationSchedules] = useState<Schedule[]>([])
+  const [vaccinationSchedules, setVaccinationSchedules] = useState<Schedule[]>([])
+  const [feedingSchedulesList, setFeedingSchedulesList] = useState<FeedingSchedule[]>([])
+  const [schedulesLoading, setSchedulesLoading] = useState(false)
+  const [expandedSchedule, setExpandedSchedule] = useState<string | null>(null)
 
   // Load data from API
   useEffect(() => {
@@ -141,6 +171,60 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
     }
   }, [formData.poultry_type_id, poultryHouses, flockStages])
 
+  // Fetch schedules when poultry type changes
+  const fetchSchedules = useCallback(async (poultryTypeId: number) => {
+    if (!token || !farmId || poultryTypeId <= 0) {
+      setMedicationSchedules([])
+      setVaccinationSchedules([])
+      setFeedingSchedulesList([])
+      return
+    }
+    setSchedulesLoading(true)
+    try {
+      const [medRes, vacRes, feedRes] = await Promise.all([
+        getSchedules(token, farmId, "medication", false),
+        getSchedules(token, farmId, "vaccination", false),
+        getFeedingSchedules(token, farmId, false)
+      ])
+
+      if (medRes.success && Array.isArray(medRes.data)) {
+        setMedicationSchedules(medRes.data.filter((s: Schedule) => s.poultry_type_id === poultryTypeId))
+      } else {
+        setMedicationSchedules([])
+      }
+      if (vacRes.success && Array.isArray(vacRes.data)) {
+        setVaccinationSchedules(vacRes.data.filter((s: Schedule) => s.poultry_type_id === poultryTypeId))
+      } else {
+        setVaccinationSchedules([])
+      }
+      if (feedRes.success && Array.isArray(feedRes.data)) {
+        setFeedingSchedulesList(feedRes.data.filter((s: FeedingSchedule) => s.poultry_type_id === poultryTypeId))
+      } else {
+        setFeedingSchedulesList([])
+      }
+    } catch {
+      setMedicationSchedules([])
+      setVaccinationSchedules([])
+      setFeedingSchedulesList([])
+    } finally {
+      setSchedulesLoading(false)
+    }
+  }, [token, farmId])
+
+  useEffect(() => {
+    if (formData.poultry_type_id > 0) {
+      fetchSchedules(formData.poultry_type_id)
+    }
+    // Reset selected schedules when poultry type changes
+    setFormData(prev => ({
+      ...prev,
+      medication_schedule_id: null,
+      vaccination_schedule_id: null,
+      feeding_schedule_id: null
+    }))
+    setExpandedSchedule(null)
+  }, [formData.poultry_type_id, fetchSchedules])
+
   const handleInputChange = (field: keyof FlockFormData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     // Clear error when user starts typing
@@ -156,15 +240,18 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
 
   const handleDateChange = (field: 'arrival_date' | 'expected_end_date', date: Date | undefined) => {
     if (date) {
-      const formattedDate = format(date, 'yyyy-MM-dd')
+      const validDate = new Date(date)
+      validDate.setHours(12, 0, 0, 0)
+      const formattedDate = format(validDate, 'yyyy-MM-dd')
       setFormData(prev => ({ ...prev, [field]: formattedDate }))
+      if (field === 'arrival_date') setShowArrivalCalendar(false)
+      if (field === 'expected_end_date') setShowEndCalendar(false)
       if (errors[field]) {
         setErrors(prev => {
           const { [field]: _, ...rest } = prev
           return rest
         })
       }
-      // Reset warning confirmation when date changes
       setWarningsConfirmed(false)
     }
   }
@@ -173,7 +260,6 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
     const newErrors: Record<string, string> = {}
 
     if (!formData.name.trim()) newErrors.name = "Flock name is required"
-    if (!formData.batch_number.trim()) newErrors.batch_number = "Batch number is required"
     if (!formData.breed.trim()) newErrors.breed = "Breed is required"
     if (!formData.source.trim()) newErrors.source = "Source is required"
     if (formData.quantity <= 0) newErrors.quantity = "Quantity must be greater than 0"
@@ -227,7 +313,6 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
       // Reset form and close modal only on successful submission
       setFormData({
         name: "",
-        batch_number: "",
         breed: "",
         source: "",
         quantity: 0,
@@ -238,7 +323,10 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
         flock_stage_id: 0,
         house_id: 0,
         farm_id: farmId || 0,
-        notes: ""
+        notes: "",
+        medication_schedule_id: null,
+        vaccination_schedule_id: null,
+        feeding_schedule_id: null
       })
       setErrors({})
       setWarningsConfirmed(false)
@@ -255,7 +343,6 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
     if (!isSubmitting) {
       setFormData({
         name: "",
-        batch_number: "",
         breed: "",
         source: "",
         quantity: 0,
@@ -266,271 +353,565 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
         flock_stage_id: 0,
         house_id: 0,
         farm_id: farmId || 0,
-        notes: ""
+        notes: "",
+        medication_schedule_id: null,
+        vaccination_schedule_id: null,
+        feeding_schedule_id: null
       })
       setErrors({})
       setWarningsConfirmed(false)
+      setShowArrivalCalendar(false)
+      setShowEndCalendar(false)
+      setExpandedSchedule(null)
       onClose()
     }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      // Allow closing via X button (when open is false) but not when submitting
-      if (!open && !isSubmitting) {
-        handleClose()
-      }
+    <Sheet open={isOpen} onOpenChange={(open) => {
+      if (!open && !isSubmitting) handleClose()
     }}>
-      <DialogContent 
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
-        onPointerDownOutside={(e) => {
-          // Prevent closing when clicking outside
-          e.preventDefault()
-        }}
-        onEscapeKeyDown={(e) => {
-          // Prevent closing when pressing Escape
-          e.preventDefault()
-        }}
+      <SheetContent 
+        side="right"
+        className="!max-w-none w-full p-0 flex flex-col overflow-hidden"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogHeader>
-          <DialogTitle>Add New Flock</DialogTitle>
-          <DialogDescription>
-            Create a new flock by filling in the details below. All fields marked with * are required.
-          </DialogDescription>
-        </DialogHeader>
+        {/* Gradient Header */}
+        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-5 flex-shrink-0">
+          <SheetHeader>
+            <SheetTitle className="text-white text-xl">Add New Flock</SheetTitle>
+            <SheetDescription className="text-green-100">
+              Create a new flock by filling in the details below. Fields marked with * are required.
+            </SheetDescription>
+          </SheetHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Flock Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Flock Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="Enter flock name"
-                className={errors.name ? "border-red-500" : ""}
-              />
-              {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
-            </div>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 pb-6 space-y-5">
+          {/* ── Basic Info Section ── */}
+          <div className="space-y-3 pt-2">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <Bird className="h-4 w-4 text-green-500" />
+              Basic Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="name" className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Bird className="h-3.5 w-3.5 text-green-400" />
+                  Flock Name *
+                </Label>
+                <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Enter flock name" className={cn("h-9 text-sm", errors.name && "border-red-400")} />
+                {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
+              </div>
 
-            {/* Batch Number */}
-            <div className="space-y-2">
-              <Label htmlFor="batch_number">Batch Number *</Label>
-              <Input
-                id="batch_number"
-                value={formData.batch_number}
-                onChange={(e) => handleInputChange("batch_number", e.target.value)}
-                placeholder="Enter batch number"
-                className={errors.batch_number ? "border-red-500" : ""}
-              />
-              {errors.batch_number && <p className="text-sm text-red-500">{errors.batch_number}</p>}
-            </div>
-
-            {/* Breed */}
-            <div className="space-y-2">
-              <Label htmlFor="breed">Breed *</Label>
-              <Input
-                id="breed"
-                value={formData.breed}
-                onChange={(e) => handleInputChange("breed", e.target.value)}
-                placeholder="Enter breed"
-                className={errors.breed ? "border-red-500" : ""}
-              />
-              {errors.breed && <p className="text-sm text-red-500">{errors.breed}</p>}
-            </div>
-
-            {/* Source */}
-            <div className="space-y-2">
-              <Label htmlFor="source">Source *</Label>
-              <Input
-                id="source"
-                value={formData.source}
-                onChange={(e) => handleInputChange("source", e.target.value)}
-                placeholder="Enter source"
-                className={errors.source ? "border-red-500" : ""}
-              />
-              {errors.source && <p className="text-sm text-red-500">{errors.source}</p>}
-            </div>
-
-            {/* Quantity */}
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity *</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                value={formData.quantity}
-                onChange={(e) => handleInputChange("quantity", parseInt(e.target.value) || 0)}
-                placeholder="Enter quantity"
-                className={errors.quantity ? "border-red-500" : ""}
-              />
-              {errors.quantity && <p className="text-sm text-red-500">{errors.quantity}</p>}
-            </div>
-
-            {/* Arrival Age Days */}
-            <div className="space-y-2">
-              <Label htmlFor="arrival_age_days">Arrival Age (Days)</Label>
-              <Input
-                id="arrival_age_days"
-                type="number"
-                min="0"
-                value={formData.arrival_age_days}
-                onChange={(e) => handleInputChange("arrival_age_days", parseInt(e.target.value) || 0)}
-                placeholder="Enter arrival age in days"
-                className={errors.arrival_age_days ? "border-red-500" : ""}
-              />
-              {errors.arrival_age_days && <p className="text-sm text-red-500">{errors.arrival_age_days}</p>}
+              <div className="space-y-1">
+                <Label htmlFor="breed" className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Dna className="h-3.5 w-3.5 text-green-400" />
+                  Breed *
+                </Label>
+                <Input id="breed" value={formData.breed} onChange={(e) => handleInputChange("breed", e.target.value)} placeholder="Enter breed" className={cn("h-9 text-sm", errors.breed && "border-red-400")} />
+                {errors.breed && <p className="text-xs text-red-500">{errors.breed}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="source" className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-green-400" />
+                  Source *
+                </Label>
+                <Input id="source" value={formData.source} onChange={(e) => handleInputChange("source", e.target.value)} placeholder="Enter source" className={cn("h-9 text-sm", errors.source && "border-red-400")} />
+                {errors.source && <p className="text-xs text-red-500">{errors.source}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="quantity" className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5 text-green-400" />
+                  Quantity *
+                </Label>
+                <Input id="quantity" type="number" min="1" value={formData.quantity} onChange={(e) => handleInputChange("quantity", parseInt(e.target.value) || 0)} placeholder="Enter quantity" className={cn("h-9 text-sm", errors.quantity && "border-red-400")} />
+                {errors.quantity && <p className="text-xs text-red-500">{errors.quantity}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="arrival_age_days" className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-green-400" />
+                  Arrival Age (Days)
+                </Label>
+                <Input id="arrival_age_days" type="number" min="0" value={formData.arrival_age_days} onChange={(e) => handleInputChange("arrival_age_days", parseInt(e.target.value) || 0)} placeholder="Enter arrival age in days" className={cn("h-9 text-sm", errors.arrival_age_days && "border-red-400")} />
+                {errors.arrival_age_days && <p className="text-xs text-red-500">{errors.arrival_age_days}</p>}
+              </div>
             </div>
           </div>
 
-          {/* Date Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Arrival Date */}
-            <div className="space-y-2">
-              <Label>Arrival Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.arrival_date && "text-muted-foreground",
-                      errors.arrival_date && "border-red-500"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.arrival_date ? format(new Date(formData.arrival_date), "PPP") : "Select arrival date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.arrival_date ? new Date(formData.arrival_date) : undefined}
-                    onSelect={(date) => handleDateChange("arrival_date", date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              {errors.arrival_date && <p className="text-sm text-red-500">{errors.arrival_date}</p>}
-            </div>
+          {/* ── Date Section ── */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-blue-500" />
+              Dates
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Arrival Date */}
+              <div className="space-y-2">
+                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <CalendarIcon className="h-3.5 w-3.5 text-blue-400" />
+                  Arrival Date *
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => { setShowArrivalCalendar(!showArrivalCalendar); setShowEndCalendar(false) }}
+                  className={cn(
+                    "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
+                    errors.arrival_date ? "border-red-400 bg-red-50" : "border-gray-300",
+                    showArrivalCalendar && "border-green-500 ring-2 ring-green-100"
+                  )}
+                >
+                  <span className={formData.arrival_date ? "text-gray-900 font-medium" : "text-gray-400"}>
+                    {formData.arrival_date ? format(new Date(formData.arrival_date + 'T12:00:00'), "EEEE, MMMM d, yyyy") : "Select arrival date"}
+                  </span>
+                  {showArrivalCalendar ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                </button>
+                {showArrivalCalendar && (
+                  <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
+                    <Calendar mode="single" selected={formData.arrival_date ? new Date(formData.arrival_date + 'T12:00:00') : undefined} onSelect={(date) => handleDateChange("arrival_date", date)} />
+                  </div>
+                )}
+                {errors.arrival_date && <p className="text-xs text-red-500">{errors.arrival_date}</p>}
+              </div>
 
-            {/* Expected End Date */}
-            <div className="space-y-2">
-              <Label>Expected End Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.expected_end_date && "text-muted-foreground",
-                      errors.expected_end_date && "border-red-500"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.expected_end_date ? format(new Date(formData.expected_end_date), "PPP") : "Select expected end date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.expected_end_date ? new Date(formData.expected_end_date) : undefined}
-                    onSelect={(date) => handleDateChange("expected_end_date", date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              {errors.expected_end_date && (
-                <p className={`text-sm ${errors.expected_end_date.startsWith('Warning:') ? 'text-yellow-600' : 'text-red-500'}`}>
-                  {errors.expected_end_date}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Selection Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Poultry Type */}
-            <div className="space-y-2">
-              <Label>Poultry Type *</Label>
-              <Select
-                value={formData.poultry_type_id ? formData.poultry_type_id.toString() : ""}
-                onValueChange={(value) => {
-                  handleInputChange("poultry_type_id", parseInt(value))
-                  // Reset dependent fields
-                  handleInputChange("flock_stage_id", 0)
-                  handleInputChange("house_id", 0)
-                }}
-              >
-                <SelectTrigger className={errors.poultry_type_id ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select poultry type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.isArray(poultryTypes) ? poultryTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id.toString()}>
-                      {type.name}
-                    </SelectItem>
-                  )) : []}
-                </SelectContent>
-              </Select>
-              {errors.poultry_type_id && <p className="text-sm text-red-500">{errors.poultry_type_id}</p>}
-            </div>
-
-            {/* Flock Stage */}
-            <div className="space-y-2">
-              <Label>Flock Stage *</Label>
-              <Select
-                value={formData.flock_stage_id ? formData.flock_stage_id.toString() : ""}
-                onValueChange={(value) => handleInputChange("flock_stage_id", parseInt(value))}
-                disabled={!Array.isArray(filteredStages) || filteredStages.length === 0}
-              >
-                <SelectTrigger className={errors.flock_stage_id ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select flock stage" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.isArray(filteredStages) ? filteredStages.map((stage) => (
-                    <SelectItem key={stage.id} value={stage.id.toString()}>
-                      {stage.name}
-                    </SelectItem>
-                  )) : []}
-                </SelectContent>
-              </Select>
-              {errors.flock_stage_id && <p className="text-sm text-red-500">{errors.flock_stage_id}</p>}
-            </div>
-
-            {/* Poultry House */}
-            <div className="space-y-2">
-              <Label>Poultry House *</Label>
-              <Select
-                value={formData.house_id ? formData.house_id.toString() : ""}
-                onValueChange={(value) => handleInputChange("house_id", parseInt(value))}
-                disabled={!Array.isArray(filteredHouses) || filteredHouses.length === 0}
-              >
-                <SelectTrigger className={errors.house_id ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select poultry house" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.isArray(filteredHouses) ? filteredHouses.map((house) => (
-                    <SelectItem key={house.id} value={house.id.toString()}>
-                      {house.name} (Capacity: {house.capacity})
-                    </SelectItem>
-                  )) : []}
-                </SelectContent>
-              </Select>
-              {errors.house_id && <p className="text-sm text-red-500">{errors.house_id}</p>}
+              {/* Expected End Date */}
+              <div className="space-y-2">
+                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <CalendarIcon className="h-3.5 w-3.5 text-blue-400" />
+                  Expected End Date *
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => { setShowEndCalendar(!showEndCalendar); setShowArrivalCalendar(false) }}
+                  className={cn(
+                    "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
+                    errors.expected_end_date ? (errors.expected_end_date.startsWith('Warning:') ? "border-yellow-400 bg-yellow-50" : "border-red-400 bg-red-50") : "border-gray-300",
+                    showEndCalendar && "border-green-500 ring-2 ring-green-100"
+                  )}
+                >
+                  <span className={formData.expected_end_date ? "text-gray-900 font-medium" : "text-gray-400"}>
+                    {formData.expected_end_date ? format(new Date(formData.expected_end_date + 'T12:00:00'), "EEEE, MMMM d, yyyy") : "Select expected end date"}
+                  </span>
+                  {showEndCalendar ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                </button>
+                {showEndCalendar && (
+                  <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
+                    <Calendar mode="single" selected={formData.expected_end_date ? new Date(formData.expected_end_date + 'T12:00:00') : undefined} onSelect={(date) => handleDateChange("expected_end_date", date)} />
+                  </div>
+                )}
+                {errors.expected_end_date && (
+                  <p className={`text-xs ${errors.expected_end_date.startsWith('Warning:') ? 'text-yellow-600' : 'text-red-500'}`}>
+                    {errors.expected_end_date}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Notes */}
+          {/* ── Classification Section ── */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <Layers className="h-4 w-4 text-purple-500" />
+              Classification &amp; Housing
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-purple-400" />
+                  Poultry Type *
+                </Label>
+                <Select
+                  value={formData.poultry_type_id ? formData.poultry_type_id.toString() : ""}
+                  onValueChange={(value) => {
+                    handleInputChange("poultry_type_id", parseInt(value))
+                    handleInputChange("flock_stage_id", 0)
+                    handleInputChange("house_id", 0)
+                  }}
+                >
+                  <SelectTrigger className={cn("h-9 text-sm", errors.poultry_type_id && "border-red-400")}>
+                    <SelectValue placeholder="Select poultry type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.isArray(poultryTypes) ? poultryTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id.toString()}>{type.name}</SelectItem>
+                    )) : []}
+                  </SelectContent>
+                </Select>
+                {errors.poultry_type_id && <p className="text-xs text-red-500">{errors.poultry_type_id}</p>}
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-purple-400" />
+                  Flock Stage *
+                </Label>
+                <Select
+                  value={formData.flock_stage_id ? formData.flock_stage_id.toString() : ""}
+                  onValueChange={(value) => handleInputChange("flock_stage_id", parseInt(value))}
+                  disabled={!Array.isArray(filteredStages) || filteredStages.length === 0}
+                >
+                  <SelectTrigger className={cn("h-9 text-sm", errors.flock_stage_id && "border-red-400")}>
+                    <SelectValue placeholder="Select flock stage" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.isArray(filteredStages) ? filteredStages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id.toString()}>{stage.name}</SelectItem>
+                    )) : []}
+                  </SelectContent>
+                </Select>
+                {errors.flock_stage_id && <p className="text-xs text-red-500">{errors.flock_stage_id}</p>}
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Home className="h-3.5 w-3.5 text-purple-400" />
+                  Poultry House *
+                </Label>
+                <Select
+                  value={formData.house_id ? formData.house_id.toString() : ""}
+                  onValueChange={(value) => handleInputChange("house_id", parseInt(value))}
+                  disabled={!Array.isArray(filteredHouses) || filteredHouses.length === 0}
+                >
+                  <SelectTrigger className={cn("h-9 text-sm", errors.house_id && "border-red-400")}>
+                    <SelectValue placeholder="Select poultry house" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.isArray(filteredHouses) ? filteredHouses.map((house) => (
+                      <SelectItem key={house.id} value={house.id.toString()}>
+                        {house.name} (Capacity: {house.capacity})
+                      </SelectItem>
+                    )) : []}
+                  </SelectContent>
+                </Select>
+                {errors.house_id && <p className="text-xs text-red-500">{errors.house_id}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Schedule Selection Section ── */}
+          {formData.poultry_type_id > 0 && (
+            <div className="space-y-4">
+              <div className="border-b pb-3">
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-indigo-500" />
+                  Schedule Assignment
+                  {schedulesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400 ml-1" />}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">Assign schedules to this flock. Select one per category. Click the info icon to preview items.</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {/* ── Medication Column ── */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                      <Pill className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Medication</p>
+                      <p className="text-[11px] text-gray-400">{medicationSchedules.length} available</p>
+                    </div>
+                  </div>
+                  {medicationSchedules.length === 0 ? (
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center">
+                      <Pill className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+                      <p className="text-xs text-gray-400 italic">No medication schedules for this type</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {medicationSchedules.map((schedule) => {
+                        const isSelected = formData.medication_schedule_id === schedule.id
+                        const isExpanded = expandedSchedule === `med-${schedule.id}`
+                        return (
+                          <div key={schedule.id} className={cn(
+                            "border rounded-xl transition-all",
+                            isSelected ? "border-purple-400 bg-purple-50/80 shadow-sm shadow-purple-100 ring-1 ring-purple-200" : "border-gray-200 hover:border-purple-200 hover:shadow-sm"
+                          )}>
+                            <div
+                              className="flex items-start gap-3 p-3.5 cursor-pointer"
+                              onClick={() => setFormData(prev => ({ ...prev, medication_schedule_id: isSelected ? null : schedule.id }))}
+                            >
+                              <div className={cn(
+                                "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+                                isSelected ? "border-purple-500 bg-purple-500" : "border-gray-300"
+                              )}>
+                                {isSelected && <Check className="h-3 w-3 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{schedule.name}</p>
+                                  <span className={cn(
+                                    "text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0",
+                                    schedule.type === 'default' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
+                                  )}>{schedule.type}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 line-clamp-2">{schedule.description || "No description"}</p>
+                                <div className="flex items-center gap-3 mt-2">
+                                  <span className="text-[11px] text-gray-400 font-medium">{schedule.items?.length || 0} items</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setExpandedSchedule(isExpanded ? null : `med-${schedule.id}`) }}
+                                    className={cn(
+                                      "text-[11px] flex items-center gap-1 transition-colors",
+                                      isExpanded ? "text-purple-600 font-medium" : "text-gray-400 hover:text-purple-500"
+                                    )}
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                    {isExpanded ? "Hide details" : "View details"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            {isExpanded && schedule.items && schedule.items.length > 0 && (
+                              <div className="border-t border-purple-100 bg-white rounded-b-xl">
+                                <div className="max-h-52 overflow-y-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-purple-50/50 sticky top-0">
+                                      <tr className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                        <th className="text-left px-3 py-2">Day</th>
+                                        <th className="text-left px-3 py-2">Name</th>
+                                        <th className="text-left px-3 py-2">Dose</th>
+                                        <th className="text-left px-3 py-2">WD</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                      {schedule.items.map((item) => (
+                                        <tr key={item.id} className="hover:bg-gray-50/50">
+                                          <td className="px-3 py-1.5 font-mono text-purple-600 font-medium">D{item.age_days}</td>
+                                          <td className="px-3 py-1.5 text-gray-700">{item.name}</td>
+                                          <td className="px-3 py-1.5 text-gray-600">{item.dose} {item.dose_unit}</td>
+                                          <td className="px-3 py-1.5 text-gray-400">{item.withdrawal_period_days}d</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Vaccination Column ── */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
+                      <Syringe className="h-4 w-4 text-teal-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Vaccination</p>
+                      <p className="text-[11px] text-gray-400">{vaccinationSchedules.length} available</p>
+                    </div>
+                  </div>
+                  {vaccinationSchedules.length === 0 ? (
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center">
+                      <Syringe className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+                      <p className="text-xs text-gray-400 italic">No vaccination schedules for this type</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {vaccinationSchedules.map((schedule) => {
+                        const isSelected = formData.vaccination_schedule_id === schedule.id
+                        const isExpanded = expandedSchedule === `vac-${schedule.id}`
+                        return (
+                          <div key={schedule.id} className={cn(
+                            "border rounded-xl transition-all",
+                            isSelected ? "border-teal-400 bg-teal-50/80 shadow-sm shadow-teal-100 ring-1 ring-teal-200" : "border-gray-200 hover:border-teal-200 hover:shadow-sm"
+                          )}>
+                            <div
+                              className="flex items-start gap-3 p-3.5 cursor-pointer"
+                              onClick={() => setFormData(prev => ({ ...prev, vaccination_schedule_id: isSelected ? null : schedule.id }))}
+                            >
+                              <div className={cn(
+                                "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+                                isSelected ? "border-teal-500 bg-teal-500" : "border-gray-300"
+                              )}>
+                                {isSelected && <Check className="h-3 w-3 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{schedule.name}</p>
+                                  <span className={cn(
+                                    "text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0",
+                                    schedule.type === 'default' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
+                                  )}>{schedule.type}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 line-clamp-2">{schedule.description || "No description"}</p>
+                                <div className="flex items-center gap-3 mt-2">
+                                  <span className="text-[11px] text-gray-400 font-medium">{schedule.items?.length || 0} items</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setExpandedSchedule(isExpanded ? null : `vac-${schedule.id}`) }}
+                                    className={cn(
+                                      "text-[11px] flex items-center gap-1 transition-colors",
+                                      isExpanded ? "text-teal-600 font-medium" : "text-gray-400 hover:text-teal-500"
+                                    )}
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                    {isExpanded ? "Hide details" : "View details"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            {isExpanded && schedule.items && schedule.items.length > 0 && (
+                              <div className="border-t border-teal-100 bg-white rounded-b-xl">
+                                <div className="max-h-52 overflow-y-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-teal-50/50 sticky top-0">
+                                      <tr className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                        <th className="text-left px-3 py-2">Day</th>
+                                        <th className="text-left px-3 py-2">Name</th>
+                                        <th className="text-left px-3 py-2">Dose</th>
+                                        <th className="text-left px-3 py-2">WD</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                      {schedule.items.map((item) => (
+                                        <tr key={item.id} className="hover:bg-gray-50/50">
+                                          <td className="px-3 py-1.5 font-mono text-teal-600 font-medium">D{item.age_days}</td>
+                                          <td className="px-3 py-1.5 text-gray-700">{item.name}</td>
+                                          <td className="px-3 py-1.5 text-gray-600">{item.dose} {item.dose_unit}</td>
+                                          <td className="px-3 py-1.5 text-gray-400">{item.withdrawal_period_days}d</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Feeding Column ── */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                      <Wheat className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Feeding</p>
+                      <p className="text-[11px] text-gray-400">{feedingSchedulesList.length} available</p>
+                    </div>
+                  </div>
+                  {feedingSchedulesList.length === 0 ? (
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center">
+                      <Wheat className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+                      <p className="text-xs text-gray-400 italic">No feeding schedules for this type</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {feedingSchedulesList.map((schedule) => {
+                        const isSelected = formData.feeding_schedule_id === schedule.id
+                        const isExpanded = expandedSchedule === `feed-${schedule.id}`
+                        const totalDays = schedule.items?.length || 0
+                        const dayRange = totalDays > 0
+                          ? `Day ${Math.min(...schedule.items.map(i => i.feeding_day))} – ${Math.max(...schedule.items.map(i => i.feeding_day))}`
+                          : ""
+                        return (
+                          <div key={schedule.id} className={cn(
+                            "border rounded-xl transition-all",
+                            isSelected ? "border-amber-400 bg-amber-50/80 shadow-sm shadow-amber-100 ring-1 ring-amber-200" : "border-gray-200 hover:border-amber-200 hover:shadow-sm"
+                          )}>
+                            <div
+                              className="flex items-start gap-3 p-3.5 cursor-pointer"
+                              onClick={() => setFormData(prev => ({ ...prev, feeding_schedule_id: isSelected ? null : schedule.id }))}
+                            >
+                              <div className={cn(
+                                "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+                                isSelected ? "border-amber-500 bg-amber-500" : "border-gray-300"
+                              )}>
+                                {isSelected && <Check className="h-3 w-3 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{schedule.title}</p>
+                                  <span className={cn(
+                                    "text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0",
+                                    schedule.type === 'default' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
+                                  )}>{schedule.type}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 line-clamp-2">
+                                  {schedule.description || "No description"}
+                                </p>
+                                {dayRange && (
+                                  <p className="text-[11px] text-amber-600 font-medium mt-1">{dayRange}</p>
+                                )}
+                                <div className="flex items-center gap-3 mt-2">
+                                  <span className="text-[11px] text-gray-400 font-medium">{totalDays} items</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setExpandedSchedule(isExpanded ? null : `feed-${schedule.id}`) }}
+                                    className={cn(
+                                      "text-[11px] flex items-center gap-1 transition-colors",
+                                      isExpanded ? "text-amber-600 font-medium" : "text-gray-400 hover:text-amber-500"
+                                    )}
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                    {isExpanded ? "Hide details" : "View details"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            {isExpanded && schedule.items && schedule.items.length > 0 && (
+                              <div className="border-t border-amber-100 bg-white rounded-b-xl">
+                                <div className="max-h-52 overflow-y-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-amber-50/50 sticky top-0">
+                                      <tr className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                        <th className="text-left px-3 py-2">Day</th>
+                                        <th className="text-left px-3 py-2">Feed Type</th>
+                                        <th className="text-left px-3 py-2">Qty</th>
+                                        <th className="text-left px-3 py-2">Feedings</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                      {schedule.items
+                                        .sort((a, b) => a.feeding_day - b.feeding_day)
+                                        .map((item) => (
+                                        <tr key={item.id} className="hover:bg-gray-50/50">
+                                          <td className="px-3 py-1.5 font-mono text-amber-600 font-medium">D{item.feeding_day}</td>
+                                          <td className="px-3 py-1.5 text-gray-700">{item.feed_type?.name || `Type #${item.feed_type_id}`}</td>
+                                          <td className="px-3 py-1.5 text-gray-600">{item.quantity}g</td>
+                                          <td className="px-3 py-1.5 text-gray-400">{item.feeding_times?.length || 0}x daily</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* ── Notes Section ── */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes" className="text-sm font-semibold flex items-center gap-2">
+              <StickyNote className="h-4 w-4 text-gray-500" />
+              Notes
+            </Label>
             <Textarea
               id="notes"
               value={formData.notes}
               onChange={(e) => handleInputChange("notes", e.target.value)}
               placeholder="Enter any additional notes about this flock"
               rows={3}
+              className="resize-none"
             />
           </div>
 
@@ -545,17 +926,9 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-yellow-800">Warning Confirmation Required</h3>
-                  <p className="mt-1 text-sm text-yellow-700">
-                    Please review the warnings above and confirm that you want to proceed with creating this flock.
-                  </p>
+                  <p className="mt-1 text-sm text-yellow-700">Please review the warnings above and confirm to proceed.</p>
                   <div className="mt-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setWarningsConfirmed(true)}
-                      className="bg-yellow-100 border-yellow-300 text-yellow-800 hover:bg-yellow-200"
-                    >
+                    <Button type="button" variant="outline" size="sm" onClick={() => setWarningsConfirmed(true)} className="bg-yellow-100 border-yellow-300 text-yellow-800 hover:bg-yellow-200">
                       I understand and want to proceed
                     </Button>
                   </div>
@@ -564,18 +937,23 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
             </div>
           )}
 
-          <DialogFooter>
+          {/* ── Footer ── */}
+          <div className="sticky bottom-0 bg-white border-t pt-4 pb-2 flex justify-end gap-3">
             <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+            >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSubmitting ? "Creating..." : "Create Flock"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }
 

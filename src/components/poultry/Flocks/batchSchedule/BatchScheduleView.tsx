@@ -16,13 +16,14 @@ import {
   Plus,
   BarChart3,
   Settings,
+  ArrowLeft,
 } from "lucide-react"
 import type { BatchFeedingSchedule, BatchSchedule } from "@/lib/types"
 import FeedingScheduleView from "./FeedingScheduleView"
 import MedicationScheduleView from "./MedicationScheduleView"
 import VaccinationScheduleView from "./VaccinationScheduleView"
 
-const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSchedule, flockQuantity, onRefresh } : {feedingSchedule : BatchFeedingSchedule[] , medicationSchedule : BatchSchedule[] , vaccinationSchedule : BatchSchedule[], flockQuantity: number, onRefresh?: () => void}) => {
+const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSchedule, flockQuantity, onRefresh, onBack } : {feedingSchedule : BatchFeedingSchedule[] , medicationSchedule : BatchSchedule[] , vaccinationSchedule : BatchSchedule[], flockQuantity: number, onRefresh?: () => void, onBack?: () => void}) => {
 
    console.log("Batch Feeding Schedule: ", feedingSchedule);
     console.log("Batch Medication Schedule: ", medicationSchedule);
@@ -89,7 +90,18 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
             {/* Header */}
             <div className="mb-8">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
+                  {onBack && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={onBack}
+                      className="mb-4 text-gray-600 hover:text-gray-900"
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Back to Flock Details
+                    </Button>
+                  )}
                   <h1 className="text-3xl font-bold text-gray-900 mb-2"> Schedule Management</h1>
                   <p className="text-gray-600">
                     Comprehensive management of medication, vaccination, and feeding schedules

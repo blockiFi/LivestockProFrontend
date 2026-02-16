@@ -1,20 +1,38 @@
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
 import { Label } from "../ui/label"
 import { Input } from "../ui/input"
 import { Button } from "../ui/button"
 import { Textarea } from "../ui/textarea"
 import { Calendar } from "../ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
-import { CalendarIcon, Loader2 } from "lucide-react"
+import {
+  CalendarIcon,
+  Loader2,
+  Skull,
+  Scissors,
+  Wheat,
+  Droplets,
+  Weight,
+  Thermometer,
+  Sun,
+  Egg,
+  StickyNote,
+  ChevronDown,
+  ChevronUp,
+  Lock
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import { getFeedingBatchItemByDate, getMortalityByFlockAndDate } from "@/lib/request"
 
 interface AddDailyRecordModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (recordData: DailyRecordFormData) => Promise<void>
   flockId: number
+  flockQuantity: number
+  farmId: number
+  token: string
   poultryType: string
 }
 
@@ -35,30 +53,99 @@ interface DailyRecordFormData {
   notes: string
 }
 
-const AddDailyRecordModal = ({ isOpen, onClose, onSubmit, flockId, poultryType }: AddDailyRecordModalProps) => {
-  const [formData, setFormData] = useState<DailyRecordFormData>({
-    flock_id: flockId,
-    date: format(new Date(), 'yyyy-MM-dd'),
-    mortality: 0,
-    culls: 0,
-    feed_consumed_kg: 0,
-    water_consumed_liters: 0,
-    avg_weight_grams: 0,
-    min_temperature: 0,
-    max_temperature: 0,
-    humidity: 0,
-    light_hours: 0,
-    eggs_collected: 0,
-    eggs_broken: 0,
-    notes: ""
-  })
+const initialFormState = (flockId: number): DailyRecordFormData => ({
+  flock_id: flockId,
+  date: format(new Date(), 'yyyy-MM-dd'),
+  mortality: 0,
+  culls: 0,
+  feed_consumed_kg: 0,
+  water_consumed_liters: 0,
+  avg_weight_grams: 0,
+  min_temperature: 0,
+  max_temperature: 0,
+  humidity: 0,
+  light_hours: 0,
+  eggs_collected: 0,
+  eggs_broken: 0,
+  notes: ""
+})
 
+const AddDailyRecordModal = ({ isOpen, onClose, onSubmit, flockId, flockQuantity, farmId, token, poultryType }: AddDailyRecordModalProps) => {
+  const [formData, setFormData] = useState<DailyRecordFormData>(initialFormState(flockId))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showCalendar, setShowCalendar] = useState(false)
+  const [feedLocked, setFeedLocked] = useState(false)
+  const [feedLoading, setFeedLoading] = useState(false)
+  const [feedPerBirdGrams, setFeedPerBirdGrams] = useState(0)
+  const [existingMortality, setExistingMortality] = useState(0)
+  const [mortalityLoading, setMortalityLoading] = useState(false)
+  const [mortalityReportCount, setMortalityReportCount] = useState(0)
+
+  const fetchBatchFeedData = useCallback(async (date: string) => {
+    if (!token || !farmId || !flockId || !date) return
+    setFeedLoading(true)
+    try {
+      const response = await getFeedingBatchItemByDate(token, farmId, flockId, date)
+      if (response.success && response.data) {
+        const item = response.data
+        // actual_quantity is per bird in grams, multiply by flock count and convert to kg
+        const perBirdGrams = item.actual_quantity ? parseFloat(item.actual_quantity) : 0
+        const totalFeedKg = (perBirdGrams * flockQuantity) / 1000
+        if (totalFeedKg > 0) {
+          setFeedPerBirdGrams(perBirdGrams)
+          setFormData(prev => ({ ...prev, feed_consumed_kg: parseFloat(totalFeedKg.toFixed(2)) }))
+          setFeedLocked(true)
+        } else {
+          setFeedPerBirdGrams(0)
+          setFeedLocked(false)
+        }
+      } else {
+        setFeedPerBirdGrams(0)
+        setFeedLocked(false)
+      }
+    } catch {
+      setFeedLocked(false)
+    } finally {
+      setFeedLoading(false)
+    }
+  }, [token, farmId, flockId, flockQuantity])
+
+  const fetchMortalityData = useCallback(async (date: string) => {
+    if (!token || !farmId || !flockId || !date) return
+    setMortalityLoading(true)
+    try {
+      const response = await getMortalityByFlockAndDate(token, farmId, flockId, date)
+      if (response.success && response.data && response.data.total_mortality > 0) {
+        setFormData(prev => ({ ...prev, mortality: response.data!.total_mortality }))
+        setExistingMortality(response.data.total_mortality)
+        setMortalityReportCount(response.data.report_count)
+      } else {
+        setExistingMortality(0)
+        setMortalityReportCount(0)
+      }
+    } catch {
+      setExistingMortality(0)
+      setMortalityReportCount(0)
+    } finally {
+      setMortalityLoading(false)
+    }
+  }, [token, farmId, flockId])
+
+  // Fetch batch feed data and mortality data when modal opens or date changes
+  useEffect(() => {
+    if (isOpen && formData.date) {
+      fetchBatchFeedData(formData.date)
+      fetchMortalityData(formData.date)
+    }
+    if (!isOpen) {
+      setFeedLocked(false)
+      setExistingMortality(0)
+    }
+  }, [isOpen, formData.date, fetchBatchFeedData, fetchMortalityData])
 
   const handleInputChange = (field: keyof DailyRecordFormData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => {
         const { [field]: _, ...rest } = prev
@@ -67,10 +154,17 @@ const AddDailyRecordModal = ({ isOpen, onClose, onSubmit, flockId, poultryType }
     }
   }
 
-  const handleDateChange = (date: Date | undefined) => {
+  const handleDateSelect = (date: Date | undefined) => {
     if (date) {
-      const formattedDate = format(date, 'yyyy-MM-dd')
-      setFormData(prev => ({ ...prev, date: formattedDate }))
+      const validDate = new Date(date)
+      validDate.setHours(12, 0, 0, 0)
+      const formattedDate = format(validDate, 'yyyy-MM-dd')
+      setFeedLocked(false)
+      setFeedPerBirdGrams(0)
+      setExistingMortality(0)
+      setMortalityReportCount(0)
+      setFormData(prev => ({ ...prev, date: formattedDate, feed_consumed_kg: 0, mortality: 0 }))
+      setShowCalendar(false)
       if (errors.date) {
         setErrors(prev => {
           const { date: _, ...rest } = prev
@@ -84,19 +178,18 @@ const AddDailyRecordModal = ({ isOpen, onClose, onSubmit, flockId, poultryType }
     const newErrors: Record<string, string> = {}
 
     if (!formData.date) newErrors.date = "Record date is required"
-    if (formData.mortality < 0) newErrors.mortality = "Mortality cannot be negative"
-    if (formData.culls < 0) newErrors.culls = "Culls cannot be negative"
-    if (formData.feed_consumed_kg < 0) newErrors.feed_consumed_kg = "Feed consumed cannot be negative"
-    if (formData.water_consumed_liters < 0) newErrors.water_consumed_liters = "Water consumed cannot be negative"
-    if (formData.avg_weight_grams < 0) newErrors.avg_weight_grams = "Average weight cannot be negative"
-    if (formData.humidity < 0 || formData.humidity > 100) newErrors.humidity = "Humidity must be between 0 and 100"
-    if (formData.light_hours < 0 || formData.light_hours > 24) newErrors.light_hours = "Light hours must be between 0 and 24"
-    
-    // Only validate egg fields for non-broiler types
+    if (formData.mortality < 0) newErrors.mortality = "Cannot be negative"
+    if (formData.culls < 0) newErrors.culls = "Cannot be negative"
+    if (formData.feed_consumed_kg < 0) newErrors.feed_consumed_kg = "Cannot be negative"
+    if (formData.water_consumed_liters < 0) newErrors.water_consumed_liters = "Cannot be negative"
+    if (formData.avg_weight_grams < 0) newErrors.avg_weight_grams = "Cannot be negative"
+    if (formData.humidity < 0 || formData.humidity > 100) newErrors.humidity = "Must be 0–100"
+    if (formData.light_hours < 0 || formData.light_hours > 24) newErrors.light_hours = "Must be 0–24"
+
     if (poultryType.toLowerCase() !== "broiler") {
-      if (formData.eggs_collected < 0) newErrors.eggs_collected = "Eggs collected cannot be negative"
-      if (formData.eggs_broken < 0) newErrors.eggs_broken = "Eggs broken cannot be negative"
-      if (formData.eggs_broken > formData.eggs_collected) newErrors.eggs_broken = "Eggs broken cannot exceed eggs collected"
+      if (formData.eggs_collected < 0) newErrors.eggs_collected = "Cannot be negative"
+      if (formData.eggs_broken < 0) newErrors.eggs_broken = "Cannot be negative"
+      if (formData.eggs_broken > formData.eggs_collected) newErrors.eggs_broken = "Cannot exceed collected"
     }
 
     setErrors(newErrors)
@@ -105,34 +198,16 @@ const AddDailyRecordModal = ({ isOpen, onClose, onSubmit, flockId, poultryType }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
     if (!validateForm()) return
 
     setIsSubmitting(true)
     try {
       await onSubmit(formData)
-      // Reset form and close modal only on successful submission
-      setFormData({
-        flock_id: flockId,
-        date: format(new Date(), 'yyyy-MM-dd'),
-        mortality: 0,
-        culls: 0,
-        feed_consumed_kg: 0,
-        water_consumed_liters: 0,
-        avg_weight_grams: 0,
-        min_temperature: 0,
-        max_temperature: 0,
-        humidity: 0,
-        light_hours: 0,
-        eggs_collected: 0,
-        eggs_broken: 0,
-        notes: ""
-      })
+      setFormData(initialFormState(flockId))
       setErrors({})
       onClose()
     } catch (error) {
       console.error("Error creating daily record:", error)
-      // Don't close the modal on error so user can fix the issue
     } finally {
       setIsSubmitting(false)
     }
@@ -140,277 +215,375 @@ const AddDailyRecordModal = ({ isOpen, onClose, onSubmit, flockId, poultryType }
 
   const handleClose = () => {
     if (!isSubmitting) {
-      setFormData({
-        flock_id: flockId,
-        date: format(new Date(), 'yyyy-MM-dd'),
-        mortality: 0,
-        culls: 0,
-        feed_consumed_kg: 0,
-        water_consumed_liters: 0,
-        avg_weight_grams: 0,
-        min_temperature: 0,
-        max_temperature: 0,
-        humidity: 0,
-        light_hours: 0,
-        eggs_collected: 0,
-        eggs_broken: 0,
-        notes: ""
-      })
+      setFormData(initialFormState(flockId))
       setErrors({})
+      setShowCalendar(false)
+      setFeedLocked(false)
+      setFeedPerBirdGrams(0)
+      setExistingMortality(0)
+      setMortalityReportCount(0)
       onClose()
     }
   }
 
+  const isLayerType = poultryType.toLowerCase() !== "broiler"
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && !isSubmitting) {
-        handleClose()
-      }
+      if (!open && !isSubmitting) handleClose()
     }}>
-      <DialogContent 
-        className="max-w-4xl max-h-[90vh] overflow-y-auto"
-        onPointerDownOutside={(e) => {
-          e.preventDefault()
-        }}
-        onEscapeKeyDown={(e) => {
-          e.preventDefault()
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle>Add Daily Record</DialogTitle>
-          <DialogDescription>
-            Record daily metrics for your flock. All fields are optional except the date.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 rounded-t-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white text-xl">Add Daily Record</DialogTitle>
+            <DialogDescription className="text-blue-100">
+              Record daily metrics for your flock. All fields are optional except the date.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Record Date */}
-          <div className="space-y-2">
-            <Label>Record Date *</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !formData.date && "text-muted-foreground",
-                    errors.date && "border-red-500"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.date ? format(new Date(formData.date), "PPP") : "Select record date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
+        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
+          {/* ── Date Picker (inline calendar, no Popover) ── */}
+          <div className="space-y-2 pt-2">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-blue-600" />
+              Record Date <span className="text-red-500">*</span>
+            </Label>
+            <button
+              type="button"
+              onClick={() => setShowCalendar(!showCalendar)}
+              className={cn(
+                "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
+                errors.date ? "border-red-400 bg-red-50" : "border-gray-300",
+                showCalendar && "border-blue-500 ring-2 ring-blue-100"
+              )}
+            >
+              <span className={formData.date ? "text-gray-900 font-medium" : "text-gray-400"}>
+                {formData.date
+                  ? format(new Date(formData.date + 'T12:00:00'), "EEEE, MMMM d, yyyy")
+                  : "Select a date"}
+              </span>
+              {showCalendar
+                ? <ChevronUp className="h-4 w-4 text-gray-500" />
+                : <ChevronDown className="h-4 w-4 text-gray-500" />
+              }
+            </button>
+            {showCalendar && (
+              <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
                 <Calendar
                   mode="single"
-                  selected={formData.date ? new Date(formData.date) : undefined}
-                  onSelect={handleDateChange}
-                  initialFocus
+                  selected={formData.date ? new Date(formData.date + 'T12:00:00') : undefined}
+                  onSelect={handleDateSelect}
                 />
-              </PopoverContent>
-            </Popover>
-            {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
+              </div>
+            )}
+            {errors.date && <p className="text-xs text-red-500">{errors.date}</p>}
           </div>
 
-          {/* Mortality and Health Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="mortality">Mortality Count</Label>
-              <Input
-                id="mortality"
-                type="number"
-                min="0"
-                value={formData.mortality}
-                onChange={(e) => handleInputChange("mortality", parseInt(e.target.value) || 0)}
-                placeholder="Number of dead birds"
-                className={errors.mortality ? "border-red-500" : ""}
-              />
-              {errors.mortality && <p className="text-sm text-red-500">{errors.mortality}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="culls">Culls Count</Label>
-              <Input
+          {/* ── Health Section ── */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <Skull className="h-4 w-4 text-red-500" />
+              Health &amp; Mortality
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="mortality" className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Skull className="h-3.5 w-3.5 text-red-400" />
+                  Mortality
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="mortality"
+                    type="number"
+                    min={0}
+                    value={formData.mortality}
+                    onChange={(e) => handleInputChange("mortality", parseInt(e.target.value) || 0)}
+                    placeholder="0"
+                    disabled={mortalityLoading}
+                    className={cn(
+                      "h-9 text-sm",
+                      errors.mortality && "border-red-400 focus-visible:ring-red-300",
+                      existingMortality > 0 && "border-amber-300"
+                    )}
+                  />
+                  {mortalityLoading && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-red-500" />
+                    </div>
+                  )}
+                </div>
+                {existingMortality > 0 && (
+                  <div className="space-y-1 mt-1">
+                    <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2.5 py-1.5">
+                      <span className="font-semibold">Existing records:</span>{" "}
+                      {existingMortality} total from {mortalityReportCount} report{mortalityReportCount !== 1 ? "s" : ""} today
+                    </div>
+                    {formData.mortality < existingMortality && (
+                      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 flex items-center gap-1">
+                        ⚠️ Lower than existing ({existingMortality}). The mortality record will be updated to {formData.mortality}.
+                      </div>
+                    )}
+                    {formData.mortality > existingMortality && (
+                      <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-2.5 py-1.5 flex items-center gap-1">
+                        ℹ️ Higher than existing ({existingMortality}). A new record for the difference of {formData.mortality - existingMortality} will be created.
+                      </div>
+                    )}
+                  </div>
+                )}
+                {errors.mortality && <p className="text-xs text-red-500">{errors.mortality}</p>}
+              </div>
+              <FieldInput
                 id="culls"
+                label="Culls"
+                icon={<Scissors className="h-3.5 w-3.5 text-orange-400" />}
                 type="number"
-                min="0"
+                min={0}
                 value={formData.culls}
-                onChange={(e) => handleInputChange("culls", parseInt(e.target.value) || 0)}
-                placeholder="Number of culled birds"
-                className={errors.culls ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("culls", parseInt(v) || 0)}
+                error={errors.culls}
+                placeholder="0"
               />
-              {errors.culls && <p className="text-sm text-red-500">{errors.culls}</p>}
             </div>
           </div>
 
-          {/* Feed and Water Consumption */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="feed_consumed_kg">Feed Consumed (kg)</Label>
-              <Input
-                id="feed_consumed_kg"
-                type="number"
-                min="0"
-                step="0.1"
-                value={formData.feed_consumed_kg}
-                onChange={(e) => handleInputChange("feed_consumed_kg", parseFloat(e.target.value) || 0)}
-                placeholder="Feed consumed in kg"
-                className={errors.feed_consumed_kg ? "border-red-500" : ""}
-              />
-              {errors.feed_consumed_kg && <p className="text-sm text-red-500">{errors.feed_consumed_kg}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="water_consumed_liters">Water Consumed (L)</Label>
-              <Input
+          {/* ── Feed & Water Section ── */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <Wheat className="h-4 w-4 text-amber-500" />
+              Feed &amp; Water
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="feed_consumed_kg" className="text-xs text-gray-600 flex items-center gap-1.5">
+                  <Wheat className="h-3.5 w-3.5 text-amber-400" />
+                  Feed Consumed (kg)
+                  {feedLocked && <Lock className="h-3 w-3 text-amber-600" />}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="feed_consumed_kg"
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    value={formData.feed_consumed_kg}
+                    onChange={(e) => handleInputChange("feed_consumed_kg", parseFloat(e.target.value) || 0)}
+                    placeholder="0.0"
+                    disabled={feedLocked || feedLoading}
+                    className={cn(
+                      "h-9 text-sm",
+                      errors.feed_consumed_kg && "border-red-400 focus-visible:ring-red-300",
+                      feedLocked && "bg-amber-50 border-amber-300 text-amber-800 font-semibold"
+                    )}
+                  />
+                  {feedLoading && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                    </div>
+                  )}
+                </div>
+                {feedLocked && (
+                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 mt-1">
+                    <span className="font-semibold">From feeding schedule:</span>{" "}
+                    {feedPerBirdGrams}g per bird × {flockQuantity.toLocaleString()} birds = {formData.feed_consumed_kg} kg
+                  </div>
+                )}
+                {errors.feed_consumed_kg && <p className="text-xs text-red-500">{errors.feed_consumed_kg}</p>}
+              </div>
+              <FieldInput
                 id="water_consumed_liters"
+                label="Water Consumed (L)"
+                icon={<Droplets className="h-3.5 w-3.5 text-blue-400" />}
                 type="number"
-                min="0"
-                step="0.1"
+                min={0}
+                step={0.1}
                 value={formData.water_consumed_liters}
-                onChange={(e) => handleInputChange("water_consumed_liters", parseFloat(e.target.value) || 0)}
-                placeholder="Water consumed in liters"
-                className={errors.water_consumed_liters ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("water_consumed_liters", parseFloat(v) || 0)}
+                error={errors.water_consumed_liters}
+                placeholder="0.0"
               />
-              {errors.water_consumed_liters && <p className="text-sm text-red-500">{errors.water_consumed_liters}</p>}
             </div>
           </div>
 
-          {/* Weight and Environmental */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="avg_weight_grams">Average Weight (g)</Label>
-              <Input
+          {/* ── Weight & Environment Section ── */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+              <Thermometer className="h-4 w-4 text-green-500" />
+              Weight &amp; Environment
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <FieldInput
                 id="avg_weight_grams"
+                label="Avg Weight (g)"
+                icon={<Weight className="h-3.5 w-3.5 text-green-400" />}
                 type="number"
-                min="0"
+                min={0}
                 value={formData.avg_weight_grams}
-                onChange={(e) => handleInputChange("avg_weight_grams", parseInt(e.target.value) || 0)}
-                placeholder="Average weight in grams"
-                className={errors.avg_weight_grams ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("avg_weight_grams", parseInt(v) || 0)}
+                error={errors.avg_weight_grams}
+                placeholder="0"
               />
-              {errors.avg_weight_grams && <p className="text-sm text-red-500">{errors.avg_weight_grams}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="humidity">Humidity (%)</Label>
-              <Input
+              <FieldInput
                 id="humidity"
+                label="Humidity (%)"
+                icon={<Droplets className="h-3.5 w-3.5 text-teal-400" />}
                 type="number"
-                min="0"
-                max="100"
+                min={0}
+                max={100}
                 value={formData.humidity}
-                onChange={(e) => handleInputChange("humidity", parseInt(e.target.value) || 0)}
-                placeholder="Humidity percentage"
-                className={errors.humidity ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("humidity", parseInt(v) || 0)}
+                error={errors.humidity}
+                placeholder="0"
               />
-              {errors.humidity && <p className="text-sm text-red-500">{errors.humidity}</p>}
             </div>
-          </div>
-
-          {/* Temperature */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="min_temperature">Min Temperature (°C)</Label>
-              <Input
+            <div className="grid grid-cols-3 gap-4">
+              <FieldInput
                 id="min_temperature"
+                label="Min Temp (°C)"
+                icon={<Thermometer className="h-3.5 w-3.5 text-blue-400" />}
                 type="number"
-                step="0.1"
+                step={0.1}
                 value={formData.min_temperature}
-                onChange={(e) => handleInputChange("min_temperature", parseFloat(e.target.value) || 0)}
-                placeholder="Minimum temperature"
-                className={errors.min_temperature ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("min_temperature", parseFloat(v) || 0)}
+                error={errors.min_temperature}
+                placeholder="0"
               />
-              {errors.min_temperature && <p className="text-sm text-red-500">{errors.min_temperature}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="max_temperature">Max Temperature (°C)</Label>
-              <Input
+              <FieldInput
                 id="max_temperature"
+                label="Max Temp (°C)"
+                icon={<Thermometer className="h-3.5 w-3.5 text-red-400" />}
                 type="number"
-                step="0.1"
+                step={0.1}
                 value={formData.max_temperature}
-                onChange={(e) => handleInputChange("max_temperature", parseFloat(e.target.value) || 0)}
-                placeholder="Maximum temperature"
-                className={errors.max_temperature ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("max_temperature", parseFloat(v) || 0)}
+                error={errors.max_temperature}
+                placeholder="0"
               />
-              {errors.max_temperature && <p className="text-sm text-red-500">{errors.max_temperature}</p>}
-            </div>
-          </div>
-
-          {/* Light Hours and Egg Production */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="light_hours">Light Hours</Label>
-              <Input
+              <FieldInput
                 id="light_hours"
+                label="Light Hours"
+                icon={<Sun className="h-3.5 w-3.5 text-yellow-400" />}
                 type="number"
-                min="0"
-                max="24"
-                step="0.1"
+                min={0}
+                max={24}
+                step={0.1}
                 value={formData.light_hours}
-                onChange={(e) => handleInputChange("light_hours", parseFloat(e.target.value) || 0)}
-                placeholder="Hours of light"
-                className={errors.light_hours ? "border-red-500" : ""}
+                onChange={(v) => handleInputChange("light_hours", parseFloat(v) || 0)}
+                error={errors.light_hours}
+                placeholder="0"
               />
-              {errors.light_hours && <p className="text-sm text-red-500">{errors.light_hours}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="eggs_collected">Eggs Collected</Label>
-              <Input
-                id="eggs_collected"
-                type="number"
-                min="0"
-                value={formData.eggs_collected}
-                onChange={(e) => handleInputChange("eggs_collected", parseInt(e.target.value) || 0)}
-                placeholder="Number of eggs collected"
-                className={errors.eggs_collected ? "border-red-500" : ""}
-              />
-              {errors.eggs_collected && <p className="text-sm text-red-500">{errors.eggs_collected}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="eggs_broken">Eggs Broken</Label>
-              <Input
-                id="eggs_broken"
-                type="number"
-                min="0"
-                value={formData.eggs_broken}
-                onChange={(e) => handleInputChange("eggs_broken", parseInt(e.target.value) || 0)}
-                placeholder="Number of broken eggs"
-                className={errors.eggs_broken ? "border-red-500" : ""}
-              />
-              {errors.eggs_broken && <p className="text-sm text-red-500">{errors.eggs_broken}</p>}
             </div>
           </div>
 
-          {/* Notes */}
+          {/* ── Egg Production Section (layers only) ── */}
+          {isLayerType && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
+                <Egg className="h-4 w-4 text-yellow-600" />
+                Egg Production
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput
+                  id="eggs_collected"
+                  label="Eggs Collected"
+                  icon={<Egg className="h-3.5 w-3.5 text-yellow-500" />}
+                  type="number"
+                  min={0}
+                  value={formData.eggs_collected}
+                  onChange={(v) => handleInputChange("eggs_collected", parseInt(v) || 0)}
+                  error={errors.eggs_collected}
+                  placeholder="0"
+                />
+                <FieldInput
+                  id="eggs_broken"
+                  label="Eggs Broken"
+                  icon={<Egg className="h-3.5 w-3.5 text-red-400" />}
+                  type="number"
+                  min={0}
+                  value={formData.eggs_broken}
+                  onChange={(v) => handleInputChange("eggs_broken", parseInt(v) || 0)}
+                  error={errors.eggs_broken}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── Notes Section ── */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes" className="text-sm font-semibold flex items-center gap-2">
+              <StickyNote className="h-4 w-4 text-gray-500" />
+              Notes
+            </Label>
             <Textarea
               id="notes"
               value={formData.notes}
               onChange={(e) => handleInputChange("notes", e.target.value)}
               placeholder="Any additional observations or notes..."
               rows={3}
+              className="resize-none"
             />
           </div>
 
-          <DialogFooter>
+          {/* ── Footer ── */}
+          <DialogFooter className="pt-2 border-t">
             <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+            >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Adding..." : "Add Record"}
+              {isSubmitting ? "Saving..." : "Save Record"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/* ── Reusable field input component ── */
+interface FieldInputProps {
+  id: string
+  label: string
+  icon: React.ReactNode
+  type?: string
+  min?: number
+  max?: number
+  step?: number
+  value: number
+  onChange: (value: string) => void
+  error?: string
+  placeholder?: string
+}
+
+function FieldInput({ id, label, icon, type = "number", min, max, step, value, onChange, error, placeholder }: FieldInputProps) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs text-gray-600 flex items-center gap-1.5">
+        {icon}
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type={type}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={cn(
+          "h-9 text-sm",
+          error && "border-red-400 focus-visible:ring-red-300"
+        )}
+      />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
   )
 }
 

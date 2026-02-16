@@ -233,6 +233,7 @@ export type FlockType ={
   breed: string;
   source: string;
   quantity: number;
+  actual_quantity: number;
   arrival_date: string;
   arrival_age_days: number;
   status: string;
@@ -444,6 +445,7 @@ export type feedingScheduleItem = {
     quantity: number;        // e.g., "60.00"
     created_at: string;      // ISO timestamp
     updated_at: string;      // ISO timestamp
+    feed_type?: FeedType;
   
 }
 export type BatchFeedingScheduleItem = {
@@ -681,6 +683,7 @@ export type FeedingSchedule = {
   end_date?: string | null;
   type: 'default' | 'user';
   farm_id?: number | null;
+  poultry_type_id?: number | null;
   items: feedingScheduleItem[];
 };
 

@@ -162,7 +162,7 @@ const FeedingScheduleView = ({ schedule, flockQuantity, onRefresh }: FeedingSche
 
             // Calculate feeding time variance
             const plannedFeedingTimes = scheduleItem.feeding_times || []
-            const actualFeedingTimes = executedItem?.actual_feeding_time || []
+            const actualFeedingTimes = Array.isArray(executedItem?.actual_feeding_time) ? executedItem.actual_feeding_time : []
             const timeDifference = actualFeedingTimes.length - plannedFeedingTimes.length
             
             // Check if any times are different (not just count)
@@ -404,7 +404,7 @@ const FeedingScheduleView = ({ schedule, flockQuantity, onRefresh }: FeedingSche
                         </span>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                        {feedingTimes.map((time: any, idx: number) => {
+                        {(Array.isArray(feedingTimes) ? feedingTimes : []).map((time: any, idx: number) => {
                           const percentage = Number(time.percentage || 0)
                           const quantityPerBird = (totalDailyQuantityPerBird * percentage) / 100
                           const totalQuantityForFlock = (totalDailyQuantity * percentage) / 100

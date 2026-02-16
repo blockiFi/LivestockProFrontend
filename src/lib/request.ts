@@ -706,9 +706,12 @@ import  { isAxiosError } from "axios"
             per_page: response.data.data.per_page,
           } as PaginatedRequestType<DetailedSchedule[]>;
         } else {
+          // Handle both plain array and paginated object responses
+          const raw = response.data.data;
+          const data = Array.isArray(raw) ? raw : (raw?.data ?? []);
           return {
             success: true,
-            data: response.data.data || []
+            data
           } as RequestResponse<DetailedSchedule[]>;
         }
       } else {
@@ -768,7 +771,6 @@ import  { isAxiosError } from "axios"
     farmId: number,
     flockData: {
       name: string
-      batch_number: string
       breed: string
       source: string
       quantity: number
@@ -779,12 +781,17 @@ import  { isAxiosError } from "axios"
       flock_stage_id: number
       house_id: number
       notes: string
+      medication_schedule_id?: number | null
+      vaccination_schedule_id?: number | null
+      feeding_schedule_id?: number | null
     }
   ): Promise<RequestResponse<FlockRecord>> => {
     try {
+      // Remove batch_number if present
+      const { batch_number, ...payload } = flockData as any;
       const response = await axios.post(
         `/api/farms/${farmId}/flocks`,
-        flockData,
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (response.status === 200 || response.status === 201) {
@@ -2374,9 +2381,12 @@ export const getGroupedPermisssions = async (
             per_page: response.data.data?.per_page || perPage,
           } as PaginatedRequestType<FeedingSchedule[]>;
         } else {
+          // Handle both plain array and paginated object responses
+          const raw = response.data.data;
+          const data = Array.isArray(raw) ? raw : (raw?.data ?? []);
           return {
             success: true,
-            data: response.data.data || []
+            data
           } as RequestResponse<FeedingSchedule[]>;
         }
       } else {
@@ -2398,6 +2408,54 @@ export const getGroupedPermisssions = async (
           error: ["An unexpected error occurred"],
         };
       }
+    }
+  }
+
+  export const getFeedingBatchItemByDate = async (
+    token: string,
+    farmId: number,
+    flockId: number,
+    date: string
+  ): Promise<RequestResponse<any>> => {
+    try {
+      const response = await axios.get(
+        `/api/farms/${farmId}/feeding/batch-schedules/flock/${flockId}/items-by-date`,
+        { params: { date }, headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (response.status === 200 || response.status === 201) {
+        return { success: true, data: response.data.data ?? null }
+      }
+      return { success: false, error: [`Error fetching feeding batch item: ${response.status}`] }
+    } catch (error: unknown) {
+      console.error("Error fetching feeding batch item:", error)
+      if (isAxiosError(error)) {
+        return { success: false, error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch feeding batch item"] }
+      }
+      return { success: false, error: ["An unexpected error occurred"] }
+    }
+  }
+
+  export const getMortalityByFlockAndDate = async (
+    token: string,
+    farmId: number,
+    flockId: number,
+    date: string
+  ): Promise<RequestResponse<{ total_mortality: number; report_count: number }>> => {
+    try {
+      const response = await axios.get(
+        `/api/farms/${farmId}/flock-mortality-reports/by-flock-date`,
+        { params: { flock_id: flockId, date }, headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (response.status === 200) {
+        return { success: true, data: response.data.data ?? null }
+      }
+      return { success: false, error: [`Error fetching mortality data: ${response.status}`] }
+    } catch (error: unknown) {
+      console.error("Error fetching mortality data:", error)
+      if (isAxiosError(error)) {
+        return { success: false, error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to fetch mortality data"] }
+      }
+      return { success: false, error: ["An unexpected error occurred"] }
     }
   }
 
