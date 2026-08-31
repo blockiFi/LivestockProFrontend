@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
 import { Label } from "../ui/label"
 import { Input } from "../ui/input"
@@ -18,13 +18,14 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
-import type { MortalityReport, FlockRecord } from "@/lib/types"
+import type { MortalityReport, FlockRecord, DetailedFlockRecord } from "@/lib/types"
+import { getBirdCountOnDate } from "@/lib/flock-birds"
 
 interface AddMortalityRecordModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (recordData: Omit<MortalityReport, 'id' | 'created_at' | 'updated_at'>) => Promise<void>
-  flock?: FlockRecord
+  flock?: FlockRecord | DetailedFlockRecord
   mortalityReports?: MortalityReport[]
 }
 
@@ -48,7 +49,7 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
     mortality_count: 0,
     average_weight: 0,
     mortality_percentage: 0,
-    bird_count: 0, // Will be set from flock quantity
+    bird_count: 0,
     date: new Date().toISOString().split('T')[0],
     notes: ""
   })
@@ -57,9 +58,14 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showCalendar, setShowCalendar] = useState(false)
 
-  // Calculate current bird count by subtracting total mortality from original quantity
-  const totalMortality = mortalityReports.reduce((sum, report) => sum + report.mortality_count, 0)
-  const currentBirdCount = (flock?.quantity || 0) - totalMortality
+  const dailyRecords = (flock as DetailedFlockRecord | undefined)?.daily_records
+
+  const birdCountOnDate = useMemo(() => {
+    return getBirdCountOnDate(flock?.quantity || 0, formData.date, {
+      mortalityReports,
+      dailyRecords,
+    })
+  }, [dailyRecords, flock?.quantity, formData.date, mortalityReports])
 
   const handleInputChange = (field: keyof MortalityRecordFormData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -88,23 +94,29 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
     }
   }
 
-  // Automatically calculate mortality percentage when mortality count or current bird count changes
+  // Keep bird count + mortality % in sync with selected date and mortality count
   useEffect(() => {
-    if (currentBirdCount > 0 && formData.mortality_count > 0) {
-      const percentage = (formData.mortality_count / currentBirdCount) * 100
-      setFormData(prev => ({ ...prev, mortality_percentage: percentage }))
-    } else {
-      setFormData(prev => ({ ...prev, mortality_percentage: 0 }))
-    }
-  }, [formData.mortality_count, currentBirdCount])
+    const percentage =
+      birdCountOnDate > 0 && formData.mortality_count > 0
+        ? (formData.mortality_count / birdCountOnDate) * 100
+        : 0
+
+    setFormData((prev) => ({
+      ...prev,
+      bird_count: birdCountOnDate,
+      mortality_percentage: percentage,
+    }))
+  }, [birdCountOnDate, formData.mortality_count])
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
 
     if (formData.mortality_count <= 0) newErrors.mortality_count = "Mortality count must be greater than 0"
-    if (formData.mortality_count > currentBirdCount) newErrors.mortality_count = `Mortality count cannot exceed current bird count (${currentBirdCount})`
+    if (formData.mortality_count > birdCountOnDate) {
+      newErrors.mortality_count = `Mortality count cannot exceed bird count on this date (${birdCountOnDate})`
+    }
     if (formData.average_weight <= 0) newErrors.average_weight = "Average weight must be greater than 0"
-    if (currentBirdCount <= 0) newErrors.bird_count = "Current bird count must be greater than 0"
+    if (birdCountOnDate <= 0) newErrors.bird_count = "Bird count on this date must be greater than 0"
     if (!formData.date) newErrors.date = "Date is required"
 
     setErrors(newErrors)
@@ -120,7 +132,9 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
     try {
       const recordData = {
         ...formData,
-        bird_count: currentBirdCount,
+        bird_count: birdCountOnDate,
+        mortality_percentage:
+          birdCountOnDate > 0 ? (formData.mortality_count / birdCountOnDate) * 100 : 0,
         recorded_by: 1 // This should come from user context in the future
       }
       await onSubmit(recordData)
@@ -132,7 +146,7 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
         mortality_count: 0,
         average_weight: 0,
         mortality_percentage: 0,
-        bird_count: 0, // Will be set from flock quantity
+        bird_count: 0,
         date: new Date().toISOString().split('T')[0],
         notes: ""
       })
@@ -233,15 +247,15 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
                   id="mortality_count"
                   type="number"
                   min="1"
-                  max={currentBirdCount > 0 ? currentBirdCount : undefined}
+                  max={birdCountOnDate > 0 ? birdCountOnDate : undefined}
                   value={formData.mortality_count}
                   onChange={(e) => handleInputChange("mortality_count", parseInt(e.target.value) || 0)}
-                  placeholder={`Enter mortality count (max: ${currentBirdCount})`}
+                  placeholder={`Enter mortality count (max: ${birdCountOnDate})`}
                   className={cn("h-9 text-sm", errors.mortality_count && "border-red-400")}
                 />
                 {errors.mortality_count && <p className="text-xs text-red-500">{errors.mortality_count}</p>}
-                {currentBirdCount > 0 && (
-                  <p className="text-xs text-gray-500">Maximum: {currentBirdCount}</p>
+                {birdCountOnDate > 0 && (
+                  <p className="text-xs text-gray-500">Maximum on this date: {birdCountOnDate}</p>
                 )}
               </div>
 
@@ -275,16 +289,18 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
               <div className="space-y-1">
                 <Label htmlFor="bird_count" className="text-xs text-gray-600 flex items-center gap-1.5">
                   <Bird className="h-3.5 w-3.5 text-blue-400" />
-                  Current Bird Count
+                  Bird Count on Date
                 </Label>
                 <Input
                   id="bird_count"
                   type="number"
-                  value={currentBirdCount}
+                  value={birdCountOnDate}
                   disabled
                   className="h-9 text-sm bg-gray-50"
                 />
-                <p className="text-xs text-gray-500">Original ({flock?.quantity || 0}) − mortality ({totalMortality})</p>
+                <p className="text-xs text-gray-500">
+                  Arrival ({flock?.quantity || 0}) minus mortality/culls before {formData.date}
+                </p>
                 {errors.bird_count && <p className="text-xs text-red-500">{errors.bird_count}</p>}
               </div>
 
@@ -301,7 +317,7 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
                   disabled
                   className="h-9 text-sm bg-gray-50"
                 />
-                <p className="text-xs text-gray-500">Auto-calculated from count &amp; bird count</p>
+                <p className="text-xs text-gray-500">Auto-calculated from count &amp; bird count on date</p>
               </div>
             </div>
           </div>

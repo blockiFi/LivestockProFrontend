@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { route } from "./interfaces";
-import type {  eggProductionDataType, feedConsumptionDataType, mortalityDataType, PoultryBreakDownReportRequestType, PoultryDashboardData } from "./types";
+import { requireRoutePermission } from "./loader";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -37,59 +37,81 @@ export const getWeatherIcon = (weatherId: number) => {
   );
   return weatherIcon || { icon: "🌤️", style: "text-gray-400" }; // default fallback
 };
-export const  formatCurrency = (value : number) : string => {
-  return  new Intl.NumberFormat('ja-JP' ).format(
-    value,
-  )
-} 
+export const formatCurrency = (value: number): string => {
+  const numeric = Number.isFinite(value) ? value : 0
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numeric)
+}
+
+/** Integer counts (birds, eggs, flocks, mortality) without forced decimals. */
+export const formatCount = (value: number): string => {
+  const numeric = Number.isFinite(value) ? Math.round(value) : 0
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(numeric)
+}
+
+/** Currency with Naira symbol. */
+export const formatMoney = (value: number): string => {
+  return `${Naira}${formatCurrency(value)}`
+}
+
+/** Safe division — returns null instead of NaN when denominator is 0. */
+export const safeRatio = (numerator: number, denominator: number): number | null => {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+    return null
+  }
+  return numerator / denominator
+}
+
+export type ExpiryStatus = "expired" | "expiring_soon" | "ok" | "unknown"
+
+/** Classify an expiry date relative to today. */
+export function getExpiryStatus(expiryDate: string | null | undefined): ExpiryStatus {
+  if (!expiryDate) return "unknown"
+
+  const exp = new Date(expiryDate)
+  if (isNaN(exp.getTime())) return "unknown"
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const expDay = new Date(exp)
+  expDay.setHours(0, 0, 0, 0)
+
+  if (expDay < today) return "expired"
+
+  const soonThreshold = new Date(today)
+  soonThreshold.setDate(soonThreshold.getDate() + 30)
+  if (expDay <= soonThreshold) return "expiring_soon"
+
+  return "ok"
+}
 
 export const exportRoutes = (prefix: string, routes: route[]) => {
-  return routes.map(route => ({
-    ...route,
-    path: prefix + (route.path.startsWith("/") ? route.path : "/" + route.path)
-  }));
-};
+  return routes.map((route) => {
+    const routePath = route.path.startsWith("/") ? route.path : `/${route.path}`
+    const originalLoader = route.loader
+
+    return {
+      ...route,
+      path: prefix + routePath,
+      loader: async (args?: { request?: Request; params?: Record<string, string> }) => {
+        const pathname = args?.request
+          ? new URL(args.request.url).pathname
+          : `/dashboard/${prefix}${routePath === "/" ? "" : routePath}`.replace(/:\w+/g, "0")
+        await requireRoutePermission(pathname)
+        if (originalLoader) {
+          return originalLoader(args as Parameters<NonNullable<typeof originalLoader>>[0])
+        }
+        return null
+      },
+    }
+  })
+}
 
 export const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
-
-export const  getPoultryBreakDownReport = async (statistics : PoultryDashboardData) : Promise<PoultryBreakDownReportRequestType> => {
-
-
-  let eggProductionData  : eggProductionDataType[] = [];
-  statistics.egg_production.daily_breakdown?.map((record) => {
-    eggProductionData.push({
-        date : record.date,
-        eggs : record.eggs_produced
-    });
-
-  })
- 
-  let mortalityData  : mortalityDataType[] = [];
-  statistics.mortality.daily_breakdown?.map((record) => {
-    mortalityData.push({
-        date : record.date,
-        mortality : record.mortality_count,
-        rate : record.mortality_rate_percent
-    });
-
-  })
-
-  let feedConsumptionData  : feedConsumptionDataType[] = [];
-  statistics.feed_consumption.daily_breakdown?.map((record ) => {
-    feedConsumptionData.push({
-        date : record.date,
-        feed_kg : record.total_feed_kg,
-        cost :  record.total_feed_kg  * statistics.feed_consumption.total_feed_cost /  statistics.feed_consumption.total_feed_consumed_kg
-    });
-
-  })
-
-  return {
-    eggProductionData ,
-    mortalityData,
-    feedConsumptionData
-  }
-}
 
 export const formatDateTime = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString("en-GB", {
@@ -107,6 +129,25 @@ export const  formatDate = (dateString: string): string => {
     month: "short",
     year: "numeric",
   })
+}
+
+export function isFlockActive(status: string): boolean {
+  return status === "active"
+}
+
+/** Calendar days from batch arrival to end (or today if still active). */
+export function getDaysInFlock(
+  arrivalDate: string,
+  actualEndDate?: string | null,
+  isActive = true
+): number {
+  const start = new Date(arrivalDate)
+  start.setHours(0, 0, 0, 0)
+
+  const end = !isActive && actualEndDate ? new Date(actualEndDate) : new Date()
+  end.setHours(0, 0, 0, 0)
+
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
 }
 
 export const statusColors  = {

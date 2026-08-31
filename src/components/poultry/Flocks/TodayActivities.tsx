@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import type { DetailedFlockRecord } from "@/lib/types";
 import { CalendarClock, Pill, Shield, Wheat, Clock, ChevronUp, ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
+import { coversFeedingDay, formatFeedingDayRange } from "@/lib/feeding-range";
 
 interface TodayActivitiesProps {
   flock: DetailedFlockRecord;
@@ -12,8 +13,12 @@ const TodayActivities = ({ flock }: TodayActivitiesProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const arrivalDate = new Date(flock.arrival_date);
   const now = new Date();
-  const daysSinceArrival = Math.floor((now.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24));
+  const daysSinceArrival = Math.floor(
+    (now.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
   const currentAge = flock.arrival_age_days + daysSinceArrival;
+  // Feeding day is placement-based: Day 1 = arrival date
+  const currentFeedingDay = daysSinceArrival + 1;
 
   const handleToggle = () => {
     setIsExpanded(!isExpanded);
@@ -46,8 +51,10 @@ const TodayActivities = ({ flock }: TodayActivitiesProps) => {
       const scheduleItems = batch.schedule?.items ?? [];
       const batchItems = batch.items ?? [];
       
-      // Find all items for today (feeding_day === currentAge)
-      const matches = scheduleItems.filter(item => item.feeding_day === currentAge);
+      // Find ranges that cover today's placement day
+      const matches = scheduleItems.filter((item) =>
+        coversFeedingDay(item, currentFeedingDay)
+      );
       for (const match of matches) {
         // Check if there's an executed batch item with actual_feeding_time
         const executedItem = batchItems.find(
@@ -82,20 +89,23 @@ const TodayActivities = ({ flock }: TodayActivitiesProps) => {
       const timeB = b.time || '00:00';
       return timeA.localeCompare(timeB);
     });
-  }, [flock.batch_feeding_schedules, currentAge]);
+  }, [flock.batch_feeding_schedules, currentFeedingDay]);
 
   const totalActivities = todayMedications.length + todayVaccinations.length + todayFeedings.length;
 
+  const hasAny = totalActivities > 0;
   return (
-    <Card className="mb-6 shadow-lg border border-gray-200">
-      <CardHeader>
-        <CardTitle className="w-full flex items-center justify-between">
+    <Card className="mb-6 border border-gray-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="w-full flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-indigo-100 rounded-lg">
+            <div className="p-3 bg-indigo-100 rounded-lg shadow-xs">
               <CalendarClock className="h-6 w-6 text-indigo-600" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold">Today's Activities</span>
+              <span className="text-base md:text-lg font-semibold text-gray-900">
+                Today's Activities
+              </span>
               <span className="text-xs text-gray-500 mt-0.5">
                 {now.toLocaleDateString("en-GB", {
                   weekday: "long",
@@ -106,31 +116,53 @@ const TodayActivities = ({ flock }: TodayActivitiesProps) => {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="secondary" className="text-xs px-3 py-1">
-              {totalActivities} {totalActivities === 1 ? "task" : "tasks"}
-            </Badge>
-            <div className="cursor-pointer" onClick={handleToggle}>
-              {isExpanded ? (
-                <ChevronUp className="h-5 w-5 text-gray-600 hover:text-gray-900 transition-colors" />
-              ) : (
-                <ChevronDown className="h-5 w-5 text-gray-600 hover:text-gray-900 transition-colors" />
-              )}
+          <div className="flex items-center gap-2 md:gap-3 mt-2 md:mt-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant="secondary" className="text-[11px] px-2 py-0.5">
+                {totalActivities} {totalActivities === 1 ? "task" : "tasks"}
+              </Badge>
+              <Badge variant="outline" className="text-[11px] px-2 py-0.5 flex items-center gap-1">
+                <Pill className="h-3 w-3 text-purple-600" />
+                {todayMedications.length}
+              </Badge>
+              <Badge variant="outline" className="text-[11px] px-2 py-0.5 flex items-center gap-1">
+                <Shield className="h-3 w-3 text-blue-600" />
+                {todayVaccinations.length}
+              </Badge>
+              <Badge variant="outline" className="text-[11px] px-2 py-0.5 flex items-center gap-1">
+                <Wheat className="h-3 w-3 text-green-600" />
+                {todayFeedings.length}
+              </Badge>
             </div>
+            <button
+              type="button"
+              onClick={handleToggle}
+              className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white p-1.5 text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors"
+            >
+              {isExpanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className={`${isExpanded ? "block" : "hidden"}`}>
+      <CardContent className={`${isExpanded ? "block" : "hidden"} pt-0`}>
         {totalActivities === 0 ? (
-          <div className="py-12 flex flex-col items-center justify-center text-center gap-4">
+          <div className="py-10 flex flex-col items-center justify-center text-center gap-3">
             <div className="p-4 bg-gray-100 rounded-full">
               <CalendarClock className="h-8 w-8 text-gray-400" />
             </div>
-            <p className="text-lg font-semibold text-gray-500">No scheduled activities for today</p>
-            <p className="text-sm text-gray-400">All caught up! Check the Schedule Management view for upcoming tasks.</p>
+            <p className="text-sm font-semibold text-gray-600">
+              No scheduled activities for today
+            </p>
+            <p className="text-xs text-gray-400">
+              All caught up! Check the Schedule view for upcoming tasks.
+            </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Medication Column */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b">

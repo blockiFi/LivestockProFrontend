@@ -1,103 +1,203 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { format } from "date-fns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { 
-  Wheat, 
-  Clock, 
-  Calendar, 
-  ChevronDown, 
+import {
+  Wheat,
+  Clock,
+  Calendar,
+  ChevronDown,
   ChevronUp,
   CheckCircle,
   AlertCircle,
-  Info,
-  TrendingUp,
-  ClipboardCheck
+  ClipboardCheck,
+  ListChecks,
+  Undo2,
 } from "lucide-react"
 import type { BatchFeedingSchedule } from "@/lib/types"
 import ImplementFeedingScheduleModal from "./ImplementFeedingScheduleModal"
+import BulkImplementFeedingModal from "./BulkImplementFeedingModal"
+import BulkRevertFeedingModal from "./BulkRevertFeedingModal"
+import {
+  coversFeedingDay,
+  countMissedDaysInRange,
+  formatFeedingDayRange,
+  listMissedFeedingDays,
+  resolveRangeBounds,
+} from "@/lib/feeding-range"
 
 interface FeedingScheduleViewProps {
   schedule: BatchFeedingSchedule
   flockQuantity: number
+  currentFeedingDay: number
+  arrivalDate: string
   onRefresh?: () => void
+  readOnly?: boolean
+  onChangeSchedule?: () => void
 }
 
-const FeedingScheduleView = ({ schedule, flockQuantity, onRefresh }: FeedingScheduleViewProps) => {
+function executedTotalGrams(
+  executedItem: { actual_total_kg?: number | string | null; actual_quantity?: number | string | null },
+  flockQuantity: number
+): number {
+  const storedTotalKg = executedItem.actual_total_kg
+  if (storedTotalKg != null && storedTotalKg !== "") {
+    return Number(storedTotalKg) * 1000
+  }
+  return Number(executedItem.actual_quantity || 0) * flockQuantity
+}
+
+function daysElapsedInRange(
+  start: number,
+  end: number | null,
+  currentFeedingDay: number
+): number {
+  if (currentFeedingDay < start) return 0
+  const effectiveEnd = end == null ? currentFeedingDay : Math.min(end, currentFeedingDay)
+  return Math.max(0, effectiveEnd - start + 1)
+}
+
+const FeedingScheduleView = ({
+  schedule,
+  flockQuantity,
+  currentFeedingDay,
+  arrivalDate,
+  onRefresh,
+  readOnly = false,
+  onChangeSchedule,
+}: FeedingScheduleViewProps) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [implementModalOpen, setImplementModalOpen] = useState(false)
+  const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [revertModalOpen, setRevertModalOpen] = useState(false)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState<any>(null)
-  
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'pending':
-        return 'bg-amber-100 text-amber-800 border-amber-200'
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'missed':
-        return 'bg-red-100 text-red-800 border-red-200'
-      case 'ongoing':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case "completed":
+      case "active":
+      case "recorded":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "pending":
+      case "upcoming":
+        return "bg-amber-100 text-amber-800 border-amber-200"
+      case "missed":
+      case "past":
+      case "partial":
+        return "bg-red-100 text-red-800 border-red-200"
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return <CheckCircle className="h-4 w-4" />
-      case 'pending':
-        return <Clock className="h-4 w-4" />
-      case 'missed':
-        return <AlertCircle className="h-4 w-4" />
-      default:
-        return <Clock className="h-4 w-4" />
-    }
-  }
-
-  // Calculate statistics using schedule items as base
-  const allScheduleItems = schedule.schedule?.items || []
+  const allScheduleItems = [...(schedule.schedule?.items || [])].sort((a, b) => {
+    const as = resolveRangeBounds(a).start_day
+    const bs = resolveRangeBounds(b).start_day
+    return as - bs
+  })
   const executedItems = schedule.items || []
-  
-  const totalItems = allScheduleItems.length
-  const completedItems = executedItems.length  // All items in batch schedule are completed
-  const pendingItems = allScheduleItems.length - executedItems.length  // Items not yet in batch schedule
-  const totalQuantity = executedItems.reduce((sum, item) => sum + (Number(item.actual_quantity || 0) * flockQuantity), 0)
+
+  const missedPreview = useMemo(
+    () =>
+      listMissedFeedingDays({
+        scheduleItems: allScheduleItems,
+        executedItems,
+        currentFeedingDay,
+        arrivalDate,
+        flockQuantity,
+      }),
+    [allScheduleItems, executedItems, currentFeedingDay, arrivalDate, flockQuantity]
+  )
+
+  const missedCount = missedPreview.length
+  const missedTotalKg = missedPreview.reduce((sum, day) => sum + day.planned_total_kg, 0)
+
+  const revertiblePreview = useMemo(() => {
+    const today = format(new Date(), "yyyy-MM-dd")
+    const revertibleDays = executedItems
+      .filter((item) => item.status === "late" && item.feeding_date.slice(0, 10) < today)
+      .map((item) => ({
+        id: item.id,
+        feeding_day: 0,
+        feeding_date: item.feeding_date.slice(0, 10),
+        feeding_schedule_item_id: item.feeding_schedule_item_id,
+        actual_quantity: Number(item.actual_quantity || 0),
+        planned_total_kg: executedTotalGrams(item, flockQuantity) / 1000,
+      }))
+
+    return {
+      revertible_days: revertibleDays,
+      count: revertibleDays.length,
+      total_feed_kg: revertibleDays.reduce((sum, day) => sum + day.planned_total_kg, 0),
+    }
+  }, [executedItems, flockQuantity])
+
+  const revertibleCount = revertiblePreview.count
+
+  const totalDaysCovered = allScheduleItems.reduce((sum, item) => {
+    const { start_day, end_day } = resolveRangeBounds(item)
+    if (end_day == null) return sum
+    return sum + (end_day - start_day + 1)
+  }, 0)
+
+  const recordedDays = executedItems.length
+  const totalFeedKg =
+    executedItems.reduce((sum, item) => sum + executedTotalGrams(item, flockQuantity), 0) / 1000
+
+  const activeRange = allScheduleItems.find((item) =>
+    coversFeedingDay(item, currentFeedingDay)
+  )
 
   return (
     <div className="space-y-4">
-      {/* Header Card */}
-      <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
+      <Card className="border-l-4 border-l-orange-500 shadow-md">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Wheat className="h-6 w-6 text-orange-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl font-bold text-gray-900">
-                    {schedule.schedule.title}
-                  </CardTitle>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {schedule.schedule.description || "Feeding schedule for the flock"}
-                  </p>
-                </div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Wheat className="h-6 w-6 text-orange-600" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-bold text-gray-900">
+                  {schedule.schedule.title}
+                </CardTitle>
+                <p className="text-sm text-gray-500 mt-1">
+                  {schedule.schedule.description || "Feeding schedule for the flock"}
+                </p>
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">
               <Badge className={`${getStatusColor(schedule.status)} border px-3 py-1`}>
                 {schedule.status.toUpperCase()}
               </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="h-8"
-              >
+              {!readOnly && missedCount > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => setBulkModalOpen(true)}
+                  className="h-8 bg-red-600 hover:bg-red-700"
+                >
+                  <ListChecks className="h-4 w-4 mr-1" />
+                  Implement all missed ({missedCount})
+                </Button>
+              )}
+              {!readOnly && revertibleCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setRevertModalOpen(true)}
+                  className="h-8 border-slate-300 text-slate-700 hover:bg-slate-50"
+                >
+                  <Undo2 className="h-4 w-4 mr-1" />
+                  Revert backfill ({revertibleCount})
+                </Button>
+              )}
+              {!readOnly && onChangeSchedule && (
+                <Button variant="outline" size="sm" onClick={onChangeSchedule} className="h-8">
+                  Change schedule
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-8">
                 {isExpanded ? (
                   <>
                     <ChevronUp className="h-4 w-4 mr-1" />
@@ -114,353 +214,168 @@ const FeedingScheduleView = ({ schedule, flockQuantity, onRefresh }: FeedingSche
           </div>
         </CardHeader>
 
-        {/* Statistics Bar */}
         <CardContent className="pt-0">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{totalItems}</div>
-              <div className="text-xs text-gray-600">Total Feedings</div>
+              <div className="text-2xl font-bold text-gray-900">{allScheduleItems.length}</div>
+              <div className="text-xs text-gray-600">Ranges</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{completedItems}</div>
-              <div className="text-xs text-gray-600">Completed</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {totalDaysCovered || "∞"}
+              </div>
+              <div className="text-xs text-gray-600">Days covered</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-amber-600">{pendingItems}</div>
-              <div className="text-xs text-gray-600">Pending</div>
+              <div className="text-2xl font-bold text-green-600">{recordedDays}</div>
+              <div className="text-xs text-gray-600">Days recorded</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{(totalQuantity / 1000).toFixed(2)}kg</div>
-              <div className="text-xs text-gray-600">Total Feed</div>
+              <div className="text-2xl font-bold text-red-600">{missedCount}</div>
+              <div className="text-xs text-gray-600">Days missed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">{totalFeedKg.toFixed(2)}kg</div>
+              <div className="text-xs text-gray-600">Total feed</div>
             </div>
           </div>
+          {missedCount > 0 && (
+            <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {missedCount} past day(s) not recorded (~{missedTotalKg.toFixed(2)} kg planned).
+              {!readOnly && " Use bulk implement to backfill all at once."}
+            </div>
+          )}
+          {activeRange && (
+            <div className="mt-3 text-sm text-slate-600">
+              Today is placement day <span className="font-semibold">{currentFeedingDay}</span> — active rate{" "}
+              <span className="font-semibold">{Number(activeRange.quantity)} g/bird</span> (
+              {formatFeedingDayRange(
+                resolveRangeBounds(activeRange).start_day,
+                resolveRangeBounds(activeRange).end_day
+              )}
+              )
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Feeding Items */}
       {isExpanded && (
         <div className="space-y-3">
-          {allScheduleItems.map((scheduleItem, index) => {
-            // Find matching executed item
-            const executedItem = executedItems.find(ei => ei.feeding_schedule_item_id === scheduleItem.id)
-            
-            // Determine status - if item exists in batch schedule, it's completed; otherwise pending
-            const status = executedItem ? 'completed' : 'pending'
-            
-            // Use actual data from executed item if completed, otherwise use planned data
-            const feedingTimes = executedItem?.actual_feeding_time || scheduleItem.feeding_times || []
-            const totalDailyQuantityPerBird = executedItem ? Number(executedItem.actual_quantity || 0) : Number(scheduleItem.quantity || 0)
-            const totalDailyQuantity = totalDailyQuantityPerBird * flockQuantity
+          {allScheduleItems.map((scheduleItem) => {
+            const { start_day, end_day } = resolveRangeBounds(scheduleItem)
+            const rangeExecuted = executedItems.filter(
+              (ei) => ei.feeding_schedule_item_id === scheduleItem.id
+            )
+            const elapsed = daysElapsedInRange(start_day, end_day, currentFeedingDay)
+            const rangeMissed = countMissedDaysInRange(
+              scheduleItem.id,
+              start_day,
+              end_day,
+              currentFeedingDay,
+              allScheduleItems,
+              executedItems,
+              arrivalDate
+            )
+            const coversToday = coversFeedingDay(scheduleItem, currentFeedingDay)
+            const isUpcoming = start_day > currentFeedingDay
+            const rangeTotalDays =
+              end_day != null ? end_day - start_day + 1 : Math.max(0, currentFeedingDay - start_day)
 
-            // Calculate variance for completed items
-            const plannedQuantityPerBird = Number(scheduleItem.quantity || 0)
-            const plannedQuantity = plannedQuantityPerBird * flockQuantity
-            const actualQuantityPerBird = executedItem ? Number(executedItem.actual_quantity || 0) : 0
-            const actualQuantity = actualQuantityPerBird * flockQuantity
-            const quantityDifference = actualQuantity - plannedQuantity
-            const quantityVariancePercent = plannedQuantity > 0 ? ((quantityDifference / plannedQuantity) * 100) : 0
+            let status: "active" | "upcoming" | "past" | "recorded" | "partial" = "upcoming"
+            if (coversToday) status = "active"
+            else if (isUpcoming) status = "upcoming"
+            else if (rangeMissed === 0 && rangeExecuted.length > 0) status = "recorded"
+            else if (rangeMissed > 0 && rangeExecuted.length > 0) status = "partial"
+            else if (rangeMissed > 0) status = "past"
 
-            // Calculate feeding time variance
-            const plannedFeedingTimes = scheduleItem.feeding_times || []
-            const actualFeedingTimes = Array.isArray(executedItem?.actual_feeding_time) ? executedItem.actual_feeding_time : []
-            const timeDifference = actualFeedingTimes.length - plannedFeedingTimes.length
-            
-            // Check if any times are different (not just count)
-            const hasTimeDifferences = actualFeedingTimes.some((actual: any, idx: number) => {
-              const planned = plannedFeedingTimes[idx]
-              return planned && (actual.time !== planned.time || actual.percentage !== planned.percentage)
-            })
+            const plannedPerBird = Number(scheduleItem.quantity || 0)
+            const plannedDailyKg = (plannedPerBird * flockQuantity) / 1000
 
             return (
-              <Card 
-                key={scheduleItem.id} 
-                className="border-0 shadow-sm hover:shadow-md transition-all duration-200 bg-white"
-              >
+              <Card key={scheduleItem.id} className="border-0 shadow-sm bg-white">
                 <CardContent className="p-5">
-                  {/* Item Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-10 h-10 bg-orange-100 rounded-full">
-                        <span className="text-orange-700 font-bold text-sm">
-                          {scheduleItem.feeding_day || index + 1}
+                      <div className="flex items-center justify-center min-w-10 h-10 px-2 bg-orange-100 rounded-full">
+                        <span className="text-orange-700 font-bold text-xs whitespace-nowrap">
+                          {formatFeedingDayRange(start_day, end_day).replace("Day ", "D")}
                         </span>
                       </div>
                       <div>
                         <div className="font-semibold text-gray-900">
-                          Day {scheduleItem.feeding_day || index + 1} Feeding
+                          {formatFeedingDayRange(start_day, end_day)} Feeding
                         </div>
-                        {executedItem && (
-                          <div className="flex items-center gap-2 mt-1">
-                            <Calendar className="h-3 w-3 text-gray-400" />
-                            <span className="text-sm text-gray-600">
-                              {new Date(executedItem.feeding_date).toLocaleDateString('en-US', {
-                                weekday: 'short',
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </span>
-                          </div>
-                        )}
+                        <div className="text-sm text-gray-500 mt-0.5">
+                          {plannedPerBird}g/bird/day · {plannedDailyKg.toFixed(2)} kg/day for flock
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                          <Calendar className="h-3 w-3 text-gray-400" />
+                          {rangeExecuted.length} / {rangeTotalDays || "∞"} day(s) recorded
+                          {rangeMissed > 0 && (
+                            <span className="text-red-600">· {rangeMissed} missed</span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge className={`${getStatusColor(status)} border flex items-center gap-1`}>
-                        {getStatusIcon(status)}
-                        {status}
-                      </Badge>
-                      {scheduleItem.feed_type_id && (
-                        <div className="text-xs text-gray-500 flex items-center gap-1">
-                          <Wheat className="h-3 w-3" />
-                          Feed Type #{scheduleItem.feed_type_id}
-                        </div>
+                    <Badge className={`${getStatusColor(status)} border flex items-center gap-1`}>
+                      {status === "active" && <CheckCircle className="h-3.5 w-3.5" />}
+                      {(status === "past" || status === "partial") && (
+                        <AlertCircle className="h-3.5 w-3.5" />
                       )}
+                      {status === "upcoming" && <Clock className="h-3.5 w-3.5" />}
+                      {status}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <div>
+                      <div className="text-xs text-gray-500">Days elapsed</div>
+                      <div className="text-lg font-bold text-gray-900">
+                        {elapsed}
+                        {end_day != null ? ` / ${end_day - start_day + 1}` : "+"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Days recorded</div>
+                      <div className="text-lg font-bold text-green-700">{rangeExecuted.length}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Feed type</div>
+                      <div className="text-sm font-semibold text-gray-800 mt-1">
+                        #{scheduleItem.feed_type_id}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Quantity Info */}
-                  {status === 'completed' && executedItem ? (
-                    <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-lg border-2 border-blue-200">
-                      <div className="grid grid-cols-3 gap-4 mb-3">
-                        <div>
-                          <div className="text-xs text-gray-600 mb-1">Planned Quantity</div>
-                          <div className="text-base font-semibold text-gray-700">
-                            {(plannedQuantity / 1000).toFixed(2)} kg
-                          </div>
-                          <div className="text-xs text-gray-500 mt-0.5">
-                            {plannedQuantityPerBird.toFixed(1)}g per bird
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-600 mb-1">Actual Quantity</div>
-                          <div className="text-base font-semibold text-green-700">
-                            {(actualQuantity / 1000).toFixed(2)} kg
-                          </div>
-                          <div className="text-xs text-gray-500 mt-0.5">
-                            {actualQuantityPerBird.toFixed(1)}g per bird
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-600 mb-1">Variance</div>
-                          <div className={`text-base font-bold ${quantityVariancePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {quantityVariancePercent > 0 ? '+' : ''}{quantityVariancePercent.toFixed(1)}%
-                          </div>
-                          <div className={`text-xs mt-0.5 ${quantityDifference >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {quantityDifference > 0 ? '+' : ''}{(quantityDifference / 1000).toFixed(2)} kg
-                          </div>
-                        </div>
-                      </div>
-                      {/* Visual variance indicator */}
-                      <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className={`absolute h-full ${quantityVariancePercent >= 0 ? 'bg-green-500' : 'bg-red-500'} transition-all`}
-                          style={{ 
-                            width: `${Math.min(Math.abs(quantityVariancePercent), 100)}%`,
-                            left: quantityVariancePercent >= 0 ? '50%' : `${50 - Math.min(Math.abs(quantityVariancePercent), 50)}%`
-                          }}
-                        ></div>
-                        <div className="absolute left-1/2 top-0 w-0.5 h-full bg-gray-400"></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>Under</span>
-                        <span className="font-medium">Target</span>
-                        <span>Over</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg border border-gray-200">
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">Planned Quantity</div>
-                        <div className="text-lg font-bold text-gray-900">
-                          {(totalDailyQuantity / 1000).toFixed(2)} kg
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          ({totalDailyQuantityPerBird.toFixed(1)}g per bird × {flockQuantity} birds)
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">Status</div>
-                        <div className="text-lg font-bold text-amber-600">
-                          Pending
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          Not fed yet
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Feeding Times */}
-                  {status === 'completed' && executedItem ? (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-600" />
-                          <span className="text-sm font-semibold text-gray-700">
-                            Feeding Time Comparison
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {timeDifference !== 0 && (
-                            <Badge className={`${timeDifference > 0 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'} border`}>
-                              {timeDifference > 0 ? '+' : ''}{timeDifference} {Math.abs(timeDifference) === 1 ? 'feeding' : 'feedings'}
-                            </Badge>
-                          )}
-                          {hasTimeDifferences && (
-                            <Badge className="bg-amber-100 text-amber-700 border-amber-300 border">
-                              Times Modified
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Side by side comparison */}
-                      <div className="grid grid-cols-2 gap-4 mb-3">
-                        {/* Planned Times */}
-                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <div className="text-xs font-semibold text-gray-600 mb-2">
-                            Planned ({plannedFeedingTimes.length} times)
-                          </div>
-                          <div className="space-y-2">
-                            {plannedFeedingTimes.map((time: any, idx: number) => {
-                              const plannedPercentage = Number(time.percentage || 0)
-                              const plannedQtyPerBird = (plannedQuantityPerBird * plannedPercentage) / 100
-                              const plannedQtyForFlock = (plannedQuantity * plannedPercentage) / 100
-                              const actualTime = actualFeedingTimes[idx]
-                              const isDifferent = actualTime && (actualTime.time !== time.time || Number(actualTime.percentage) !== plannedPercentage)
-                              
-                              return (
-                                <div 
-                                  key={idx} 
-                                  className={`flex flex-col gap-1 text-xs bg-white p-2 rounded border ${isDifferent ? 'border-amber-400 bg-amber-50' : 'border-gray-200'}`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-semibold text-gray-700">{time.time}</span>
-                                    <span className="text-purple-600">{plannedPercentage}%</span>
-                                  </div>
-                                  <div className="flex items-center justify-between text-gray-500">
-                                    <span>{(plannedQtyForFlock / 1000).toFixed(2)}kg</span>
-                                    <span className="text-gray-400">{plannedQtyPerBird.toFixed(1)}g/bird</span>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                        
-                        {/* Actual Times */}
-                        <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                          <div className="text-xs font-semibold text-green-700 mb-2">
-                            Actual ({actualFeedingTimes.length} times)
-                          </div>
-                          <div className="space-y-2">
-                            {actualFeedingTimes.map((time: any, idx: number) => {
-                              const percentage = Number(time.percentage || 0)
-                              const quantityPerBird = (actualQuantityPerBird * percentage) / 100
-                              const totalQuantityForFlock = (actualQuantity * percentage) / 100
-                              const plannedTime = plannedFeedingTimes[idx]
-                              const isDifferent = plannedTime && (plannedTime.time !== time.time || Number(plannedTime.percentage) !== percentage)
-                              
-                              return (
-                                <div 
-                                  key={idx} 
-                                  className={`p-2 rounded border ${isDifferent ? 'bg-amber-50 border-amber-400' : 'bg-white border-green-300'}`}
-                                >
-                                  <div className="flex items-center justify-between text-xs mb-1">
-                                    <span className={`font-semibold ${isDifferent ? 'text-amber-900' : 'text-green-900'}`}>
-                                      {time.time}
-                                      {plannedTime && time.time !== plannedTime.time && (
-                                        <span className="ml-1 text-amber-600 text-[10px]">
-                                          (was {plannedTime.time})
-                                        </span>
-                                      )}
-                                    </span>
-                                    <span className={`font-semibold ${isDifferent && percentage !== Number(plannedTime?.percentage) ? 'text-amber-700' : 'text-purple-600'}`}>
-                                      {percentage}%
-                                      {plannedTime && percentage !== Number(plannedTime.percentage) && (
-                                        <span className="ml-1 text-amber-600 text-[10px]">
-                                          (was {Number(plannedTime.percentage)}%)
-                                        </span>
-                                      )}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between text-xs text-gray-600">
-                                    <span>{(totalQuantityForFlock / 1000).toFixed(2)}kg</span>
-                                    <span className="text-gray-400">{quantityPerBird.toFixed(1)}g/bird</span>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : feedingTimes.length > 0 ? (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Clock className="h-4 w-4 text-gray-600" />
-                        <span className="text-sm font-semibold text-gray-700">
-                          Feeding Schedule ({feedingTimes.length} times/day)
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                        {(Array.isArray(feedingTimes) ? feedingTimes : []).map((time: any, idx: number) => {
-                          const percentage = Number(time.percentage || 0)
-                          const quantityPerBird = (totalDailyQuantityPerBird * percentage) / 100
-                          const totalQuantityForFlock = (totalDailyQuantity * percentage) / 100
-
-                          return (
-                            <div 
-                              key={idx}
-                              className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-2 border-blue-200 rounded-lg p-3 hover:shadow-md transition-all"
-                            >
-                              <div className="absolute top-1 right-1">
-                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                              </div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Clock className="h-4 w-4 text-blue-600" />
-                                <span className="font-bold text-blue-900">{time.time}</span>
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-600">Portion:</span>
-                                  <span className="font-semibold text-purple-700">{percentage}%</span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-600">Total:</span>
-                                  <span className="font-semibold text-indigo-700">{(totalQuantityForFlock / 1000).toFixed(2)}kg</span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-400">Per bird:</span>
-                                  <span className="font-medium text-gray-500">{quantityPerBird.toFixed(1)}g</span>
-                                </div>
-                              </div>
-                              {/* Visual percentage bar */}
-                              <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
-                                  style={{ width: `${percentage}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {/* Progress Indicator */}
-                  {status === 'completed' && (
-                    <div className="mt-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 p-2 rounded-lg border border-green-200">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Feeding completed successfully</span>
-                    </div>
-                  )}
-                  {status === 'pending' && (
-                    <div className="mt-4 flex items-center justify-between gap-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                      <div className="flex items-center gap-2 text-sm text-amber-700">
+                  {(scheduleItem.feeding_times || []).length > 0 && (
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-gray-700">
                         <Clock className="h-4 w-4" />
-                        <span>Pending - Not yet fed</span>
+                        Daily times
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(scheduleItem.feeding_times || []).map((time: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs"
+                          >
+                            <span className="font-semibold text-blue-900">{time.time}</span>
+                            <span className="text-blue-700 ml-2">{time.percentage}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(status === "active" || status === "past" || status === "partial") && !readOnly && (
+                    <div className="mt-4 flex items-center justify-between gap-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                      <div className="flex items-center gap-2 text-sm text-amber-800">
+                        <ClipboardCheck className="h-4 w-4" />
+                        <span>
+                          {status === "active"
+                            ? "Record today’s feeding for this range"
+                            : "Backfill a missed day in this range"}
+                        </span>
                       </div>
                       <Button
                         size="sm"
@@ -470,7 +385,6 @@ const FeedingScheduleView = ({ schedule, flockQuantity, onRefresh }: FeedingSche
                         }}
                         className="bg-orange-600 hover:bg-orange-700"
                       >
-                        <ClipboardCheck className="h-4 w-4 mr-1" />
                         Implement
                       </Button>
                     </div>
@@ -482,24 +396,6 @@ const FeedingScheduleView = ({ schedule, flockQuantity, onRefresh }: FeedingSche
         </div>
       )}
 
-      {/* Summary Footer */}
-      {pendingItems > 0 && (
-        <Card className="border-l-4 border-l-amber-500 bg-amber-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-amber-600" />
-              <div>
-                <div className="font-semibold text-amber-900">Pending Feedings</div>
-                <div className="text-sm text-amber-700">
-                  {pendingItems} feeding{pendingItems > 1 ? 's' : ''} pending. Please review and schedule feed distribution.
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Implement Feeding Modal */}
       {selectedScheduleItem && (
         <ImplementFeedingScheduleModal
           open={implementModalOpen}
@@ -507,11 +403,36 @@ const FeedingScheduleView = ({ schedule, flockQuantity, onRefresh }: FeedingSche
           scheduleItem={selectedScheduleItem}
           batchScheduleId={schedule.id}
           flockQuantity={flockQuantity}
+          arrivalDate={arrivalDate}
           onSuccess={() => {
             onRefresh?.()
           }}
         />
       )}
+
+      <BulkImplementFeedingModal
+        open={bulkModalOpen}
+        onOpenChange={setBulkModalOpen}
+        batchScheduleId={schedule.id}
+        fallbackPreview={{
+          missed_days: missedPreview,
+          count: missedCount,
+          total_feed_kg: missedTotalKg,
+        }}
+        onSuccess={() => {
+          onRefresh?.()
+        }}
+      />
+
+      <BulkRevertFeedingModal
+        open={revertModalOpen}
+        onOpenChange={setRevertModalOpen}
+        batchScheduleId={schedule.id}
+        fallbackPreview={revertiblePreview}
+        onSuccess={() => {
+          onRefresh?.()
+        }}
+      />
     </div>
   )
 }

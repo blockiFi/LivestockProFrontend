@@ -3,16 +3,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { MortalityReport, FlockRecord } from "@/lib/types"
+import type { MortalityReport, FlockRecord, DetailedFlockRecord } from "@/lib/types"
 import { formatDate } from "@/lib/utils"
+import { getBirdCountOnDate } from "@/lib/flock-birds"
 import { Activity, AlertTriangle, Eye, Heart, TrendingUp, Plus, Trash2 } from "lucide-react"
 import Pagination from "@/components/general/Pagination"
 import { useState, useMemo, useEffect } from "react"
 import AddMortalityRecordModal from "@/components/modals/AddMortalityRecordModal"
+import { toast } from "react-toastify"
 
 const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: { 
   reports: MortalityReport[], 
-  flock?: FlockRecord,
+  flock?: FlockRecord | DetailedFlockRecord,
   onAddRecord?: (record: Omit<MortalityReport, 'id' | 'created_at' | 'updated_at'>) => Promise<void>
   onDeleteRecord?: (recordId: number) => Promise<void>
 }) =>  {
@@ -21,21 +23,52 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState<number | null>(null);
   const reportsPerPage = 10;
-  const totalReports = reports.length;
+  const dailyRecords = (flock as DetailedFlockRecord | undefined)?.daily_records
+
+  const sortedReports = useMemo(() => {
+    return [...reports].sort((a, b) => {
+      const dateA = new Date(a.date).getTime()
+      const dateB = new Date(b.date).getTime()
+      return dateB - dateA
+    })
+  }, [reports])
+
+  /** Recompute bird count / % as of each report date so the table is correct even if stored bird_count was initial quantity. */
+  const displayReports = useMemo(() => {
+    const initialQuantity = flock?.quantity || 0
+    return sortedReports.map((report) => {
+      const birdCountOnDate = getBirdCountOnDate(initialQuantity, report.date, {
+        mortalityReports: reports,
+        dailyRecords,
+        excludeReportId: report.id,
+      })
+      const mortalityPercentage =
+        birdCountOnDate > 0 ? (report.mortality_count / birdCountOnDate) * 100 : 0
+      return {
+        ...report,
+        bird_count: birdCountOnDate,
+        mortality_percentage: mortalityPercentage,
+      }
+    })
+  }, [dailyRecords, flock?.quantity, reports, sortedReports])
+
+  const totalReports = displayReports.length;
   const totalPages = Math.ceil(totalReports / reportsPerPage);
 
   // Get reports for the current page
   const paginatedReports = useMemo(() => {
     const startIdx = (currentPage - 1) * reportsPerPage;
-    return reports.slice(startIdx, startIdx + reportsPerPage);
-  }, [reports, currentPage, reportsPerPage]);
+    return displayReports.slice(startIdx, startIdx + reportsPerPage);
+  }, [displayReports, currentPage, reportsPerPage]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [reports]);
 
-  const totalMortality = reports.reduce((sum, report) => sum + report.mortality_count, 0)
-  const avgMortalityRate = reports.reduce((sum, report) => sum + report.mortality_percentage, 0) / reports.length
+  const totalMortality = displayReports.reduce((sum, report) => sum + report.mortality_count, 0)
+  const avgMortalityRate = displayReports.length
+    ? displayReports.reduce((sum, report) => sum + report.mortality_percentage, 0) / displayReports.length
+    : 0
 
   const handleAddRecord = async (recordData: Omit<MortalityReport, 'id' | 'created_at' | 'updated_at'>) => {
     if (onAddRecord) {
@@ -51,9 +84,19 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
 
   const confirmDelete = async () => {
     if (onDeleteRecord && recordToDelete) {
-      await onDeleteRecord(recordToDelete);
-      setIsDeleteDialogOpen(false);
-      setRecordToDelete(null);
+      try {
+        await onDeleteRecord(recordToDelete);
+        toast.success("Mortality record deleted successfully!");
+        setIsDeleteDialogOpen(false);
+        setRecordToDelete(null);
+      } catch (error) {
+        console.error("Error deleting mortality record:", error);
+        if (error instanceof Error) {
+          toast.error(error.message);
+        } else {
+          toast.error("An error occurred while deleting the mortality record. Please try again.");
+        }
+      }
     }
   };
 
@@ -67,13 +110,15 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
       {/* Header with Add Button */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Mortality Reports</h2>
-        <Button 
-          onClick={() => setIsAddModalOpen(true)}
-           className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-        >
-          <Plus className="h-4 w-4" />
-          Add Mortality Record
-        </Button>
+        {onAddRecord && (
+          <Button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+          >
+            <Plus className="h-4 w-4" />
+            Add Mortality Record
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -128,7 +173,7 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
               <TableHead>Bird Count</TableHead>
               <TableHead>Avg Weight (kg)</TableHead>
               <TableHead>Notes</TableHead>
-              <TableHead>Actions</TableHead>
+              {onDeleteRecord && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -180,20 +225,22 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
                     </TooltipProvider>
                   )}
                 </TableCell>
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDeleteRecord(report.id)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
+                {onDeleteRecord && (
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteRecord(report.id)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             <TableRow>
-              <TableCell colSpan={7} className="text-center">
+              <TableCell colSpan={onDeleteRecord ? 7 : 6} className="text-center">
                 <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
               </TableCell>
             </TableRow>
@@ -201,16 +248,18 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
         </Table>
       </div>
 
-      {/* Add Mortality Record Modal */}
-      <AddMortalityRecordModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSubmit={handleAddRecord}
-        flock={flock}
-        mortalityReports={reports}
-      />
+      {onAddRecord && (
+        <AddMortalityRecordModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSubmit={handleAddRecord}
+          flock={flock}
+          mortalityReports={reports}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
+      {onDeleteRecord && (
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -229,6 +278,7 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   )
 }

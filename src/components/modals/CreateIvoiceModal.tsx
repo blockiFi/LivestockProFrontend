@@ -1,27 +1,41 @@
 
-import { useState } from "react"
-import type { Invoice, InvoiceItem } from "@/lib/types"
+import { useEffect, useMemo, useState } from "react"
+import type { FarmSettings, Invoice, InvoiceItem } from "@/lib/types"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Trash2 } from "lucide-react"
+import { formatCurrency } from "@/lib/currency"
 
 interface CreateInvoiceModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreateInvoice: (invoice: Omit<Invoice, "id">) => void
+  farmSettings?: FarmSettings | null
 }
 
-export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice }: CreateInvoiceModalProps) {
+export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice, farmSettings }: CreateInvoiceModalProps) {
   const [clientName, setClientName] = useState("")
   const [clientEmail, setClientEmail] = useState("")
   const [dueDate, setDueDate] = useState("")
   const [notes, setNotes] = useState("")
+  const [paymentInstructions, setPaymentInstructions] = useState(farmSettings?.invoice_payment_instructions ?? "")
+  const [taxEnabled, setTaxEnabled] = useState(farmSettings?.invoice_tax_enabled ?? true)
   const [items, setItems] = useState<InvoiceItem[]>([{ description: "", quantity: 1, unitPrice: 0, total: 0 }])
+  const taxRate = useMemo(() => Number(farmSettings?.invoice_tax_rate ?? 10), [farmSettings?.invoice_tax_rate])
 
   const today = new Date().toISOString().split("T")[0]
-  const invoiceNumber = `INV-2024-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`
+  const invoiceNumber = `${farmSettings?.invoice_prefix ?? "INV"}-${new Date().getFullYear()}-${String(farmSettings?.invoice_next_number ?? Math.floor(Math.random() * 1000)).padStart(3, "0")}`
+
+  useEffect(() => {
+    if (open) {
+      setPaymentInstructions(farmSettings?.invoice_payment_instructions ?? "")
+      setTaxEnabled(farmSettings?.invoice_tax_enabled ?? true)
+    }
+  }, [farmSettings?.invoice_payment_instructions, farmSettings?.invoice_tax_enabled, open])
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
     const newItems = [...items]
@@ -46,7 +60,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice }: Crea
   }
 
   const subtotal = items.reduce((sum, item) => sum + item.total, 0)
-  const tax = Math.round(subtotal * 0.1)
+  const tax = taxEnabled ? Math.round(subtotal * (taxRate / 100)) : 0
   const total = subtotal + tax
 
   const handleCreate = () => {
@@ -65,8 +79,11 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice }: Crea
       items,
       subtotal,
       tax,
+      taxRate,
+      taxEnabled,
       total,
       notes,
+      paymentInstructions: paymentInstructions.trim() || undefined,
     })
 
     // Reset form
@@ -74,6 +91,8 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice }: Crea
     setClientEmail("")
     setDueDate("")
     setNotes("")
+    setPaymentInstructions(farmSettings?.invoice_payment_instructions ?? "")
+    setTaxEnabled(farmSettings?.invoice_tax_enabled ?? true)
     setItems([{ description: "", quantity: 1, unitPrice: 0, total: 0 }])
   }
 
@@ -140,7 +159,7 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice }: Crea
                     className="w-24"
                   />
                   <div className="text-right min-w-24">
-                    <p className="text-sm font-medium">₦{item.total.toLocaleString()}</p>
+                    <p className="text-sm font-medium">{formatCurrency(item.total, { farmSettings })}</p>
                   </div>
                   {items.length > 1 && (
                     <Button variant="ghost" size="sm" onClick={() => removeItem(index)}>
@@ -154,29 +173,51 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice }: Crea
 
           {/* Totals */}
           <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
+            <div className="flex items-center gap-2 pb-2 border-b border-border">
+              <Checkbox
+                id="tax-enabled"
+                checked={taxEnabled}
+                onCheckedChange={(checked) => setTaxEnabled(checked === true)}
+              />
+              <label htmlFor="tax-enabled" className="text-sm font-medium text-foreground cursor-pointer">
+                Apply tax ({taxRate}%)
+              </label>
+            </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal:</span>
-              <span className="font-medium">₦{subtotal.toLocaleString()}</span>
+              <span className="font-medium">{formatCurrency(subtotal, { farmSettings })}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Tax (10%):</span>
-              <span className="font-medium">₦{tax.toLocaleString()}</span>
-            </div>
+            {taxEnabled && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Tax ({taxRate}%):</span>
+                <span className="font-medium">{formatCurrency(tax, { farmSettings })}</span>
+              </div>
+            )}
             <div className="flex justify-between text-lg font-bold border-t pt-2">
               <span>Total:</span>
-              <span className="text-blue-600">₦{total.toLocaleString()}</span>
+              <span className="text-blue-600">{formatCurrency(total, { farmSettings })}</span>
             </div>
           </div>
 
           {/* Notes */}
           <div>
             <label className="text-sm font-medium text-foreground block mb-2">Notes (Optional)</label>
-            <textarea
-              placeholder="Add any additional notes or payment terms..."
+            <Textarea
+              placeholder="Add any additional notes..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full p-2 border border-border rounded-md text-sm"
               rows={3}
+            />
+          </div>
+
+          {/* Payment Instructions */}
+          <div>
+            <label className="text-sm font-medium text-foreground block mb-2">Payment Instructions (Optional)</label>
+            <Textarea
+              placeholder="Bank name, account number, payment reference, etc."
+              value={paymentInstructions}
+              onChange={(e) => setPaymentInstructions(e.target.value)}
+              rows={4}
             />
           </div>
 

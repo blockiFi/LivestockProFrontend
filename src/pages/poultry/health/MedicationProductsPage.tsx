@@ -44,6 +44,8 @@ import { Naira, formatCurrency } from "@/lib/utils"
 import { GetToken, getFarm, createMedication } from "@/lib/request"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
+import { ActionGate } from "@/components/general/ActionGate"
+import { ACTIONS } from "@/lib/actionPermissions"
 
 // If the backend helper for fetching administration methods is not exported from "@/lib/request",
 // provide a lightweight local implementation that fetches the administration methods directly.
@@ -644,24 +646,28 @@ function ProductCard({
                 View Details
               </Button>
               <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onEdit(product)}
-                  className="text-blue-600 hover:text-blue-700"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onDelete(product.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </Button>
+                <ActionGate anyOf={ACTIONS.medicationProducts.update}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onEdit(product)}
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    <Edit className="h-4 w-4 mr-1" />
+                    Edit
+                  </Button>
+                </ActionGate>
+                <ActionGate anyOf={ACTIONS.medicationProducts.delete}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onDelete(product.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete
+                  </Button>
+                </ActionGate>
               </div>
             </div>
           </CardContent>
@@ -834,17 +840,19 @@ function ProductCard({
                   <Settings className="h-4 w-4 mr-2" />
                   Settings
                 </Button>
-                <Button
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={() => {
-                    setEditingMedication(undefined)
-                    setIsCreateModalOpen(true)
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Medication
-                </Button>
+                <ActionGate anyOf={ACTIONS.medicationProducts.create}>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={() => {
+                      setEditingMedication(undefined)
+                      setIsCreateModalOpen(true)
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Medication
+                  </Button>
+                </ActionGate>
               </div>
             </div>
           </div>

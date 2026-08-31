@@ -2,15 +2,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import type { PoultryVaccinationRecord, vaccine, PoultryVaccineInventory, AdministrationMethod } from "@/lib/types";
+import type { PoultryVaccinationRecord, vaccine, PoultryVaccineInventory, AdministrationMethod, BatchSchedule, ScheduleItem } from "@/lib/types";
 import { formatDate, Naira, formatCurrency } from "@/lib/utils";
-import { Activity, AlertTriangle, Calendar, Download, Eye, Factory, Package2, Shield, User, Users, Plus, Edit, Trash2 } from "lucide-react";
+import { Activity, AlertTriangle, Calendar, Download, Eye, Factory, Loader2, Package2, RefreshCw, Shield, User, Users, Plus, Edit, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import AddVaccinationRecordModal, { type VaccinationRecordFormData } from "@/components/modals/AddVaccinationRecordModal"
 import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDialog"
+import { getFlockNotifications } from "@/lib/request"
+import { mapUpcomingVaccinations, urgencyLabel, type UpcomingVaccinationItem } from "@/lib/upcomingVaccinations"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store"
+import ImplementScheduleModal from "@/components/poultry/Flocks/batchSchedule/ImplementScheduleModal"
+import { toast } from "react-toastify"
 
 interface VaccinationRecordViewProps {
   records: PoultryVaccinationRecord[]
@@ -19,6 +25,10 @@ interface VaccinationRecordViewProps {
   vaccines?: vaccine[]
   vaccineInventories?: PoultryVaccineInventory[]
   administrationMethods?: AdministrationMethod[]
+  vaccinationSchedules?: BatchSchedule[]
+  currentAge?: number
+  onOpenSchedule?: () => void
+  onRefresh?: () => Promise<void>
   onAddVaccinationRecord?: (recordData: VaccinationRecordFormData) => Promise<void>
   onDeleteVaccinationRecord?: (recordId: number) => Promise<void>
 }
@@ -31,7 +41,7 @@ const vaccineStatusColors: Record<string, string> = {
   }
 
 const priorityColors: Record<string, string> = {
-  available: "bg-red-100 text-red-800 border-red-200",
+  high: "bg-red-100 text-red-800 border-red-200",
   medium: "bg-yellow-100 text-yellow-800 border-yellow-200",
   low: "bg-green-100 text-green-800 border-green-200",
 }
@@ -42,14 +52,76 @@ const VaccinationRecordView = ({
   vaccines = [], 
   vaccineInventories = [], 
   administrationMethods = [],
+  vaccinationSchedules = [],
+  currentAge = 0,
+  onOpenSchedule,
+  onRefresh,
   onAddVaccinationRecord,
   onDeleteVaccinationRecord
 }: VaccinationRecordViewProps) => {
+  const token = useSelector((state: RootState) => state.authentication.token)
   const [dateFilter, setDateFilter] = useState("")
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [deletingRecordId, setDeletingRecordId] = useState<number | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [recordToDelete, setRecordToDelete] = useState<PoultryVaccinationRecord | null>(null)
+  const [upcomingVaccinations, setUpcomingVaccinations] = useState<UpcomingVaccinationItem[]>([])
+  const [reminderWindowDays, setReminderWindowDays] = useState(7)
+  const [loadingUpcoming, setLoadingUpcoming] = useState(true)
+  const [selectedScheduleItem, setSelectedScheduleItem] = useState<ScheduleItem | null>(null)
+  const [selectedBatchScheduleId, setSelectedBatchScheduleId] = useState<number | null>(null)
+  const [isImplementModalOpen, setIsImplementModalOpen] = useState(false)
+
+  const loadUpcomingVaccinations = useCallback(async () => {
+    if (!token || !farmId || !flockId) {
+      setUpcomingVaccinations([])
+      setLoadingUpcoming(false)
+      return
+    }
+
+    setLoadingUpcoming(true)
+    try {
+      const response = await getFlockNotifications(token, farmId, flockId)
+      if (response.success && response.data) {
+        setUpcomingVaccinations(
+          mapUpcomingVaccinations(response.data, vaccinationSchedules)
+        )
+        setReminderWindowDays(response.data.settings?.schedule_reminder_days ?? 7)
+      } else {
+        setUpcomingVaccinations([])
+        const message = Array.isArray(response.error) ? response.error.join(", ") : "Failed to load upcoming vaccinations"
+        toast.error(message)
+      }
+    } catch {
+      setUpcomingVaccinations([])
+      toast.error("Failed to load upcoming vaccinations")
+    } finally {
+      setLoadingUpcoming(false)
+    }
+  }, [token, farmId, flockId, vaccinationSchedules])
+
+  useEffect(() => {
+    void loadUpcomingVaccinations()
+  }, [loadUpcomingVaccinations])
+
+  const handleMarkDone = (item: UpcomingVaccinationItem) => {
+    if (!item.scheduleItem) {
+      toast.info("Open the batch schedule to record this vaccination.")
+      onOpenSchedule?.()
+      return
+    }
+    setSelectedScheduleItem(item.scheduleItem)
+    setSelectedBatchScheduleId(item.batchScheduleId)
+    setIsImplementModalOpen(true)
+  }
+
+  const handleImplementSuccess = async () => {
+    setIsImplementModalOpen(false)
+    setSelectedScheduleItem(null)
+    setSelectedBatchScheduleId(null)
+    await onRefresh?.()
+    await loadUpcomingVaccinations()
+  }
 
   const handleAddVaccinationRecord = async (recordData: VaccinationRecordFormData) => {
     if (onAddVaccinationRecord) {
@@ -97,44 +169,28 @@ const VaccinationRecordView = ({
   const totalCost = records.reduce((sum, record) => sum + (Number(record.cost) || 0), 0)
   const uniqueVaccines = new Set(records.map((r) => r.vaccine.name)).size
 
-  // Add this mock data for upcoming vaccinations after the existing calculations
-  const upcomingVaccinations = [
-    {
-      id: 1,
-      vaccine_name: "IBD Vaccine - Booster",
-      scheduled_date: "2025-01-15",
-      days_until: 13,
-      flock_age_at_vaccination: 28,
-      administration_method: "Oral",
-      estimated_cost: 450.0,
-      priority: "high",
-      notes: "Second dose required for full immunity",
-    },
-    {
-      id: 2,
-      vaccine_name: "Newcastle Disease - Booster",
-      scheduled_date: "2025-01-20",
-      days_until: 18,
-      flock_age_at_vaccination: 33,
-      administration_method: "Eye Drop",
-      estimated_cost: 890.5,
-      priority: "medium",
-      notes: "Annual booster vaccination",
-    },
-    {
-      id: 3,
-      vaccine_name: "Fowl Pox Vaccine",
-      scheduled_date: "2025-01-25",
-      days_until: 23,
-      flock_age_at_vaccination: 38,
-      administration_method: "Wing-Web",
-      estimated_cost: 320.75,
-      priority: "low",
-      notes: "Optional vaccination based on regional risk",
-    },
-  ]
+  const overdueCount = useMemo(
+    () => upcomingVaccinations.filter((item) => item.daysUntil < 0).length,
+    [upcomingVaccinations]
+  )
 
-  // Add this section right after the summary cards div and before the date filter
+  const priorityBadgeLabel = (item: UpcomingVaccinationItem) => {
+    if (item.daysUntil < 0) return "OVERDUE"
+    if (item.daysUntil === 0) return "DUE TODAY"
+    return item.priority.toUpperCase()
+  }
+
+  const daysDisplay = (item: UpcomingVaccinationItem) => {
+    if (item.daysUntil < 0) return Math.abs(item.daysUntil)
+    return item.daysUntil
+  }
+
+  const daysDisplayCaption = (item: UpcomingVaccinationItem) => {
+    if (item.daysUntil < 0) return "LATE"
+    if (item.daysUntil === 0) return "TODAY"
+    return "DAYS"
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -177,66 +233,118 @@ const VaccinationRecordView = ({
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Upcoming Vaccinations
-          </CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Upcoming Vaccinations
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void loadUpcomingVaccinations()}
+              disabled={loadingUpcoming}
+              className="h-8"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${loadingUpcoming ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
+          {loadingUpcoming ? (
+            <div className="flex items-center justify-center py-10 text-gray-500">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Loading upcoming vaccinations...
+            </div>
+          ) : (
           <div className="space-y-4">
             {upcomingVaccinations.map((vaccination) => (
               <div
-                key={vaccination.id}
-                className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:shadow-md transition-shadow"
+                key={vaccination.key}
+                className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-lg border hover:shadow-md transition-shadow ${
+                  vaccination.daysUntil < 0
+                    ? "bg-gradient-to-r from-red-50 to-orange-50 border-red-200"
+                    : vaccination.daysUntil === 0
+                      ? "bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200"
+                      : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200"
+                }`}
               >
                 <div className="flex items-center gap-4">
-                  <div className="flex flex-col items-center justify-center w-16 h-16 bg-white rounded-lg border-2 border-blue-200">
-                    <span className="text-2xl font-bold text-blue-600">{vaccination.days_until}</span>
-                    <span className="text-xs text-blue-500 font-medium">DAYS</span>
+                  <div className={`flex flex-col items-center justify-center w-16 h-16 bg-white rounded-lg border-2 ${
+                    vaccination.daysUntil < 0 ? "border-red-200" : vaccination.daysUntil === 0 ? "border-amber-200" : "border-blue-200"
+                  }`}>
+                    <span className={`text-2xl font-bold ${
+                      vaccination.daysUntil < 0 ? "text-red-600" : vaccination.daysUntil === 0 ? "text-amber-600" : "text-blue-600"
+                    }`}>{daysDisplay(vaccination)}</span>
+                    <span className={`text-xs font-medium ${
+                      vaccination.daysUntil < 0 ? "text-red-500" : vaccination.daysUntil === 0 ? "text-amber-500" : "text-blue-500"
+                    }`}>{daysDisplayCaption(vaccination)}</span>
                   </div>
 
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h4 className="font-semibold text-gray-900">{vaccination.vaccine_name}</h4>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h4 className="font-semibold text-gray-900">{vaccination.vaccineName}</h4>
                       <Badge className={`${priorityColors[vaccination.priority]} font-medium text-xs`}>
-                        {vaccination.priority.toUpperCase()}
+                        {priorityBadgeLabel(vaccination)}
                       </Badge>
+                      {vaccination.scheduleName && (
+                        <Badge variant="outline" className="text-xs">
+                          {vaccination.scheduleName}
+                        </Badge>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-gray-600">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        <span>{formatDate(vaccination.scheduled_date)}</span>
+                        <span>{formatDate(vaccination.scheduledDate)}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Users className="h-3 w-3" />
-                        <span>Age: {vaccination.flock_age_at_vaccination} days</span>
+                        <span>Age: {vaccination.flockAgeAtVaccination} days</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Activity className="h-3 w-3" />
-                        <span>{vaccination.administration_method}</span>
-                      </div>
+                      {vaccination.administrationMethod && (
+                        <div className="flex items-center gap-1">
+                          <Activity className="h-3 w-3" />
+                          <span>{vaccination.administrationMethod}</span>
+                        </div>
+                      )}
+                      {vaccination.doseLabel && (
+                        <div className="flex items-center gap-1">
+                          <Shield className="h-3 w-3" />
+                          <span>Dose: {vaccination.doseLabel}</span>
+                        </div>
+                      )}
                     </div>
 
+                    <p className="text-xs text-gray-500 mt-1">{urgencyLabel(vaccination.daysUntil)}</p>
                     {vaccination.notes && <p className="text-xs text-gray-500 mt-1 italic">{vaccination.notes}</p>}
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-2">
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">{Naira}{formatCurrency(vaccination.estimated_cost)}</p>
-                    <p className="text-xs text-gray-500">Estimated Cost</p>
+                <div className="flex flex-col items-start lg:items-end gap-2">
+                  <div className="text-left lg:text-right">
+                    {vaccination.estimatedCost != null ? (
+                      <>
+                        <p className="text-sm font-medium text-gray-900">{Naira}{formatCurrency(vaccination.estimatedCost)}</p>
+                        <p className="text-xs text-gray-500">Estimated Cost</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-500">Cost recorded at administration</p>
+                    )}
                   </div>
 
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="h-8 px-3 bg-transparent">
-                      <Calendar className="h-3 w-3 mr-1" />
-                      Reschedule
-                    </Button>
-                    <Button size="sm" className="h-8 px-3 bg-blue-600 hover:bg-blue-700">
-                      <Shield className="h-3 w-3 mr-1" />
-                      Mark Done
-                    </Button>
+                    {onAddVaccinationRecord && (
+                      <Button
+                        size="sm"
+                        className="h-8 px-3 bg-blue-600 hover:bg-blue-700"
+                        onClick={() => handleMarkDone(vaccination)}
+                      >
+                        <Shield className="h-3 w-3 mr-1" />
+                        Mark Done
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -246,21 +354,32 @@ const VaccinationRecordView = ({
               <div className="text-center py-8">
                 <Shield className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 font-medium">No upcoming vaccinations scheduled</p>
-                <p className="text-sm text-gray-400">All vaccinations are up to date</p>
+                <p className="text-sm text-gray-400">
+                  {vaccinationSchedules.length === 0
+                    ? "Assign a vaccination schedule to this flock to see due dates here."
+                    : "All vaccinations in your reminder window are up to date."}
+                </p>
               </div>
             )}
           </div>
+          )}
 
           <div className="mt-6 pt-4 border-t border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="text-sm text-gray-600">
-                <span className="font-medium">{upcomingVaccinations.length}</span> vaccinations scheduled in the next 30
-                days
+                <span className="font-medium">{upcomingVaccinations.length}</span> vaccination
+                {upcomingVaccinations.length === 1 ? "" : "s"} in the next {reminderWindowDays} day
+                {reminderWindowDays === 1 ? "" : "s"}
+                {overdueCount > 0 && (
+                  <span className="text-red-600 font-medium"> · {overdueCount} overdue</span>
+                )}
               </div>
-              <Button variant="outline" size="sm">
-                <Calendar className="h-4 w-4 mr-2" />
-                View Full Schedule
-              </Button>
+              {onOpenSchedule && (
+                <Button variant="outline" size="sm" onClick={onOpenSchedule}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  View Full Schedule
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -545,6 +664,18 @@ const VaccinationRecordView = ({
         itemName={recordToDelete?.vaccine?.name}
         isLoading={deletingRecordId === recordToDelete?.id}
       />
+
+      {selectedScheduleItem && selectedBatchScheduleId && (
+        <ImplementScheduleModal
+          open={isImplementModalOpen}
+          onOpenChange={setIsImplementModalOpen}
+          scheduleItem={selectedScheduleItem}
+          batchScheduleId={selectedBatchScheduleId}
+          scheduleType="vaccination"
+          currentAge={currentAge}
+          onSuccess={() => void handleImplementSuccess()}
+        />
+      )}
     </div>
   )
 }

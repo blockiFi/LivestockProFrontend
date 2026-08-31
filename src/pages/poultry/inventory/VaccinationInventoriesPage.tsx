@@ -26,10 +26,12 @@ import {
   ShoppingCart,
   Droplet,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, Naira, formatCurrency, getExpiryStatus } from "@/lib/utils"
 import { useLoaderData } from "react-router-dom"
 import type { VaccineInventory } from "@/lib/types"
 import AddVaccineInventoryModal from "@/components/modals/AddVaccineInventoryModal"
+import { ActionGate } from "@/components/general/ActionGate"
+import { ACTIONS } from "@/lib/actionPermissions"
 
 
 
@@ -69,20 +71,26 @@ function VaccinationInventoryCard({
 
   const stockStatus = getStockStatus(available, min, max)
   const totalValue = available * cost
-  const isExpiring = expiry ? new Date(expiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : false
+  const isExpiring = getExpiryStatus(expiry) === "expiring_soon"
+  const isExpired = getExpiryStatus(expiry) === "expired"
 
   return (
-    <Card className={cn("transition-all duration-200", stockStatus.status === "low" && "border-red-200 bg-red-50/30")}>
+    <Card className={cn("group hover:shadow-xl transition-all duration-300 border border-gray-200 overflow-hidden", stockStatus.status === "low" && "border-red-200 bg-red-50/30")}>
+      <div className={`h-2 bg-gradient-to-r ${
+        stockStatus.status === "low" ? "from-red-500 to-red-600" :
+        stockStatus.status === "high" ? "from-green-500 to-green-600" :
+        "from-yellow-500 to-yellow-600"
+      }`}></div>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-gray-50/50 transition-colors pb-3">
+          <CardHeader className="cursor-pointer hover:bg-gray-50/50 transition-colors pb-3 bg-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1">
-                <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
-                  <Pill className="h-5 w-5" />
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Droplet className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <CardTitle className="text-lg font-semibold text-gray-900">{name}</CardTitle>
+                  <CardTitle className="text-xl font-bold text-gray-900">{name}</CardTitle>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="outline" className="bg-blue-50">
                       {category}
@@ -90,6 +98,12 @@ function VaccinationInventoryCard({
                     <Badge className={cn("font-medium text-xs", stockStatus.color)}>
                       {stockStatus.status.toUpperCase()}
                     </Badge>
+                    {isExpired && (
+                      <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Expired
+                      </Badge>
+                    )}
                     {isExpiring && (
                       <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
                         <AlertCircle className="h-3 w-3 mr-1" />
@@ -121,7 +135,7 @@ function VaccinationInventoryCard({
                 <DollarSign className="h-4 w-4 text-gray-500" />
                 <div>
                   <p className="text-xs text-gray-500">Total Value</p>
-                  <p className="font-medium">${totalValue.toFixed(2)}</p>
+                  <p className="font-medium">{Naira}{formatCurrency(totalValue)}</p>
                 </div>
               </div>
 
@@ -194,23 +208,29 @@ function VaccinationInventoryCard({
             )}
 
             <div className="flex items-center gap-2 pt-2 border-t">
-              <Button size="sm" onClick={() => onAdjust(item.id)} className="bg-blue-600 hover:bg-blue-700">
-                <TrendingDown className="h-3 w-3 mr-1" />
-                Adjust Stock
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => onEdit(item.id)}>
-                <Edit className="h-3 w-3 mr-1" />
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onDelete(item.id)}
-                className="text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-3 w-3 mr-1" />
-                Delete
-              </Button>
+              <ActionGate anyOf={ACTIONS.vaccineInventory.update}>
+                <Button size="sm" onClick={() => onAdjust(item.id)} className="bg-blue-600 hover:bg-blue-700">
+                  <TrendingDown className="h-3 w-3 mr-1" />
+                  Adjust Stock
+                </Button>
+              </ActionGate>
+              <ActionGate anyOf={ACTIONS.vaccineInventory.update}>
+                <Button size="sm" variant="outline" onClick={() => onEdit(item.id)}>
+                  <Edit className="h-3 w-3 mr-1" />
+                  Edit
+                </Button>
+              </ActionGate>
+              <ActionGate anyOf={ACTIONS.vaccineInventory.delete}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onDelete(item.id)}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Delete
+                </Button>
+              </ActionGate>
             </div>
           </CardContent>
         </CollapsibleContent>
@@ -228,16 +248,14 @@ export default function VaccinationInventoryPage() {
   const [perPage] = useState(10)
 
   const { vaccineInventories } = useLoaderData() as { vaccineInventories: VaccineInventory[] }
-  console.log('Vaccination Inventories page:', vaccineInventories);
-  
-  const initialList = vaccineInventories ?? []
+
   // local items state so we can optimistically add new inventory locally without waiting for a reload
-  const [items, setItems] = useState<VaccineInventory[]>(initialList)
+  const [items, setItems] = useState<VaccineInventory[]>(() => vaccineInventories ?? [])
 
   // sync when loader data changes
   useEffect(() => {
-    setItems(initialList)
-  }, [initialList])
+    setItems(vaccineInventories ?? [])
+  }, [vaccineInventories])
 
   // modal state
   const [showAddModal, setShowAddModal] = useState(false)
@@ -300,10 +318,7 @@ export default function VaccinationInventoryPage() {
   }, [totalPages])
 
   const lowStockItems = items.filter((item) => ( item.available_quantity ) <= ((item.product )?.min_stock_level ?? Infinity)).length
-  const expiringItems = items.filter((item) => {
-    const expiry =  item.expiry_date
-    return expiry ? new Date(expiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : false
-  }).length
+  const expiringItems = items.filter((item) => getExpiryStatus(item.expiry_date) === "expiring_soon").length
   const totalValue = items.reduce((sum, item) => sum + (item.available_quantity ) * ( item.unit_cost ), 0)
 
   const handleEdit = (id: number) => {
@@ -326,144 +341,140 @@ export default function VaccinationInventoryPage() {
   }, [searchTerm, categoryFilter, stockFilter, sortBy])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Vaccination Inventory</h1>
-              <p className="text-gray-600">Track and manage Vaccination stock levels and expiry dates</p>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">Vaccination Inventory</h1>
+              <p className="text-gray-600 text-lg">Track and manage vaccination stock levels and expiry dates</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
-                <BarChart3 className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="lg" className="border-gray-300">
+                <BarChart3 className="h-5 w-5 mr-2" />
                 Analytics
               </Button>
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowAddModal(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Vaccination
-              </Button>
+              <ActionGate anyOf={ACTIONS.vaccineInventory.create}>
+                <Button 
+                  onClick={() => setShowAddModal(true)}
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/30 px-6 py-6 text-base font-semibold"
+                  size="lg"
+                >
+                  <Plus className="h-5 w-5" />
+                  Add Vaccination Inventory
+                </Button>
+              </ActionGate>
             </div>
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm">Total Items</p>
-                  <p className="text-2xl font-bold">{items.length}</p>
-                </div>
-                <Package className="h-8 w-8 text-blue-200" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-600 mb-1">Total Items</p>
+                <p className="text-3xl font-bold text-blue-900">{items.length}</p>
               </div>
-            </CardContent>
+              <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+                <Package className="w-6 h-6 text-white" />
+              </div>
+            </div>
           </Card>
 
-          <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-red-100 text-sm">Low Stock</p>
-                  <p className="text-2xl font-bold">{lowStockItems}</p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-red-200" />
+          <Card className="p-6 bg-gradient-to-br from-red-50 to-red-100 border-red-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-red-600 mb-1">Low Stock</p>
+                <p className="text-3xl font-bold text-red-900">{lowStockItems}</p>
               </div>
-            </CardContent>
+              <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-white" />
+              </div>
+            </div>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-orange-100 text-sm">Expiring Soon</p>
-                  <p className="text-2xl font-bold">{expiringItems}</p>
-                </div>
-                <Calendar className="h-8 w-8 text-orange-200" />
+          <Card className="p-6 bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-orange-600 mb-1">Expiring Soon</p>
+                <p className="text-3xl font-bold text-orange-900">{expiringItems}</p>
               </div>
-            </CardContent>
+              <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-white" />
+              </div>
+            </div>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm">Total Value</p>
-                  <p className="text-2xl font-bold">${(totalValue / 1000).toFixed(1)}k</p>
-                </div>
-                <DollarSign className="h-8 w-8 text-green-200" />
+          <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 border-green-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-600 mb-1">Total Value</p>
+                <p className="text-3xl font-bold text-green-900">{Naira}{formatCurrency(totalValue)}</p>
               </div>
-            </CardContent>
+              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-white" />
+              </div>
+            </div>
           </Card>
         </div>
 
         {/* Filters */}
-        <Card className="mb-6 border-0 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <Label htmlFor="search" className="text-sm font-medium text-gray-700 mb-2 block">
-                  Search
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    id="search"
-                    placeholder="Search by name or manufacturer..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+        <Card className="mb-6 border-gray-200 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input
+                  id="search"
+                  placeholder="Search by name or manufacturer..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                />
               </div>
 
-              <div>
-                <Label className="text-sm font-medium text-gray-700 mb-2 block">Category</Label>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[160px] h-11 border-gray-300">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-              <div>
-                <Label className="text-sm font-medium text-gray-700 mb-2 block">Stock Level</Label>
-                <Select value={stockFilter} onValueChange={setStockFilter}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Levels</SelectItem>
-                    <SelectItem value="low">Low Stock</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High Stock</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={stockFilter} onValueChange={setStockFilter}>
+                <SelectTrigger className="w-[140px] h-11 border-gray-300">
+                  <SelectValue placeholder="Stock Level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="low">Low Stock</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High Stock</SelectItem>
+                </SelectContent>
+              </Select>
 
-              <div>
-                <Label className="text-sm font-medium text-gray-700 mb-2 block">Sort By</Label>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Name</SelectItem>
-                    <SelectItem value="stock">Stock Level</SelectItem>
-                    <SelectItem value="value">Total Value</SelectItem>
-                    <SelectItem value="expiry">Expiry Date</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[140px] h-11 border-gray-300">
+                  <SelectValue placeholder="Sort By" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="stock">Stock Level</SelectItem>
+                  <SelectItem value="value">Total Value</SelectItem>
+                  <SelectItem value="expiry">Expiry Date</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="text-sm text-gray-500 whitespace-nowrap">
+                Showing {filteredAndSorted.length} items
               </div>
             </div>
           </CardContent>
@@ -472,12 +483,27 @@ export default function VaccinationInventoryPage() {
         {/* Inventory Items */}
         <div className="space-y-4">
           {paginatedList.length === 0 ? (
-            <Card className="border-0 shadow-sm">
-              <CardContent className="p-12 text-center">
-                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No items found</h3>
-                <p className="text-gray-500">Try adjusting your search or filters</p>
-              </CardContent>
+            <Card className="p-16 text-center border-2 border-dashed border-gray-300 bg-gray-50">
+              <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Package className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No vaccination inventory found</h3>
+              <p className="text-gray-600 max-w-md mx-auto mb-4">
+                {searchTerm || categoryFilter !== "all" || stockFilter !== "all"
+                  ? "Try adjusting your search or filter criteria to find inventory items."
+                  : "Get started by adding your first vaccination inventory item."}
+              </p>
+              {(!searchTerm && categoryFilter === "all" && stockFilter === "all") && (
+                <ActionGate anyOf={ACTIONS.vaccineInventory.create}>
+                  <Button
+                    onClick={() => setShowAddModal(true)}
+                    className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add First Inventory Item
+                  </Button>
+                </ActionGate>
+              )}
             </Card>
           ) : (
             paginatedList.map((item) => (

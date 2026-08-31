@@ -1,108 +1,203 @@
-import OverViewHeader from "@/components/poultry/Overview/OverViewHeader";
-
+import { useCallback, useEffect, useState } from "react"
+import { useLoaderData, useRevalidator } from "react-router"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import DashboardHeader from "@/components/dashboard/DashboardHeader"
+import KpiGrid from "@/components/dashboard/KpiGrid"
+import AlertsPanel from "@/components/dashboard/AlertsPanel"
+import ProductionPanel from "@/components/dashboard/ProductionPanel"
+import HealthPanel from "@/components/dashboard/HealthPanel"
+import FinancialPanel from "@/components/dashboard/FinancialPanel"
+import FlockLeaderboard from "@/components/dashboard/FlockLeaderboard"
+import DistributionPanel from "@/components/dashboard/DistributionPanel"
+import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton"
+import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState"
+import type { DashboardDatePreset, Farm, FarmAlerts, FarmDashboard } from "@/lib/types"
+import { getFarmAlerts, getFarmDashboard } from "@/lib/request"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store"
+import { format } from "date-fns"
+import { toast } from "react-toastify"
 
-import { Bird, Egg, DollarSign, Scale } from "lucide-react"
-import { formatCurrency, Naira } from "@/lib/utils";
-import StatisticsCard from "@/components/general/StatisticsCard";
-import { useState } from "react";
-import Overview from "@/components/poultry/Overview/Overview";
-import ProductionOverview from "@/components/poultry/Overview/ProductionOverview";
-import HealthOverview from "@/components/poultry/Overview/HealthOverview";
-import FinancialOverview from "@/components/poultry/Overview/FinancialOverview";
-import { useSelector } from "react-redux";
-import type { RootState } from "@/store";
+type LoaderData = {
+  currentFarm: Farm | null
+  dashboard: FarmDashboard | null
+  error?: string | null
+}
 
 const OverviewPage = () => {
-    const [selectedTab, setSelectedTab] = useState("overview")
-    
-          const PoultryStatistics = useSelector((state : RootState) => state.statistics.poultryStatistics);     
-    console.log("farm Stats from Overview Page : " , PoultryStatistics)
-  return (
-    <>
-      {
-        PoultryStatistics ? (
-         <div className="min-h-screen p-4 md:p-6 lg:p-8">
-        {
-            PoultryStatistics &&  <OverViewHeader  />
-        }
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-     <StatisticsCard 
-        cardStyles=""
-        title = "Total Birds"
-        value={formatCurrency(PoultryStatistics!.summary.total_birds)}
-        footerIcon={null}
-        footer={`${formatCurrency(PoultryStatistics!.summary.active_birds)} currently active`}
-        icon={<Bird className="h-4 w-4 text-accent-600" />}
-        iconStyles=""
-     />
-    <StatisticsCard 
-        cardStyles="px-4"
-        title="Feed Consumed"
-        value={`${formatCurrency(PoultryStatistics!.feed_consumption.total_feed_consumed_kg / 1000)}tons`}
-        footerIcon={null}
-        footer={`${PoultryStatistics!.feed_consumption.average_daily_feed_kg} kg/day average`}
-        icon={<Scale className="h-4 w-4 text-green-300" />}
-        iconStyles=""
-    />
-    <StatisticsCard 
-        cardStyles=""
-        title="Total Eggs"
-        value={formatCurrency(PoultryStatistics!.egg_production.total_eggs_produced)}
-        footerIcon={null}
-        footer={`${PoultryStatistics!.egg_production.average_daily_eggs} eggs/day average`}
-        icon={<Egg className="h-4 w-4 text-accent-700" />}
-        iconStyles=""
-    />
-    <StatisticsCard 
-        cardStyles="w-66"
-        title="Feed Cost"
-        value={`${Naira}${formatCurrency(PoultryStatistics!.financial.total_feed_cost)}`}
-        footerIcon={null}
-        footer={`${formatCurrency(PoultryStatistics!.financial.cost_per_bird)} per bird`}
-        icon={<DollarSign className="h-4 w-4 text-green-500" />}
-        iconStyles=""
-    />
-    </div>
+  const loaderData = useLoaderData() as LoaderData
+  const revalidator = useRevalidator()
+  const token = useSelector((s: RootState) => s.authentication.token)
+  const farmId = useSelector((s: RootState) => s.authentication.activeFarm?.id)
 
-    <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4 mt-5">
+  const [dashboard, setDashboard] = useState<FarmDashboard | null>(loaderData.dashboard)
+  const [alerts, setAlerts] = useState<FarmAlerts | null>(loaderData.dashboard?.alerts ?? null)
+  const [loadError, setLoadError] = useState<string | null>(loaderData.error ?? null)
+  const [preset, setPreset] = useState<DashboardDatePreset>("30d")
+  const [loading, setLoading] = useState(false)
+  const [alertsLoading, setAlertsLoading] = useState(false)
+  const [tab, setTab] = useState("production")
+
+  const farm = loaderData.currentFarm
+
+  useEffect(() => {
+    setDashboard(loaderData.dashboard)
+    setAlerts(loaderData.dashboard?.alerts ?? null)
+    setLoadError(loaderData.error ?? null)
+  }, [loaderData.dashboard, loaderData.error])
+
+  const refreshAlerts = useCallback(async () => {
+    if (!token || !farmId) return
+
+    setAlertsLoading(true)
+    try {
+      const response = await getFarmAlerts(token, farmId)
+      if (response.success && response.data) {
+        setAlerts(response.data)
+      }
+    } finally {
+      setAlertsLoading(false)
+    }
+  }, [token, farmId])
+
+  const refetch = useCallback(
+    async (options: {
+      preset?: DashboardDatePreset
+      start_date?: string
+      end_date?: string
+    }) => {
+      if (!token || !farmId) {
+        toast.error("Missing farm or session")
+        return
+      }
+      setLoading(true)
+      try {
+        const response = await getFarmDashboard(token, farmId, options)
+        if (!response.success || !response.data) {
+          const message = response.error?.join(", ") || "Failed to load dashboard"
+          setLoadError(message)
+          toast.error(message)
+          return
+        }
+        setDashboard(response.data)
+        setAlerts(response.data.alerts)
+        setLoadError(null)
+        if (options.preset) setPreset(options.preset)
+        else if (options.start_date) setPreset("custom")
+        void refreshAlerts()
+      } finally {
+        setLoading(false)
+      }
+    },
+    [token, farmId, refreshAlerts],
+  )
+
+  useEffect(() => {
+    void refreshAlerts()
+  }, [refreshAlerts])
+
+  const handlePreset = (next: DashboardDatePreset) => {
+    if (next === "custom") return
+    void refetch({ preset: next })
+  }
+
+  const handleCustom = (from: Date, to: Date) => {
+    void refetch({
+      start_date: format(from, "yyyy-MM-dd"),
+      end_date: format(to, "yyyy-MM-dd"),
+    })
+  }
+
+  const handleRefresh = () => {
+    if (preset === "custom" && dashboard) {
+      void refetch({
+        start_date: dashboard.meta.start_date,
+        end_date: dashboard.meta.end_date,
+      })
+    } else {
+      void refetch({ preset: preset === "custom" ? "30d" : preset })
+    }
+    revalidator.revalidate()
+  }
+
+  if (!dashboard && loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
+        <DashboardSkeleton />
+      </div>
+    )
+  }
+
+  if (!dashboard) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
+        <DashboardEmptyState
+          title={loadError ? "Could not load dashboard" : "No dashboard data yet"}
+          description={
+            loadError
+              ? loadError
+              : "Add flocks and start recording daily feed, eggs, and sales to see your farm command center fill in."
+          }
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen space-y-6 bg-slate-50 p-4 md:p-6 lg:p-8">
+      <DashboardHeader
+        farm={farm}
+        startDate={dashboard.meta.start_date}
+        endDate={dashboard.meta.end_date}
+        periodDays={dashboard.meta.period_days}
+        activeFlocks={dashboard.kpis.active_flocks}
+        preset={preset}
+        loading={loading}
+        onPresetChange={handlePreset}
+        onCustomRange={handleCustom}
+        onRefresh={handleRefresh}
+      />
+
+      <KpiGrid
+        kpis={dashboard.kpis}
+        previous={dashboard.previous_period}
+        series={dashboard.series}
+      />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <DistributionPanel distribution={dashboard.flock_distribution} />
+        </div>
+        <AlertsPanel alerts={alerts} maxItems={6} loading={alertsLoading} />
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-none">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="production">Production</TabsTrigger>
             <TabsTrigger value="health">Health</TabsTrigger>
             <TabsTrigger value="financial">Financial</TabsTrigger>
+            <TabsTrigger value="flocks">Flocks</TabsTrigger>
           </TabsList>
-          <TabsContent value="overview" className="space-y-4">
-            {PoultryStatistics ? <Overview  /> : 
-             <div className="text-center text-gray-500">No overview data available</div>}
-          </TabsContent>
           <TabsContent value="production" className="space-y-4">
-            {/* Production Overview Component */}
-            {PoultryStatistics ?  <ProductionOverview  /> : 
-             <div className="text-center text-gray-500">No production data available</div>
-             }
+            <ProductionPanel series={dashboard.series} />
           </TabsContent>
           <TabsContent value="health" className="space-y-4">
-            {PoultryStatistics  ? <HealthOverview  /> :
-             <div className="text-center text-gray-500">No health data available</div>
-             }  
+            <HealthPanel series={dashboard.series} kpis={dashboard.kpis} />
           </TabsContent>
           <TabsContent value="financial" className="space-y-4">
-            {PoultryStatistics ?
-             <FinancialOverview  /> :
-             
-             <div className="text-center text-gray-500">No financial data available</div>}
-
+            <FinancialPanel
+              series={dashboard.series}
+              kpis={dashboard.kpis}
+              costByCategory={dashboard.cost_by_category}
+            />
           </TabsContent>
-
-    </Tabs>
+          <TabsContent value="flocks" className="space-y-4">
+            <FlockLeaderboard flocks={dashboard.flocks} />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
-
-        ) : (
-          <div className="container mx-auto p-4 text-center">Loading...</div>
-        )
-      }
-    </>    
   )
 }
 

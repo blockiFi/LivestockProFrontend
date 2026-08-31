@@ -1,26 +1,16 @@
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { DetailedFlockRecord } from "@/lib/types"
-import { formatDate, statusColors } from "@/lib/utils"
+import { formatDate, getDaysInFlock, statusColors } from "@/lib/utils"
 import chicken from "@/assets/chicken.png"
 import { Calendar, Info } from "lucide-react"
-function calculateAge(arrivalDate: string, ageAtArrival: number): number {
-  const arrival = new Date(arrivalDate)
-  const now = new Date()
-  const daysDiff = Math.floor((now.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
-  return ageAtArrival + daysDiff
-}
+
 const FlockOverview = ({ flock }: { flock: DetailedFlockRecord }) => {
-// Calculate current age or days spent if completed
-let currentAge: number
-if (flock.status === "completed" && flock.actual_end_date) {
-    const arrival = new Date(flock.arrival_date)
-    const end = new Date(flock.actual_end_date)
-    const daysSpent = Math.floor((end.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24))
-    currentAge = flock.arrival_age_days + daysSpent
-} else {
-    currentAge = calculateAge(flock.arrival_date, flock.arrival_age_days)
-}
+  const daysInFlock = getDaysInFlock(
+    flock.arrival_date,
+    flock.actual_end_date,
+    flock.status === "active"
+  )
   const isOverdue = flock.status === "active" && new Date() > new Date(flock.expected_end_date)
 
   return (
@@ -71,14 +61,8 @@ if (flock.status === "completed" && flock.actual_end_date) {
               <Calendar className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">
-                {
-                flock.status === "completed"
-                  ? "Days Spent"
-                  : "Current Age"
-                }
-              </p>
-              <p className="font-semibold">{currentAge} days</p>
+              <p className="text-sm text-gray-500">Days in Flock</p>
+              <p className="font-semibold">{daysInFlock} days</p>
             </div>
           </div>
 

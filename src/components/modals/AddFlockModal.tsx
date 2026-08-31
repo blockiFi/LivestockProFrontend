@@ -26,19 +26,14 @@ import {
   Check,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatFeedingDayRange } from "@/lib/feeding-range"
 import { format } from "date-fns"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
-import type { PoultryType, PoultryHouse, FlockStage, Schedule, FeedingSchedule } from "@/lib/types"
+import type { PoultryType, PoultryHouse, FlockStage, Schedule, FeedingSchedule, DetailedFlockRecord, FlockRecord } from "@/lib/types"
 import { getPoultryTypes, getPoultryHouses, getFlockStages, getSchedules, getFeedingSchedules } from "@/lib/request"
 
-interface AddFlockModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSubmit: (flockData: FlockFormData) => Promise<void>
-}
-
-interface FlockFormData {
+export interface FlockFormData {
   name: string
   breed: string
   source: string
@@ -56,27 +51,91 @@ interface FlockFormData {
   feeding_schedule_id: number | null
 }
 
-const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
+interface AddFlockModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSubmit: (flockData: FlockFormData) => Promise<void>
+  editingFlock?: DetailedFlockRecord | FlockRecord | null
+}
+
+const emptyFormData = (farmId = 0): FlockFormData => ({
+  name: "",
+  breed: "",
+  source: "",
+  quantity: 0,
+  arrival_date: "",
+  arrival_age_days: 0,
+  expected_end_date: "",
+  poultry_type_id: 0,
+  flock_stage_id: 0,
+  house_id: 0,
+  farm_id: farmId,
+  notes: "",
+  medication_schedule_id: null,
+  vaccination_schedule_id: null,
+  feeding_schedule_id: null,
+})
+
+const resolveHousePoultryTypeId = (house: PoultryHouse): number =>
+  Number(house.poultry_type_id ?? house.poultry_type?.id ?? 0)
+
+const isHouseUnavailableStatus = (status: string | undefined): boolean => {
+  const normalized = (status ?? "").toLowerCase()
+  return normalized === "inactive" || normalized === "maintenance"
+}
+
+const isHouseVacant = (house: PoultryHouse): boolean => {
+  if (typeof house.current_occupancy === "number") {
+    return house.current_occupancy <= 0
+  }
+
+  return (house.status ?? "").toLowerCase() === "empty"
+}
+
+const houseMatchesPoultryType = (house: PoultryHouse, poultryTypeId: number): boolean => {
+  const houseTypeId = resolveHousePoultryTypeId(house)
+  return houseTypeId > 0 && houseTypeId === Number(poultryTypeId)
+}
+
+const isHouseSelectableForFlock = (
+  house: PoultryHouse,
+  poultryTypeId: number,
+  options: { isEditMode: boolean; currentHouseId: number }
+): boolean => {
+  if (!houseMatchesPoultryType(house, poultryTypeId)) return false
+  if (options.isEditMode && house.id === options.currentHouseId) return true
+  if (isHouseUnavailableStatus(house.status)) return false
+
+  return isHouseVacant(house)
+}
+
+const flockToFormData = (
+  flock: DetailedFlockRecord | FlockRecord,
+  farmId: number
+): FlockFormData => ({
+  name: flock.name || "",
+  breed: flock.breed || "",
+  source: flock.source || "",
+  quantity: Number(flock.quantity) || 0,
+  arrival_date: flock.arrival_date ? String(flock.arrival_date).slice(0, 10) : "",
+  arrival_age_days: Number(flock.arrival_age_days) || 0,
+  expected_end_date: flock.expected_end_date ? String(flock.expected_end_date).slice(0, 10) : "",
+  poultry_type_id: Number(flock.poultry_type_id || flock.poultry_type?.id) || 0,
+  flock_stage_id: Number(flock.flock_stage_id || flock.flock_stage?.id) || 0,
+  house_id: Number(flock.house_id || flock.poultry_house?.id) || 0,
+  farm_id: Number(flock.farm_id || farmId) || farmId,
+  notes: flock.notes || "",
+  medication_schedule_id: null,
+  vaccination_schedule_id: null,
+  feeding_schedule_id: null,
+})
+
+const AddFlockModal = ({ isOpen, onClose, onSubmit, editingFlock = null }: AddFlockModalProps) => {
   const token = useSelector((state: RootState) => state.authentication.token)
   const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
+  const isEditMode = Boolean(editingFlock)
 
-  const [formData, setFormData] = useState<FlockFormData>({
-    name: "",
-    breed: "",
-    source: "",
-    quantity: 0,
-    arrival_date: "",
-    arrival_age_days: 0,
-    expected_end_date: "",
-    poultry_type_id: 0,
-    flock_stage_id: 0,
-    house_id: 0,
-    farm_id: farmId || 0,
-    notes: "",
-    medication_schedule_id: null,
-    vaccination_schedule_id: null,
-    feeding_schedule_id: null
-  })
+  const [formData, setFormData] = useState<FlockFormData>(() => emptyFormData(farmId || 0))
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -150,80 +209,157 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
     loadData()
   }, [token, farmId])
 
+  useEffect(() => {
+    if (!isOpen) return
+    if (editingFlock) {
+      setFormData(flockToFormData(editingFlock, farmId || editingFlock.farm_id))
+    } else {
+      setFormData(emptyFormData(farmId || 0))
+    }
+    setErrors({})
+    setWarningsConfirmed(false)
+    setShowArrivalCalendar(false)
+    setShowEndCalendar(false)
+    setExpandedSchedule(null)
+  }, [isOpen, editingFlock, farmId])
+
   // Filter houses and stages based on selected poultry type
   useEffect(() => {
-    console.log("poultry houses data in AddFlockModal.tsx:", formData.poultry_type_id);
     if (formData.poultry_type_id > 0) {
       const housesArray = Array.isArray(poultryHouses) ? poultryHouses : []
-      const filteredHouses = housesArray.filter(
-        house => house.poultry_type_id === formData.poultry_type_id && house.status === 'empty'
+      const nextHouses = housesArray.filter((house) =>
+        isHouseSelectableForFlock(house, formData.poultry_type_id, {
+          isEditMode,
+          currentHouseId: formData.house_id,
+        })
       )
-      setFilteredHouses(filteredHouses)
+      setFilteredHouses(nextHouses)
 
       const stagesArray = Array.isArray(flockStages) ? flockStages : []
-      const filteredStages = stagesArray.filter(
-        stage => stage.poultry_type_id === formData.poultry_type_id
+      const nextStages = stagesArray.filter(
+        (stage) => Number(stage.poultry_type_id) === Number(formData.poultry_type_id)
       )
-      setFilteredStages(filteredStages)
+      setFilteredStages(nextStages)
     } else {
       setFilteredHouses([])
       setFilteredStages([])
     }
-  }, [formData.poultry_type_id, poultryHouses, flockStages])
+  }, [formData.poultry_type_id, formData.house_id, poultryHouses, flockStages, isEditMode])
 
-  // Fetch schedules when poultry type changes
-  const fetchSchedules = useCallback(async (poultryTypeId: number) => {
-    if (!token || !farmId || poultryTypeId <= 0) {
-      setMedicationSchedules([])
-      setVaccinationSchedules([])
-      setFeedingSchedulesList([])
-      return
-    }
-    setSchedulesLoading(true)
-    try {
-      const [medRes, vacRes, feedRes] = await Promise.all([
-        getSchedules(token, farmId, "medication", false),
-        getSchedules(token, farmId, "vaccination", false),
-        getFeedingSchedules(token, farmId, false)
-      ])
-
-      if (medRes.success && Array.isArray(medRes.data)) {
-        setMedicationSchedules(medRes.data.filter((s: Schedule) => s.poultry_type_id === poultryTypeId))
-      } else {
+  const fetchMedicationSchedules = useCallback(
+    async (poultryTypeId: number) => {
+      if (!token || !farmId || poultryTypeId <= 0) {
         setMedicationSchedules([])
+        return
       }
-      if (vacRes.success && Array.isArray(vacRes.data)) {
-        setVaccinationSchedules(vacRes.data.filter((s: Schedule) => s.poultry_type_id === poultryTypeId))
-      } else {
+      setSchedulesLoading(true)
+      try {
+        const res = await getSchedules(token, farmId, "medication", false)
+        if (res.success && Array.isArray(res.data)) {
+          setMedicationSchedules(res.data.filter((s: Schedule) => s.poultry_type_id === poultryTypeId))
+        } else {
+          setMedicationSchedules([])
+        }
+      } catch {
+        setMedicationSchedules([])
+      } finally {
+        setSchedulesLoading(false)
+      }
+    },
+    [token, farmId]
+  )
+
+  const fetchVaccinationSchedules = useCallback(
+    async (poultryTypeId: number) => {
+      if (!token || !farmId || poultryTypeId <= 0) {
         setVaccinationSchedules([])
+        return
       }
-      if (feedRes.success && Array.isArray(feedRes.data)) {
-        setFeedingSchedulesList(feedRes.data.filter((s: FeedingSchedule) => s.poultry_type_id === poultryTypeId))
-      } else {
+      setSchedulesLoading(true)
+      try {
+        const res = await getSchedules(token, farmId, "vaccination", false)
+        if (res.success && Array.isArray(res.data)) {
+          setVaccinationSchedules(res.data.filter((s: Schedule) => s.poultry_type_id === poultryTypeId))
+        } else {
+          setVaccinationSchedules([])
+        }
+      } catch {
+        setVaccinationSchedules([])
+      } finally {
+        setSchedulesLoading(false)
+      }
+    },
+    [token, farmId]
+  )
+
+  const fetchFeedingSchedules = useCallback(
+    async (poultryTypeId: number) => {
+      if (!token || !farmId || poultryTypeId <= 0) {
         setFeedingSchedulesList([])
+        return
       }
-    } catch {
-      setMedicationSchedules([])
-      setVaccinationSchedules([])
-      setFeedingSchedulesList([])
-    } finally {
-      setSchedulesLoading(false)
-    }
-  }, [token, farmId])
+      setSchedulesLoading(true)
+      try {
+        const res = await getFeedingSchedules(token, farmId, false)
+        if (res.success && Array.isArray(res.data)) {
+          const typeName = poultryTypes
+            .find((t) => t.id === poultryTypeId)
+            ?.name?.toLowerCase()
+            ?.trim()
+          setFeedingSchedulesList(
+            res.data.filter((s: FeedingSchedule) => {
+              if (s.poultry_type_id === poultryTypeId) return true
+              // Legacy default schedules often lack poultry_type_id — match by title.
+              if (
+                (s.poultry_type_id == null || s.poultry_type_id === 0) &&
+                typeName &&
+                (s.title || "").toLowerCase().includes(typeName)
+              ) {
+                return true
+              }
+              return false
+            })
+          )
+        } else {
+          setFeedingSchedulesList([])
+        }
+      } catch {
+        setFeedingSchedulesList([])
+      } finally {
+        setSchedulesLoading(false)
+      }
+    },
+    [token, farmId, poultryTypes]
+  )
 
   useEffect(() => {
-    if (formData.poultry_type_id > 0) {
-      fetchSchedules(formData.poultry_type_id)
-    }
+    if (isEditMode) return
+
     // Reset selected schedules when poultry type changes
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       medication_schedule_id: null,
       vaccination_schedule_id: null,
-      feeding_schedule_id: null
+      feeding_schedule_id: null,
     }))
     setExpandedSchedule(null)
-  }, [formData.poultry_type_id, fetchSchedules])
+
+    if (formData.poultry_type_id > 0) {
+      // Load all schedules (no UI pagination)
+      fetchMedicationSchedules(formData.poultry_type_id)
+      fetchVaccinationSchedules(formData.poultry_type_id)
+      fetchFeedingSchedules(formData.poultry_type_id)
+    } else {
+      setMedicationSchedules([])
+      setVaccinationSchedules([])
+      setFeedingSchedulesList([])
+    }
+  }, [
+    formData.poultry_type_id,
+    fetchMedicationSchedules,
+    fetchVaccinationSchedules,
+    fetchFeedingSchedules,
+  ])
 
   const handleInputChange = (field: keyof FlockFormData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -310,30 +446,14 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
     setIsSubmitting(true)
     try {
       await onSubmit(formData)
-      // Reset form and close modal only on successful submission
-      setFormData({
-        name: "",
-        breed: "",
-        source: "",
-        quantity: 0,
-        arrival_date: "",
-        arrival_age_days: 0,
-        expected_end_date: "",
-        poultry_type_id: 0,
-        flock_stage_id: 0,
-        house_id: 0,
-        farm_id: farmId || 0,
-        notes: "",
-        medication_schedule_id: null,
-        vaccination_schedule_id: null,
-        feeding_schedule_id: null
-      })
+      if (!isEditMode) {
+        setFormData(emptyFormData(farmId || 0))
+      }
       setErrors({})
       setWarningsConfirmed(false)
       onClose()
     } catch (error) {
-      console.error("Error creating flock:", error)
-      // Don't close the modal on error so user can fix the issue
+      console.error(isEditMode ? "Error updating flock:" : "Error creating flock:", error)
     } finally {
       setIsSubmitting(false)
     }
@@ -341,23 +461,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
 
   const handleClose = () => {
     if (!isSubmitting) {
-      setFormData({
-        name: "",
-        breed: "",
-        source: "",
-        quantity: 0,
-        arrival_date: "",
-        arrival_age_days: 0,
-        expected_end_date: "",
-        poultry_type_id: 0,
-        flock_stage_id: 0,
-        house_id: 0,
-        farm_id: farmId || 0,
-        notes: "",
-        medication_schedule_id: null,
-        vaccination_schedule_id: null,
-        feeding_schedule_id: null
-      })
+      setFormData(emptyFormData(farmId || 0))
       setErrors({})
       setWarningsConfirmed(false)
       setShowArrivalCalendar(false)
@@ -380,9 +484,13 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
         {/* Gradient Header */}
         <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-5 flex-shrink-0">
           <SheetHeader>
-            <SheetTitle className="text-white text-xl">Add New Flock</SheetTitle>
+            <SheetTitle className="text-white text-xl">
+              {isEditMode ? "Edit Flock" : "Add New Flock"}
+            </SheetTitle>
             <SheetDescription className="text-green-100">
-              Create a new flock by filling in the details below. Fields marked with * are required.
+              {isEditMode
+                ? "Update flock details below. Schedules are managed separately on the flock schedule tab."
+                : "Create a new flock by filling in the details below. Fields marked with * are required."}
             </SheetDescription>
           </SheetHeader>
         </div>
@@ -395,6 +503,15 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
               Basic Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isEditMode && editingFlock?.batch_number ? (
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                    <Hash className="h-3.5 w-3.5 text-green-400" />
+                    Batch Number
+                  </Label>
+                  <Input value={editingFlock.batch_number} disabled className="h-9 text-sm bg-gray-50" />
+                </div>
+              ) : null}
               <div className="space-y-1">
                 <Label htmlFor="name" className="text-xs text-gray-600 flex items-center gap-1.5">
                   <Bird className="h-3.5 w-3.5 text-green-400" />
@@ -578,7 +695,11 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                   <SelectContent>
                     {Array.isArray(filteredHouses) ? filteredHouses.map((house) => (
                       <SelectItem key={house.id} value={house.id.toString()}>
-                        {house.name} (Capacity: {house.capacity})
+                        {house.name} (Capacity: {house.capacity}
+                        {typeof house.current_occupancy === "number"
+                          ? ` · ${house.current_occupancy} birds`
+                          : ""}
+                        )
                       </SelectItem>
                     )) : []}
                   </SelectContent>
@@ -589,7 +710,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
           </div>
 
           {/* ── Schedule Selection Section ── */}
-          {formData.poultry_type_id > 0 && (
+          {!isEditMode && formData.poultry_type_id > 0 && (
             <div className="space-y-4">
               <div className="border-b pb-3">
                 <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -619,7 +740,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                       <p className="text-xs text-gray-400 italic">No medication schedules for this type</p>
                     </div>
                   ) : (
-                    <div className="space-y-2.5">
+                    <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
                       {medicationSchedules.map((schedule) => {
                         const isSelected = formData.medication_schedule_id === schedule.id
                         const isExpanded = expandedSchedule === `med-${schedule.id}`
@@ -646,7 +767,9 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                                     schedule.type === 'default' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
                                   )}>{schedule.type}</span>
                                 </div>
-                                <p className="text-xs text-gray-500 line-clamp-2">{schedule.description || "No description"}</p>
+                                <p className="text-xs text-gray-500 whitespace-normal">
+                                  {schedule.description || "No description"}
+                                </p>
                                 <div className="flex items-center gap-3 mt-2">
                                   <span className="text-[11px] text-gray-400 font-medium">{schedule.items?.length || 0} items</span>
                                   <button
@@ -665,7 +788,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                             </div>
                             {isExpanded && schedule.items && schedule.items.length > 0 && (
                               <div className="border-t border-purple-100 bg-white rounded-b-xl">
-                                <div className="max-h-52 overflow-y-auto">
+                                <div className="max-h-96 overflow-y-auto">
                                   <table className="w-full text-xs">
                                     <thead className="bg-purple-50/50 sticky top-0">
                                       <tr className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
@@ -704,7 +827,9 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Vaccination</p>
-                      <p className="text-[11px] text-gray-400">{vaccinationSchedules.length} available</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[11px] text-gray-400">{vaccinationSchedules.length} available</p>
+                      </div>
                     </div>
                   </div>
                   {vaccinationSchedules.length === 0 ? (
@@ -713,7 +838,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                       <p className="text-xs text-gray-400 italic">No vaccination schedules for this type</p>
                     </div>
                   ) : (
-                    <div className="space-y-2.5">
+                    <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
                       {vaccinationSchedules.map((schedule) => {
                         const isSelected = formData.vaccination_schedule_id === schedule.id
                         const isExpanded = expandedSchedule === `vac-${schedule.id}`
@@ -740,7 +865,9 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                                     schedule.type === 'default' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
                                   )}>{schedule.type}</span>
                                 </div>
-                                <p className="text-xs text-gray-500 line-clamp-2">{schedule.description || "No description"}</p>
+                                <p className="text-xs text-gray-500 whitespace-normal">
+                                  {schedule.description || "No description"}
+                                </p>
                                 <div className="flex items-center gap-3 mt-2">
                                   <span className="text-[11px] text-gray-400 font-medium">{schedule.items?.length || 0} items</span>
                                   <button
@@ -759,7 +886,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                             </div>
                             {isExpanded && schedule.items && schedule.items.length > 0 && (
                               <div className="border-t border-teal-100 bg-white rounded-b-xl">
-                                <div className="max-h-52 overflow-y-auto">
+                                <div className="max-h-96 overflow-y-auto">
                                   <table className="w-full text-xs">
                                     <thead className="bg-teal-50/50 sticky top-0">
                                       <tr className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
@@ -798,7 +925,9 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Feeding</p>
-                      <p className="text-[11px] text-gray-400">{feedingSchedulesList.length} available</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[11px] text-gray-400">{feedingSchedulesList.length} available</p>
+                      </div>
                     </div>
                   </div>
                   {feedingSchedulesList.length === 0 ? (
@@ -807,14 +936,27 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                       <p className="text-xs text-gray-400 italic">No feeding schedules for this type</p>
                     </div>
                   ) : (
-                    <div className="space-y-2.5">
+                    <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
                       {feedingSchedulesList.map((schedule) => {
                         const isSelected = formData.feeding_schedule_id === schedule.id
                         const isExpanded = expandedSchedule === `feed-${schedule.id}`
-                        const totalDays = schedule.items?.length || 0
-                        const dayRange = totalDays > 0
-                          ? `Day ${Math.min(...schedule.items.map(i => i.feeding_day))} – ${Math.max(...schedule.items.map(i => i.feeding_day))}`
+                        const starts = (schedule.items || []).map((i: any) => i.start_day ?? i.feeding_day ?? 1)
+                        const ends = (schedule.items || []).map((i: any) =>
+                          i.end_day == null && (i.start_day != null || i.is_open_ended)
+                            ? null
+                            : i.end_day ?? i.feeding_day ?? i.start_day ?? 1
+                        )
+                        const hasOpen = ends.some((e: number | null) => e == null)
+                        const minStart = starts.length ? Math.min(...starts) : 0
+                        const maxEnd = ends.filter((e: number | null) => e != null).length
+                          ? Math.max(...(ends.filter((e: number | null) => e != null) as number[]))
+                          : minStart
+                        const dayRange = starts.length
+                          ? hasOpen
+                            ? `Day ${minStart} – ∞`
+                            : `Day ${minStart} – ${maxEnd}`
                           : ""
+                        const totalDays = schedule.items?.length || 0
                         return (
                           <div key={schedule.id} className={cn(
                             "border rounded-xl transition-all",
@@ -838,7 +980,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                                     schedule.type === 'default' ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
                                   )}>{schedule.type}</span>
                                 </div>
-                                <p className="text-xs text-gray-500 line-clamp-2">
+                                <p className="text-xs text-gray-500 whitespace-normal">
                                   {schedule.description || "No description"}
                                 </p>
                                 {dayRange && (
@@ -862,7 +1004,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                             </div>
                             {isExpanded && schedule.items && schedule.items.length > 0 && (
                               <div className="border-t border-amber-100 bg-white rounded-b-xl">
-                                <div className="max-h-52 overflow-y-auto">
+                                <div className="max-h-96 overflow-y-auto">
                                   <table className="w-full text-xs">
                                     <thead className="bg-amber-50/50 sticky top-0">
                                       <tr className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
@@ -874,10 +1016,20 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                       {schedule.items
-                                        .sort((a, b) => a.feeding_day - b.feeding_day)
-                                        .map((item) => (
+                                        .slice()
+                                        .sort((a: any, b: any) =>
+                                          (a.start_day ?? a.feeding_day ?? 0) - (b.start_day ?? b.feeding_day ?? 0)
+                                        )
+                                        .map((item: any) => (
                                         <tr key={item.id} className="hover:bg-gray-50/50">
-                                          <td className="px-3 py-1.5 font-mono text-amber-600 font-medium">D{item.feeding_day}</td>
+                                          <td className="px-3 py-1.5 font-mono text-amber-600 font-medium">
+                                            {formatFeedingDayRange(
+                                              item.start_day ?? item.feeding_day ?? 1,
+                                              item.end_day === undefined
+                                                ? item.feeding_day ?? item.start_day ?? 1
+                                                : item.end_day
+                                            ).replace(/^Day\s/, "")}
+                                          </td>
                                           <td className="px-3 py-1.5 text-gray-700">{item.feed_type?.name || `Type #${item.feed_type_id}`}</td>
                                           <td className="px-3 py-1.5 text-gray-600">{item.quantity}g</td>
                                           <td className="px-3 py-1.5 text-gray-400">{item.feeding_times?.length || 0}x daily</td>
@@ -948,7 +1100,13 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit }: AddFlockModalProps) => {
               className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Creating..." : "Create Flock"}
+              {isSubmitting
+                ? isEditMode
+                  ? "Saving..."
+                  : "Creating..."
+                : isEditMode
+                  ? "Save Changes"
+                  : "Create Flock"}
             </Button>
           </div>
         </form>

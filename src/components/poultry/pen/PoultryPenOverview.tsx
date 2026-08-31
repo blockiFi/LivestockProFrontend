@@ -78,11 +78,15 @@ const PoultryPenOverview = ({ house  , quantity = 0}: { house: PoultryHouse  , q
               <p className="text-sm text-gray-500 mb-1">Additional Notes</p>
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger>
-                    <p className="text-sm text-gray-700 truncate cursor-help">{house.notes}</p>
+                  <TooltipTrigger asChild>
+                    <p className="text-sm text-gray-700 truncate cursor-help break-words max-w-full">
+                      {house.notes}
+                    </p>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p className="max-w-xs">{house.notes}</p>
+                    <p className="max-w-sm break-words whitespace-pre-line">
+                      {house.notes}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

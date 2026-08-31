@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { formatDate } from "@/lib/utils"
+import { formatDate, getExpiryStatus } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import AddFeedUsageModal from "@/components/modals/AddFeedUsageModal"
 import { toast } from "react-toastify"
@@ -268,9 +268,9 @@ const FeedUsageView  = ({
               const quantity = record?.quantity != null ? (typeof record.quantity === 'string' ? parseFloat(record.quantity) : record.quantity) : 0;
               const unitCost = record?.unit_cost != null ? (typeof record.unit_cost === 'string' ? parseFloat(record.unit_cost) : record.unit_cost) : 0;
               const totalRecordCost = (typeof quantity === 'number' && typeof unitCost === 'number' && !isNaN(quantity) && !isNaN(unitCost)) ? quantity * unitCost : 0;
-              const isExpiringSoon = record.feed_inventory?.expiry_date 
-                ? new Date(record.feed_inventory.expiry_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-                : false
+              const expiryStatus = getExpiryStatus(record.feed_inventory?.expiry_date)
+              const isExpired = expiryStatus === "expired"
+              const isExpiringSoon = expiryStatus === "expiring_soon"
 
               return (
                 <TableRow key={record.id}>
@@ -307,8 +307,14 @@ const FeedUsageView  = ({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className={`${isExpiringSoon ? "text-orange-600 font-medium" : ""}`}>
+                    <div className={isExpired ? "text-red-600 font-medium" : isExpiringSoon ? "text-orange-600 font-medium" : ""}>
                       {record.feed_inventory?.expiry_date ? formatDate(record.feed_inventory.expiry_date) : "N/A"}
+                      {isExpired && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <AlertTriangle className="h-3 w-3 text-red-500" />
+                          <span className="text-xs">Expired</span>
+                        </div>
+                      )}
                       {isExpiringSoon && (
                         <div className="flex items-center gap-1 mt-1">
                           <AlertTriangle className="h-3 w-3 text-orange-500" />

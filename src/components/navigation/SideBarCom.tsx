@@ -1,473 +1,482 @@
-// import {
-//     Home,
-//     BarChart3,
-//     Bird,
-//     PiggyBankIcon as Pig,
-//     Fish,
-//     Package,
-//     Heart,
-//     Wheat,
-//     Building,
-//     TrendingUp,
-//     DollarSign,
-//     Activity,
-//   } from "lucide-react"
-import { useLocation } from "react-router-dom";
-
-  import {
-    BarChart3,
-    Calendar,
-    ChevronDown,
-    ChevronLeft,
-    Clipboard,
-    CloudSun,
-    Droplet,
-    Fish,
-    Home,
-    Layers,
-    Leaf,
-    Menu,
-    PiggyBank,
-    Settings,
-    ShoppingCart,
-    Tractor,
-    Truck,
-    Users,
-    X,
-    Heart,
-    Package,
-  } from "lucide-react"
-  import {
-    Sidebar,
-    SidebarContent,
-    SidebarMenu,
-    useSidebar,
-  } from "@/components/ui/sidebar"
+import { Link, useLocation } from "react-router-dom"
+import { useEffect, useMemo, useState } from "react"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store"
+import {
+  Bell,
+  ChevronRight,
+  ClipboardList,
+  FileText,
+  Heart,
+  Home,
+  Layers,
+  Package,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  Tractor,
+  Users,
+  Wheat,
+} from "lucide-react"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarSeparator,
+  useSidebar,
+} from "@/components/ui/sidebar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import Logo from "./Logo"
 import { cn } from "@/lib/utils"
-import { Link } from "react-router-dom"
-import { useState } from "react";
-interface NavItemProps {
-    to: string
-    icon: React.ElementType
-    active?: boolean
-    children: React.ReactNode
-  }
+import { usePermissions } from "@/hooks/usePermissions"
+import { canAccessNav } from "@/lib/routePermissions"
 
-  interface SubNavItemProps {
-    to: string
-    active?: boolean
-    children: React.ReactNode
-  }
-  
-  function SubNavItem({ to, active, children }: SubNavItemProps) {
-    return (
-      <Link
-        to={to}
-        className={cn(
-          "block px-3 py-2 text-sm rounded-md transition-colors",
-          active
-            ? "bg-primary/10 text-primary font-medium"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        )}
-      >
-        {children}
-      </Link>
-    )
-  }
-  // Menu data organized by sections
-  function NavItem({ to, icon: Icon, active, children }: NavItemProps) {
-    const { open } = useSidebar()
-  
-    return (
-      <Link to={to} className={cn("sidebar-item", active ? "sidebar-item-active" : "sidebar-item-inactive")}>
-        <Icon className="h-5 w-5" />
-        {open && <span>{children}</span>}
-      </Link>
-    )
-  }
-//   const menuData = {
-//     dashboard: [
-//       {
-//         title: "Overview",
-//         url: "#",
-//         icon: Home,
-//       },
-//       {
-//         title: "Analytics",
-//         url: "#",
-//         icon: BarChart3,
-//       },
-//     ],
-//     livestockManagement: [
-//       {
-//         title: "Poultry",
-//         url: "#",
-//         icon: Bird,
-//       },
-//       {
-//         title: "Piggery",
-//         url: "#",
-//         icon: Pig,
-//       },
-//       {
-//         title: "Fishery",
-//         url: "#",
-//         icon: Fish,
-//       },
-//     ],
-//     farmOperations: [
-//       {
-//         title: "Inventory",
-//         url: "#",
-//         icon: Package,
-//       },
-//       {
-//         title: "Health Records",
-//         url: "#",
-//         icon: Heart,
-//       },
-//       {
-//         title: "Feed Management",
-//         url: "#",
-//         icon: Wheat,
-//       },
-//       {
-//         title: "Housing",
-//         url: "#",
-//         icon: Building,
-//       },
-//     ],
-//     reportsAnalytics: [
-//       {
-//         title: "Production Reports",
-//         url: "#",
-//         icon: TrendingUp,
-//       },
-//       {
-//         title: "Financial Reports",
-//         url: "#",
-//         icon: DollarSign,
-//       },
-//       {
-//         title: "Health Reports",
-//         url: "#",
-//         icon: Activity,
-//       },
-//     ],
-//   }
-const SideBarCom = () => {
-    // Get the current pathname using React Router's useLocation hook
-    const { open } = useSidebar()
-    const { pathname } = useLocation();
-    const [poultryOpen, setPoultryOpen] = useState(pathname?.includes("/poultry"))
-    const [healthOpen, setHealthOpen] = useState(pathname?.includes("/poultry/health"))
-    const [inventoryOpen, setInventoryOpen] = useState(pathname?.includes("/poultry/inventory"))
-    const [permissionOpen, setPermissionOpen] = useState(pathname?.includes("/poultry/permission"))
+type NavLink = {
+  to: string
+  label: string
+  isActive: (pathname: string) => boolean
+}
 
-    return (
-        <Sidebar>
-          <SidebarContent>
-        {/* Dashboard Section */}
-        <SidebarMenu>
-            <Logo style=" mt-7 gap-2 ml-2 mb-10" />
-        </SidebarMenu>
-        <aside
-        
-      >
-       
-        <div className="px-3 py-4">
-          <nav className="space-y-1">
-            <NavItem to="/" icon={Home} active={pathname === "/dashboard"}>
-              Dashboard
-            </NavItem>
-            <div>
-              <button
-                onClick={() => setPoultryOpen(!poultryOpen)}
+type NavSection = {
+  id: string
+  label: string
+  icon: React.ElementType
+  isActive: (pathname: string) => boolean
+  items: NavLink[]
+}
+
+const POULTRY_LINKS: NavLink[] = [
+  { to: "/dashboard/poultry", label: "Overview", isActive: (p) => p === "/dashboard/poultry" },
+  {
+    to: "/dashboard/poultry/flock-management",
+    label: "Flock Management",
+    isActive: (p) => p.includes("/flock-management"),
+  },
+  {
+    to: "/dashboard/poultry/houses",
+    label: "Housing Management",
+    isActive: (p) => p.includes("/poultry/houses"),
+  },
+  {
+    to: "/dashboard/poultry/schedules",
+    label: "Schedule Management",
+    isActive: (p) => p.includes("/schedules"),
+  },
+  {
+    to: "/dashboard/poultry/tasks",
+    label: "Task Management",
+    isActive: (p) => p.includes("/poultry/tasks"),
+  },
+  {
+    to: "/dashboard/poultry/analytics/sales-profit-loss",
+    label: "Sales P&L",
+    isActive: (p) => p.includes("/analytics/sales-profit-loss"),
+  },
+]
+
+const POULTRY_SECTIONS: NavSection[] = [
+  {
+    id: "health",
+    label: "Health",
+    icon: Heart,
+    isActive: (p) => p.includes("/poultry/health"),
+    items: [
+      {
+        to: "/dashboard/poultry/health/medications",
+        label: "Medications",
+        isActive: (p) => p.includes("/poultry/health/medications") && !p.includes("products"),
+      },
+      {
+        to: "/dashboard/poultry/health/medication-products",
+        label: "Medication Products",
+        isActive: (p) => p.includes("/medication-products"),
+      },
+      {
+        to: "/dashboard/poultry/health/vaccinations",
+        label: "Vaccinations",
+        isActive: (p) => p.includes("/poultry/health/vaccinations") && !p.includes("products"),
+      },
+      {
+        to: "/dashboard/poultry/health/vaccination-products",
+        label: "Vaccination Products",
+        isActive: (p) => p.includes("/vaccination-products"),
+      },
+    ],
+  },
+  {
+    id: "inventory",
+    label: "Inventory",
+    icon: Package,
+    isActive: (p) => p.includes("/poultry/inventory"),
+    items: [
+      {
+        to: "/dashboard/poultry/inventory/medications",
+        label: "Medication Inventory",
+        isActive: (p) => p.includes("/poultry/inventory/medications"),
+      },
+      {
+        to: "/dashboard/poultry/inventory/vaccination",
+        label: "Vaccination Inventory",
+        isActive: (p) => p.includes("/poultry/inventory/vaccination"),
+      },
+      {
+        to: "/dashboard/poultry/inventory/feeds",
+        label: "Feed Inventory",
+        isActive: (p) => p.includes("/poultry/inventory/feeds"),
+      },
+    ],
+  },
+  {
+    id: "feed",
+    label: "Feed Management",
+    icon: Wheat,
+    isActive: (p) => p.includes("/poultry/feed"),
+    items: [
+      {
+        to: "/dashboard/poultry/feed/components",
+        label: "Feed Components",
+        isActive: (p) => p.includes("/poultry/feed/components"),
+      },
+      {
+        to: "/dashboard/poultry/feed/compositions",
+        label: "Feed Composition",
+        isActive: (p) => p.includes("/poultry/feed/compositions"),
+      },
+      {
+        to: "/dashboard/poultry/feed/formulation",
+        label: "AI Feed Formulation",
+        isActive: (p) => p.includes("/poultry/feed/formulation"),
+      },
+    ],
+  },
+  {
+    id: "permission",
+    label: "Permissions",
+    icon: Users,
+    isActive: (p) => p.includes("/poultry/permission"),
+    items: [
+      {
+        to: "/dashboard/poultry/permission/permissions",
+        label: "Permissions",
+        isActive: (p) => p.includes("/poultry/permission/permissions"),
+      },
+      {
+        to: "/dashboard/poultry/permission/roles",
+        label: "Roles",
+        isActive: (p) => p.includes("/poultry/permission/roles"),
+      },
+      {
+        to: "/dashboard/poultry/permission/user-roles",
+        label: "Users",
+        isActive: (p) => p.includes("/poultry/permission/user-roles"),
+      },
+    ],
+  },
+]
+
+function NavSectionCollapsible({
+  section,
+  pathname,
+  defaultOpen,
+  visibleItems,
+}: {
+  section: NavSection
+  pathname: string
+  defaultOpen: boolean
+  visibleItems: NavLink[]
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const Icon = section.icon
+
+  if (visibleItems.length === 0) return null
+
+  return (
+    <SidebarMenuSubItem>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+              section.isActive(pathname)
+                ? "bg-emerald-50 text-emerald-800"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            )}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 text-left">{section.label}</span>
+            <ChevronRight
+              className={cn(
+                "h-3.5 w-3.5 text-slate-400 transition-transform duration-200",
+                open && "rotate-90"
+              )}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="ml-3 mt-1 space-y-0.5 border-l border-slate-200 pl-2">
+            {visibleItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
                 className={cn(
-                  "sidebar-item w-full justify-between",
-                  pathname?.includes("/livestock/poultry") ? "sidebar-item-active" : "sidebar-item-inactive",
+                  "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                  item.isActive(pathname)
+                    ? "bg-emerald-50 font-medium text-emerald-800"
+                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                 )}
               >
-                <div className="flex items-center gap-3">
-                  <Layers className="h-5 w-5" />
-                  {open && <span>Poultry</span>}
-                </div>
-                {open && <ChevronDown className={cn("h-4 w-4 transition-transform", poultryOpen && "rotate-180")} />}
-              </button>
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </SidebarMenuSubItem>
+  )
+}
 
-              {open && poultryOpen && (
-                <div className="ml-8 mt-1 space-y-1">
-                  <SubNavItem to="/dashboard/poultry" active={pathname === "/livestock/poultry"}>
-                    Overview
-                  </SubNavItem>
-                  <SubNavItem
-                    to="/dashboard/poultry/flock-management"
-                    active={pathname?.includes("/flock-management")}
-                  >
-                    Flock Management
-                  </SubNavItem>
-               
-                  <SubNavItem
-                    to="/dashboard/poultry/schedules"
-                    active={pathname?.includes("/schedules")}
-                  >
-                   Schedule Management
-                  </SubNavItem>
+const SideBarCom = () => {
+  const { pathname } = useLocation()
+  const { open, toggleSidebar } = useSidebar()
+  const activeFarm = useSelector((state: RootState) => state.authentication.activeFarm)
+  const { permissions, isLoaded } = usePermissions()
 
-                  {/* Health dropdown */}
-                  <div className="pt-1">
-                    <button
-                      onClick={() => setHealthOpen(!healthOpen)}
-                      className={cn(
-                        "w-full flex items-center justify-between text-sm px-3 py-2 rounded-md",
-                        pathname?.includes("/poultry/health")
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                    >
-                      <span className="flex items-center gap-2"><Heart className="h-4 w-4" /> Health</span>
-                      <ChevronDown className={cn("h-4 w-4 transition-transform", healthOpen && "rotate-180")} />
-                    </button>
-                    {healthOpen && (
-                      <div className="ml-4 mt-1 space-y-1">
-                        <SubNavItem
-                          to="/dashboard/poultry/health/medications"
-                          active={pathname?.includes("/poultry/health/medications")}
-                        >
-                          Medications
-                        </SubNavItem>
-                        <SubNavItem
-                          to="/dashboard/poultry/health/medication-products"
-                          active={pathname?.includes("/poultry/health/medication-products")}
-                        >
-                          Medication Products
-                        </SubNavItem>
-                        <SubNavItem
-                          to="/dashboard/poultry/health/vaccinations"
-                          active={pathname?.includes("/poultry/health/vaccinations")}
-                        >
-                          Vaccinations
-                        </SubNavItem>
-                        <SubNavItem
-                          to="/dashboard/poultry/health/vaccination-products"
-                          active={pathname?.includes("/poultry/health/vaccination-products")}
-                        >
-                          Vaccination Products
-                        </SubNavItem>
-                      </div>
-                    )}
-                  </div>
+  const canSeeNav = (path: string) => !isLoaded || canAccessNav(path, permissions)
 
-                  {/* Inventory Management dropdown */}
-                  <div className="pt-1">
-                    <button
-                      onClick={() => setInventoryOpen(!inventoryOpen)}
-                      className={cn(
-                        "w-full flex items-center justify-between text-sm px-3 py-2 rounded-md",
-                        pathname?.includes("/poultry/inventory")
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                    >
-                      <span className="flex items-center gap-2 "><Package className="h-4 w-4" /> Inventory </span>
-                      <ChevronDown className={cn("h-4 w-4 transition-transform", inventoryOpen && "rotate-180")} />
-                    </button>
-                    {inventoryOpen && (
-                      <div className="ml-4 mt-1 space-y-1">
-                        <SubNavItem
-                          to="/dashboard/poultry/inventory/medications"
-                          active={pathname?.includes("/poultry/inventory/medications")}
-                        >
-                          Medication Inventory
-                        </SubNavItem>
-                        <SubNavItem
-                          to="/dashboard/poultry/inventory/vaccination"
-                          active={pathname?.includes("/poultry/inventory/vaccination")}
-                        >
-                          Vaccination Inventory
-                        </SubNavItem>
-                        <SubNavItem
-                          to="/dashboard/poultry/inventory/feeds"
-                          active={pathname?.includes("/poultry/inventory/feeds")}
-                        >
-                          Feed Inventory
-                        </SubNavItem>
-                      </div>
-                    )}
-                  </div>
-                    {/* //Permission  Management */}
-                      <div className="pt-1">
-                    <button
-                      onClick={() => setPermissionOpen(!permissionOpen)}
-                      className={cn(
-                        "w-full flex items-center justify-between text-sm px-3 py-2 rounded-md",
-                        pathname?.includes("/poultry/permission")
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                    >
-                      <span className="flex items-center gap-2 "><Users className="h-4 w-4" /> Permissions </span>
-                      <ChevronDown className={cn("h-4 w-4 transition-transform", permissionOpen && "rotate-180")} />
-                    </button>
-                    {permissionOpen && (
-                      <div className="ml-4 mt-1 space-y-1">
-                        <SubNavItem
-                          to="/dashboard/poultry/permission/permissions"
-                          active={pathname?.includes("/poultry/permission/permissions")}
-                        >
-                          Permission
-                        </SubNavItem>
-                        <SubNavItem
-                          to="/dashboard/poultry/permission/roles"
-                          active={pathname?.includes("/poultry/permission/roles")}
-                        >
-                          Roles
-                        </SubNavItem>
-                        <SubNavItem
-                          to="/dashboard/poultry/permission/user-roles"
-                          active={pathname?.includes("/poultry/permission/user-roles")}
-                        >
-                          Users
-                        </SubNavItem>
+  const visiblePoultryLinks = POULTRY_LINKS.filter((item) => canSeeNav(item.to))
+  const visiblePoultrySections = POULTRY_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => canSeeNav(item.to)),
+  })).filter((section) => section.items.length > 0)
 
-                        
-                      </div>
-                    )}
-                  </div>
-                  <SubNavItem
-                    to="/livestock/poultry/housing-management"
-                    active={pathname?.includes("/housing-management")}
-                  >
-                    Housing & Environment
-                  </SubNavItem>
-                </div>
-              )}
-            </div>
-            <NavItem to="/livestock/piggery" icon={PiggyBank} active={pathname?.includes("/livestock/piggery")}>
-              Piggery
-            </NavItem>
-            <NavItem to="/livestock/fishery" icon={Fish} active={pathname?.includes("/livestock/fishery")}>
-              Fishery
-            </NavItem>
+  const poultryActive = pathname.includes("/dashboard/poultry")
+  const [poultryOpen, setPoultryOpen] = useState(poultryActive)
 
+  useEffect(() => {
+    if (poultryActive) setPoultryOpen(true)
+  }, [poultryActive])
 
-            <NavItem to="/soil-water" icon={Droplet} active={pathname?.includes("/soil-water")}>
-              Soil & Water
-            </NavItem>
-            <NavItem to="/weather" icon={CloudSun} active={pathname?.includes("/weather")}>
-              Weather
-            </NavItem>
-            <NavItem to="/equipment" icon={Tractor} active={pathname?.includes("/equipment")}>
-              Equipment
-            </NavItem>
-            <NavItem to="/tasks" icon={Clipboard} active={pathname?.includes("/tasks")}>
-              Tasks
-            </NavItem>
-            <NavItem to="/inventory" icon={ShoppingCart} active={pathname?.includes("/inventory")}>
-              Inventory
-            </NavItem>
-            <NavItem to="/suppliers" icon={Truck} active={pathname?.includes("/suppliers")}>
-              Suppliers
-            </NavItem>
-            <NavItem to="/staff" icon={Users} active={pathname?.includes("/staff")}>
-              Staff
-            </NavItem>
-            <NavItem to="/calendar" icon={Calendar} active={pathname?.includes("/calendar")}>
-              Calendar
-            </NavItem>
-            <NavItem to="/reports" icon={BarChart3} active={pathname?.includes("/reports")}>
-              Reports
-            </NavItem>
-            <NavItem to="/settings" icon={Settings} active={pathname?.includes("/settings")}>
-              Settings
-            </NavItem>
-            <NavItem to="/dashboard/invoices" icon={Layers} active={pathname?.includes("/dashboard/invoices")}>
-              Invoices
-            </NavItem>
-          </nav>
-        </div>
-      </aside>
-        {/* <SidebarGroup> */}
-          {/* <SidebarGroupLabel className="text-lg font-semibold text-slate-700">Dashboard</SidebarGroupLabel>
+  const sectionDefaults = useMemo(
+    () =>
+      Object.fromEntries(
+        POULTRY_SECTIONS.map((section) => [section.id, section.isActive(pathname)])
+      ) as Record<string, boolean>,
+    [pathname]
+  )
+
+  const systemNav = [
+    {
+      to: "/dashboard/equipment",
+      icon: Tractor,
+      label: "Equipment",
+      isActive: pathname.includes("/equipment"),
+    },
+    {
+      to: "/dashboard/notifications",
+      icon: Bell,
+      label: "Notifications",
+      isActive:
+        pathname === "/dashboard/notifications" ||
+        (pathname.startsWith("/dashboard/notifications/") && !pathname.includes("/settings/")),
+    },
+    {
+      to: "/dashboard/invoices",
+      icon: FileText,
+      label: "Invoices",
+      isActive: pathname.includes("/dashboard/invoices"),
+    },
+    {
+      to: "/dashboard/settings/profile",
+      icon: Settings,
+      label: "Settings",
+      isActive: pathname.startsWith("/dashboard/settings"),
+    },
+  ].filter((item) => canSeeNav(item.to))
+
+  const showPoultryNav =
+    visiblePoultryLinks.length > 0 ||
+    visiblePoultrySections.length > 0 ||
+    canSeeNav("/dashboard/poultry/tasks")
+
+  return (
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-slate-200/80 bg-gradient-to-b from-white via-slate-50 to-emerald-50/40 text-slate-900 shadow-sm [&_[data-sidebar=sidebar]]:bg-transparent"
+    >
+      <SidebarHeader className="border-b border-slate-200/80 px-3 py-4">
+        <Logo compact={!open} variant="light" />
+        {open && activeFarm?.name && (
+          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
+              Active farm
+            </p>
+            <p className="truncate text-sm font-medium text-slate-900">{activeFarm.name}</p>
+          </div>
+        )}
+      </SidebarHeader>
+
+      <SidebarContent className="scrollbar-hide px-2 py-3">
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            Main
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuData.dashboard.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a to={item.url} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/dashboard"}
+                  tooltip="Dashboard"
+                  className="text-slate-600 hover:bg-slate-100 hover:text-slate-900 data-[active=true]:bg-emerald-50 data-[active=true]:font-medium data-[active=true]:text-emerald-800"
+                >
+                  <Link to="/dashboard">
+                    <Home className="h-4 w-4" />
+                    <span>Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Livestock Management Section */}
-        {/* <SidebarGroup>
-          <SidebarGroupLabel className="text-lg font-semibold text-slate-700">Livestock Management</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuData.livestockManagement.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a to={item.url} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup> */}
+        <SidebarSeparator className="my-2 bg-slate-200" />
 
-        {/* Farm Operations Section */}
-        {/* <SidebarGroup>
-          <SidebarGroupLabel className="text-lg font-semibold text-slate-700">Farm Operations</SidebarGroupLabel>
+        {showPoultryNav && (
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            Poultry
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuData.farmOperations.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a to={item.url} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup> */}
+              <Collapsible open={poultryOpen} onOpenChange={setPoultryOpen}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      isActive={poultryActive}
+                      tooltip="Poultry"
+                      className="text-slate-600 hover:bg-slate-100 hover:text-slate-900 data-[active=true]:bg-emerald-50 data-[active=true]:font-medium data-[active=true]:text-emerald-800"
+                    >
+                      <Layers className="h-4 w-4" />
+                      <span>Poultry</span>
+                      <ChevronRight
+                        className={cn(
+                          "ml-auto h-4 w-4 text-slate-400 transition-transform duration-200",
+                          poultryOpen && "rotate-90"
+                        )}
+                      />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub className="mr-0 border-l border-slate-200 pl-3">
+                      {visiblePoultryLinks.map((item) => (
+                        <SidebarMenuSubItem key={item.to}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={item.isActive(pathname)}
+                            className="text-slate-500 hover:bg-slate-100 hover:text-slate-900 data-[active=true]:bg-emerald-50 data-[active=true]:font-medium data-[active=true]:text-emerald-800"
+                          >
+                            <Link to={item.to}>{item.label}</Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
 
-        {/* Reports & Analytics Section */}
-        {/* <SidebarGroup>
-          <SidebarGroupLabel className="text-lg font-semibold text-slate-700">Reports & Analytics</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuData.reportsAnalytics.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a to={item.url} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
+                      {visiblePoultrySections.map((section) => (
+                        <NavSectionCollapsible
+                          key={section.id}
+                          section={section}
+                          pathname={pathname}
+                          defaultOpen={sectionDefaults[section.id]}
+                          visibleItems={section.items}
+                        />
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
                 </SidebarMenuItem>
-              ))}
+              </Collapsible>
+
+              {canSeeNav("/dashboard/poultry/tasks") && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.includes("/poultry/tasks")}
+                  tooltip="Tasks"
+                  className="text-slate-600 hover:bg-slate-100 hover:text-slate-900 data-[active=true]:bg-emerald-50 data-[active=true]:font-medium data-[active=true]:text-emerald-800"
+                >
+                  <Link to="/dashboard/poultry/tasks">
+                    <ClipboardList className="h-4 w-4" />
+                    <span>Tasks</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
-        </SidebarGroup>  */}
-        
+        </SidebarGroup>
+        )}
+
+        {showPoultryNav && systemNav.length > 0 && <SidebarSeparator className="my-2 bg-slate-200" />}
+
+        {systemNav.length > 0 && (
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            System
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {systemNav.map((item) => {
+                const Icon = item.icon
+                return (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={item.isActive}
+                      tooltip={item.label}
+                      className="text-slate-600 hover:bg-slate-100 hover:text-slate-900 data-[active=true]:bg-emerald-50 data-[active=true]:font-medium data-[active=true]:text-emerald-800"
+                    >
+                      <Link to={item.to}>
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        )}
       </SidebarContent>
-          
-        </Sidebar>
-      )
-    }
-    
+
+      <SidebarFooter className="border-t border-slate-200/80 p-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={toggleSidebar}
+              tooltip={open ? "Collapse sidebar" : "Expand sidebar"}
+              className="text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            >
+              {open ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+              <span>{open ? "Collapse" : "Expand"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        {open && (
+          <p className="px-3 pb-1 text-[10px] text-slate-400">⌘B to toggle sidebar</p>
+        )}
+      </SidebarFooter>
+    </Sidebar>
+  )
+}
 
 export default SideBarCom

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { Farm, FarmStatsDataType, Invoice } from "@/lib/types"
+import type { Farm, FarmSettings, FarmStatsDataType, Invoice } from "@/lib/types"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, Printer, Eye, Trash2 } from "lucide-react"
 import { CreateInvoiceModal } from "@/components/modals/CreateIvoiceModal"
 import { InvoicePreview } from "@/components/general/invoice-preview"
+import { formatCurrency } from "@/lib/currency"
+import { printInvoice } from "@/lib/print-invoice"
 import { useLoaderData } from "react-router-dom"
+import { ActionGate } from "@/components/general/ActionGate"
+import { ACTIONS } from "@/lib/actionPermissions"
 
 
  const SAMPLE_INVOICES: Invoice[] = [
@@ -42,8 +46,10 @@ import { useLoaderData } from "react-router-dom"
     ],
     subtotal: 9500,
     tax: 950,
+    taxRate: 10,
     total: 10450,
     notes: "Payment terms: Net 14 days. Thank you for your business.",
+    paymentInstructions: "Bank: First Bank of Nigeria\nAccount Name: Green Valley Poultry Ltd\nAccount Number: 0123456789\nReference: INV-2024-001",
   },
   {
     id: 2,
@@ -69,8 +75,10 @@ import { useLoaderData } from "react-router-dom"
     ],
     subtotal: 8700,
     tax: 870,
+    taxRate: 10,
     total: 9570,
     notes: "Invoice due upon receipt.",
+    paymentInstructions: "Pay via bank transfer to Zenith Bank, Acct: 9876543210. Use invoice number as payment reference.",
   },
   {
     id: 3,
@@ -89,8 +97,9 @@ import { useLoaderData } from "react-router-dom"
       },
     ],
     subtotal: 9500,
-    tax: 950,
-    total: 10450,
+    tax: 0,
+    taxEnabled: false,
+    total: 9500,
     notes: "Payment due by November 3rd.",
   },
 ]
@@ -102,7 +111,7 @@ export function InvoicesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [showPreview, setShowPreview] = useState(false)
-  const { currentFarm } = useLoaderData() as { currentFarm: Farm | null; farmStats: FarmStatsDataType | null }
+  const { currentFarm, farmSettings } = useLoaderData() as { currentFarm: Farm | null; farmStats: FarmStatsDataType | null; farmSettings?: FarmSettings | null }
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesSearch =
       invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -133,25 +142,24 @@ export function InvoicesPage() {
     setInvoices(invoices.filter((i) => i.id !== id))
   }
 
-  const handlePrint = () => {
-    if (selectedInvoice) {
-      window.print()
-    }
+  const handlePrintInvoice = (invoice: Invoice) => {
+    printInvoice(invoice, currentFarm, farmSettings)
   }
 
   return (
     <div className="p-6 space-y-6">
-      <style>{`@media print { .no-print { display: none !important; } }`}</style>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Invoices</h1>
           <p className="text-muted-foreground mt-1">Create, manage, and track your farm invoices</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
-          <Plus className="w-4 h-4" />
-          Create Invoice
-        </Button>
+        <ActionGate anyOf={ACTIONS.invoices.create}>
+          <Button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+            <Plus className="w-4 h-4" />
+            Create Invoice
+          </Button>
+        </ActionGate>
       </div>
 
       {/* Stat Cards */}
@@ -220,7 +228,7 @@ export function InvoicesPage() {
                     <p className="text-sm text-muted-foreground">{invoice.clientName}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-foreground">₦{invoice.total.toLocaleString()}</p>
+                    <p className="font-semibold text-foreground">{formatCurrency(invoice.total, { farmSettings, farm: currentFarm })}</p>
                     <p className="text-xs text-muted-foreground">Due: {invoice.dueDate}</p>
                   </div>
                   <div>
@@ -254,16 +262,15 @@ export function InvoicesPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setSelectedInvoice(invoice)
-                    setTimeout(() => window.print(), 100)
-                  }}
+                  onClick={() => handlePrintInvoice(invoice)}
                 >
                   <Printer className="w-4 h-4" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleDeleteInvoice(invoice.id)}>
-                  <Trash2 className="w-4 h-4 text-red-500" />
-                </Button>
+                <ActionGate anyOf={ACTIONS.invoices.delete}>
+                  <Button variant="ghost" size="sm" onClick={() => handleDeleteInvoice(invoice.id)}>
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </Button>
+                </ActionGate>
               </div>
             </div>
           ))
@@ -275,14 +282,15 @@ export function InvoicesPage() {
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
         onCreateInvoice={handleCreateInvoice}
+        farmSettings={farmSettings}
       />
 
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[210mm] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="no-print">Invoice Preview</DialogTitle>
+            <DialogTitle>Invoice Preview</DialogTitle>
           </DialogHeader>
-          {selectedInvoice && <InvoicePreview  farm={currentFarm} invoice={selectedInvoice} />}
+          {selectedInvoice && <InvoicePreview farm={currentFarm} farmSettings={farmSettings} invoice={selectedInvoice} />}
         </DialogContent>
       </Dialog>
     </div>

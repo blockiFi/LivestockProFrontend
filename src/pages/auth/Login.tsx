@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { Eye, EyeOff, Mail, Lock, ArrowLeft } from "lucide-react"
 import logo from "@/assets/livestockpro1.png"
 
@@ -11,9 +11,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from 'react-toastify';
 import type { AuthResponse } from "@/lib/types"
 import { StoreToken, UserLogin } from "@/lib/request"
+import { bootstrapImpersonationSession } from "@/lib/loader"
+
 function Login() {
     const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -21,6 +24,36 @@ function Login() {
   })
 
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const impersonationToken = searchParams.get("impersonation_token")
+    if (!impersonationToken) return
+
+    let cancelled = false
+
+    const startImpersonation = async () => {
+      setIsLoading(true)
+      const result = await bootstrapImpersonationSession(impersonationToken)
+      if (cancelled) return
+
+      if (result.success) {
+        setSearchParams({}, { replace: true })
+        toast.info(`Signed in as ${result.user.name} (support impersonation)`)
+        navigate("/farm-selection", { replace: true })
+      } else {
+        setSearchParams({}, { replace: true })
+        toast.error(result.error.join(", "))
+      }
+      setIsLoading(false)
+    }
+
+    void startImpersonation()
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, setSearchParams, navigate])
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsLoading(true)
@@ -90,7 +123,11 @@ function Login() {
                 </div>
     
                 <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
-                <p className="text-muted-foreground mt-2">Sign in to your account to continue managing your farms</p>
+                <p className="text-muted-foreground mt-2">
+                  {searchParams.get("impersonation_token")
+                    ? "Starting support impersonation session..."
+                    : "Sign in to your account to continue managing your farms"}
+                </p>
               </div>
     
               {/* Login Form */}
@@ -169,7 +206,7 @@ function Login() {
     
                   <p className="mt-6 text-center text-sm text-muted-foreground">
                     Don't have an account?{" "}
-                    <Link to="/auth/register" className="text-primary-400 hover:underline">
+                    <Link to="/register" className="text-primary-400 hover:underline">
                       Sign up for free
                     </Link>
                   </p>

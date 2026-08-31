@@ -1,4 +1,4 @@
-import type { DetailedFlockRecord, Farm, FarmStatsDataType, FlockDetail, FlockRecord, PoultryDashboardData, User } from "./types";
+import type { DetailedFlockRecord, Farm, FarmStatsDataType, FarmSubscriptionSummary, FlockDetail, FlockRecord, PoultryDashboardData, User } from "./types";
 
 export interface LoginResponse {
     success : boolean,
@@ -16,6 +16,12 @@ export interface LoginResponse {
     user : User | null ,
     token : string,
     activeFarm : Farm | null,
+    permissions: string[],
+    permissionsLoaded: boolean,
+    permissionsLoading: boolean,
+    permissionsFarmId: number | null,
+    subscription: FarmSubscriptionSummary | null,
+    subscriptionFarmId: number | null,
     authenticated : boolean
 }
  
@@ -47,6 +53,11 @@ export interface NewScheduleItem {
   // Feeding specific
   feed_type_id?: number
   feeding_times?: { time: string; percentage: number }[]
+  /** Placement day range start (Day 1 = flock arrival). */
+  start_day?: number
+  /** Placement day range end; null/undefined with open_ended = indefinite. */
+  end_day?: number | null
+  open_ended?: boolean
   notes?: string
 }
 export interface NewScheduleForm<ScheduleItem> {
@@ -91,11 +102,16 @@ export interface RequestResponse <dataType> {
   success: boolean;
   data?: dataType;
   error?: string[];
+  code?: string;
 }
 export interface LoadPoultryOverviewDataType{
   
     PoultryStatistics : PoultryDashboardResponse
     currentFarm : Farm | null 
+}
+export interface LoadSalesProfitLossDataType {
+  salesProfitLoss: import("./types").FarmSalesProfitLoss | null;
+  currentFarm: Farm | null;
 }
 export interface LoadFlockDataType{
   PoultryStatistics : PoultryDashboardResponse;

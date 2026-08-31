@@ -143,7 +143,7 @@ const WeightReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: Weigh
               <TableHead>Min Weight (kg)</TableHead>
               <TableHead>Max Weight (kg)</TableHead>
               <TableHead>Sample Size</TableHead>
-              <TableHead>Bird Count</TableHead>
+              <TableHead>Number of Birds</TableHead>
               <TableHead>Recorded By</TableHead>
               {onDeleteRecord && <TableHead>Actions</TableHead>}
             </TableRow>
@@ -174,7 +174,7 @@ const WeightReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: Weigh
                   <TableCell>{report.max_weight != null ? report.max_weight.toFixed(2) : "N/A"}</TableCell>
                   <TableCell>{report.sample_size}</TableCell>
                   <TableCell>{report.number_of_birds.toLocaleString()}</TableCell>
-                  <TableCell>{report.recorded_by}</TableCell>
+                  <TableCell>{report.recorded_by_name ?? "—"}</TableCell>
                   {onDeleteRecord && (
                     <TableCell>
                       <Button

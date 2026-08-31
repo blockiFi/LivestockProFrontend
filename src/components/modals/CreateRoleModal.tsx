@@ -18,6 +18,8 @@ import { GetToken, createRole } from "@/lib/request"
 import { toast } from 'react-toastify'
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
+import { ActionGate } from "@/components/general/ActionGate"
+import { ACTIONS } from "@/lib/actionPermissions"
 
 
 interface CreateRoleModalProps {
@@ -159,9 +161,11 @@ export function CreateRoleModal({ open, onOpenChange, GroupPermissions, onSucces
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleCreate} disabled={loading || !roleName.trim() || selectedPermissions.length === 0} className="gap-2">
-            {loading ? "Creating..." : "Create Role"}
-          </Button>
+          <ActionGate anyOf={ACTIONS.roles.create}>
+            <Button onClick={handleCreate} disabled={loading || !roleName.trim() || selectedPermissions.length === 0} className="gap-2">
+              {loading ? "Creating..." : "Create Role"}
+            </Button>
+          </ActionGate>
         </DialogFooter>
       </DialogContent>
     </Dialog>

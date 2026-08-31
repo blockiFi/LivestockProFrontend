@@ -1,24 +1,40 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Lock, Search } from "lucide-react"
+import { Lock, Search, ChevronDown, ChevronUp, Key, FolderTree, Filter } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { StatCard } from "@/components/general/StatCard"
+import { Badge } from "@/components/ui/badge"
 import { useLoaderData } from "react-router-dom"
 import type { Permission, PermissionGroup } from "@/lib/types"
+import { ActionGate } from "@/components/general/ActionGate"
+import { ACTIONS } from "@/lib/actionPermissions"
 
+interface PermissionManagementPageProps {
+  embedded?: boolean
+  permissionGroups?: PermissionGroup[] | null
+}
 
-export default function permissionManagementPage() {
+export default function permissionManagementPage({ embedded = false, permissionGroups }: PermissionManagementPageProps = {}) {
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const { PermissionGroups } = useLoaderData() as { PermissionGroups: PermissionGroup[] | null };
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const loaderData = useLoaderData() as { PermissionGroups?: PermissionGroup[] | null } | undefined
+  const PermissionGroups = permissionGroups ?? loaderData?.PermissionGroups ?? null
 
   useEffect(() => {
-    if (PermissionGroups) {
-      const allPermissions = PermissionGroups.flatMap((group) => group.permissions)
+    console.log("PermissionGroups from loader:", PermissionGroups);
+    if (PermissionGroups && Array.isArray(PermissionGroups)) {
+      const allPermissions = PermissionGroups.flatMap((group) => {
+        // Handle both cases: group.permissions might be an array or undefined
+        return Array.isArray(group.permissions) ? group.permissions : []
+      })
+      console.log("Extracted permissions:", allPermissions);
       setPermissions(allPermissions)
+    } else {
+      console.warn("PermissionGroups is null or not an array:", PermissionGroups);
+      setPermissions([])
     }
     setLoading(false)
   }, [PermissionGroups])
@@ -50,85 +66,219 @@ export default function permissionManagementPage() {
 
   const filteredPermissions = useMemo(() => filteredGroups.flatMap((g) => g.permissions ?? []), [filteredGroups])
 
+  // Initialize all groups as expanded by default
+  useEffect(() => {
+    if (PermissionGroups && PermissionGroups.length > 0) {
+      const allGroupNames = PermissionGroups.map((g) => (g as any).name ?? (g as any).module ?? "")
+      setExpandedGroups(new Set(allGroupNames))
+    }
+  }, [PermissionGroups])
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(groupName)) {
+        newSet.delete(groupName)
+      } else {
+        newSet.add(groupName)
+      }
+      return newSet
+    })
+  }
+
+  const isGroupExpanded = (groupName: string) => expandedGroups.has(groupName)
+
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-foreground mb-2">Permissions</h2>
-        <p className="text-muted-foreground">View and manage all available permissions</p>
-      </div>
+    <ActionGate
+      anyOf={ACTIONS.permissions.view}
+      fallback={
+        <div className={embedded ? "space-y-6" : "min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 p-6 md:p-8"}>
+          <Card className="p-12 text-center">
+            <Lock className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-muted-foreground">You do not have permission to view permissions.</p>
+          </Card>
+        </div>
+      }
+    >
+    <div className={embedded ? "space-y-6" : "min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 p-6 md:p-8"}>
+      {!embedded && (
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Permission Management</h1>
+          <p className="text-gray-600 text-lg">View and manage all available permissions across your system</p>
+        </div>
+      )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <StatCard title="Total Permissions" value={permissions.length} icon={Lock} color="blue" />
-        <StatCard title="Modules" value={modules.length} icon={Lock} color="green" />
-        <StatCard title="Filtered Results" value={filteredPermissions.length} icon={Lock} color="purple" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-600 mb-1">Total Permissions</p>
+              <p className="text-3xl font-bold text-blue-900">{permissions.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+              <Lock className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 border-green-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-green-600 mb-1">Permission Groups</p>
+              <p className="text-3xl font-bold text-green-900">{modules.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+              <FolderTree className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-purple-600 mb-1">Filtered Results</p>
+              <p className="text-3xl font-bold text-purple-900">{filteredPermissions.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
+              <Filter className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Search */}
-      <div className="flex gap-4 mb-6">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search permissions..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+      <Card className="p-4 mb-6 border-gray-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Input
+              placeholder="Search permissions by name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+          <div className="text-sm text-gray-500">
+            Showing {filteredPermissions.length} of {permissions.length} permissions
+          </div>
         </div>
-      
-      </div>
+      </Card>
 
       {/* Permissions List */}
       {loading ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading permissions...</p>
         </div>
-      ) : filteredPermissions.length === 0 ? (
+      ) : !PermissionGroups || PermissionGroups.length === 0 ? (
         <Card className="p-12 text-center">
-          <p className="text-muted-foreground">No permissions found</p>
+          <Lock className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+          <p className="text-muted-foreground mb-2">No permission groups found</p>
+          <p className="text-sm text-gray-500">
+            {PermissionGroups === null 
+              ? "Failed to load permissions. Please check your connection and try again."
+              : "No permission groups are configured for this farm."}
+          </p>
+        </Card>
+      ) : filteredPermissions.length === 0 ? (
+        <Card className="p-16 text-center border-2 border-dashed border-gray-300 bg-gray-50">
+          <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Key className="w-10 h-10 text-gray-400" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            {searchTerm ? "No permissions found" : "No permissions available"}
+          </h3>
+          <p className="text-gray-600 max-w-md mx-auto">
+            {searchTerm 
+              ? "Try adjusting your search terms to find what you're looking for."
+              : "No permissions are configured for this farm."}
+          </p>
         </Card>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-4">
           {filteredGroups.map((group) => {
             const moduleName = (group as any).module ?? (group as any).name ?? "Module";
             const perms = (group as any).permissions ?? [];
+            const isExpanded = isGroupExpanded(moduleName);
+            const groupColor = (group as any).color ?? "#3B82F6";
+            
             return (
-              <div key={moduleName}>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-6 bg-blue-600 rounded"></div>
-                  <h3 className="text-lg font-semibold text-foreground">{moduleName}</h3>
-                  <span className="ml-auto text-sm text-muted-foreground bg-gray-100 px-3 py-1 rounded-full">
-                    {perms.length} permissions
-                  </span>
+              <Card 
+                key={moduleName} 
+                className="group hover:shadow-xl transition-all duration-300 border border-gray-200 overflow-hidden"
+              >
+                <div 
+                  className="h-2"
+                  style={{ background: `linear-gradient(to right, ${groupColor}, ${groupColor}dd)` }}
+                ></div>
+                <div 
+                  className="flex items-center gap-4 p-5 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => toggleGroup(moduleName)}
+                >
+                  <div 
+                    className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0"
+                    style={{ backgroundColor: groupColor }}
+                  >
+                    <Lock className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-1">
+                      <h3 className="text-xl font-bold text-gray-900">{moduleName}</h3>
+                      <Badge variant="secondary" className="bg-gray-100 text-gray-700 font-medium">
+                        {perms.length} {perms.length === 1 ? 'permission' : 'permissions'}
+                      </Badge>
+                    </div>
+                    {group.description && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {group.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center">
+                    {isExpanded ? (
+                      <ChevronUp className="w-6 h-6 text-gray-500" />
+                    ) : (
+                      <ChevronDown className="w-6 h-6 text-gray-500" />
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Description:{" "}
-                  <code className="bg-gray-100 px-2 py-0.5 rounded font-mono text-xs">{group.description}</code>
-                </p>
-                <div className="grid gap-3">
-                  {perms.map((permission: any) => (
-                    <Card key={permission.id} className="p-4 hover:shadow-md transition-shadow border border-border">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-semibold text-foreground">{permission.name}</h4>
-                            <span className="inline-block bg-green-100 text-green-700 text-xs font-medium px-2 py-0.5 rounded">
+                
+                {isExpanded && (
+                  <div className="px-5 pb-5 border-t border-gray-100 bg-gray-50/50">
+                    <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {perms.map((permission: any) => (
+                        <Card 
+                          key={permission.id} 
+                          className="p-4 hover:shadow-md transition-all duration-200 border border-gray-200 bg-white"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: groupColor }}
+                            ></div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-900 text-sm">{permission.name}</h4>
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className="text-xs border-gray-300"
+                              style={{ borderColor: groupColor, color: groupColor }}
+                            >
                               {group.name}
-                            </span>
+                            </Badge>
                           </div>
-                        
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
             );
           })}
         </div>
       )}
     </div>
+    </ActionGate>
   )
 }
 

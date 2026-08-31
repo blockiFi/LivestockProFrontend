@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils"
 import type { ScheduleItem, VaccineProduct, MedicationProduct, AdministrationMethod } from "@/lib/types"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
-import { getAdministrationMethods, getVaccineProducts, getMedicationProducts } from "@/lib/request"
+import { getAdministrationMethods, getVaccineProducts, getMedicationProducts, createBatchScheduleItem } from "@/lib/request"
 import { toast } from "react-toastify"
 
 interface ImplementScheduleModalProps {
@@ -47,6 +47,7 @@ interface ImplementScheduleModalProps {
   scheduleItem: ScheduleItem
   batchScheduleId: number
   scheduleType: "medication" | "vaccination"
+  currentAge: number
   onSuccess?: () => void
 }
 
@@ -56,6 +57,7 @@ const ImplementScheduleModal = ({
   scheduleItem,
   batchScheduleId,
   scheduleType,
+  currentAge,
   onSuccess,
 }: ImplementScheduleModalProps) => {
   const [loading, setLoading] = useState(false)
@@ -90,6 +92,22 @@ const ImplementScheduleModal = ({
       fetchDropdownData()
     }
   }, [open, scheduleType])
+
+  // When modal opens, default scheduled date based on schedule age vs current flock age
+  useEffect(() => {
+    if (open) {
+      const today = new Date()
+      if (typeof scheduleItem.age_days === "number" && !Number.isNaN(currentAge)) {
+        const offset = scheduleItem.age_days - currentAge
+        const scheduled = new Date(today)
+        scheduled.setDate(today.getDate() + offset)
+        setScheduledDate(scheduled)
+      } else {
+        setScheduledDate(today)
+      }
+      setActualDate(undefined)
+    }
+  }, [open, scheduleItem, currentAge])
 
   const fetchDropdownData = async () => {
     setLoadingData(true)
@@ -134,6 +152,21 @@ const ImplementScheduleModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!farmId || !token) {
+      toast.error("Farm or authentication missing")
+      return
+    }
+
+    if (scheduleType === "vaccination" && !formData.poultry_vaccine_product_id) {
+      toast.error("Please select a vaccine product")
+      return
+    }
+
+    if (scheduleType === "medication" && !formData.poultry_medication_id) {
+      toast.error("Please select a medication product")
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -158,18 +191,11 @@ const ImplementScheduleModal = ({
         }),
       }
 
-      const response = await fetch(`/api/farms/${farmId}/${scheduleType}/batch-schedule-items`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
+      const result = await createBatchScheduleItem(token, farmId, scheduleType, payload)
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Failed to create batch schedule item")
+      if (!result.success) {
+        const msg = Array.isArray(result.error) ? result.error.join(", ") : String(result.error)
+        throw new Error(msg || "Failed to implement schedule")
       }
 
       toast.success("Schedule implemented successfully!")

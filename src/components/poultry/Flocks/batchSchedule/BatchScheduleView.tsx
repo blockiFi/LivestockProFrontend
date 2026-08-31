@@ -17,29 +17,80 @@ import {
   BarChart3,
   Settings,
   ArrowLeft,
+  Lock,
 } from "lucide-react"
 import type { BatchFeedingSchedule, BatchSchedule } from "@/lib/types"
 import FeedingScheduleView from "./FeedingScheduleView"
 import MedicationScheduleView from "./MedicationScheduleView"
 import VaccinationScheduleView from "./VaccinationScheduleView"
+import AssignFeedingScheduleModal from "./AssignFeedingScheduleModal"
+import CloseBatchModal from "@/components/modals/CloseBatchModal"
+import { listMissedFeedingDays } from "@/lib/feeding-range"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/store"
 
-const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSchedule, flockQuantity, onRefresh, onBack } : {feedingSchedule : BatchFeedingSchedule[] , medicationSchedule : BatchSchedule[] , vaccinationSchedule : BatchSchedule[], flockQuantity: number, onRefresh?: () => void, onBack?: () => void}) => {
+const BatchScheduleView = ({
+  feedingSchedule,
+  medicationSchedule,
+  vaccinationSchedule,
+  flockQuantity,
+  flockId,
+  flockName,
+  flockStatus,
+  poultryTypeId,
+  poultryTypeName,
+  currentAge,
+  currentFeedingDay,
+  arrivalDate,
+  onRefresh,
+  onBack,
+  onBatchClosed,
+}: {
+  feedingSchedule: BatchFeedingSchedule[]
+  medicationSchedule: BatchSchedule[]
+  vaccinationSchedule: BatchSchedule[]
+  flockQuantity: number
+  flockId: number
+  flockName: string
+  flockStatus: string
+  poultryTypeId?: number | null
+  poultryTypeName?: string | null
+  currentAge: number
+  currentFeedingDay: number
+  arrivalDate: string
+  onRefresh?: () => void
+  onBack?: () => void
+  onBatchClosed?: () => void
+}) => {
 
    console.log("Batch Feeding Schedule: ", feedingSchedule);
     console.log("Batch Medication Schedule: ", medicationSchedule);
     console.log("Batch Vaccination Schedule: ", vaccinationSchedule);
     const [activeTab, setActiveTab] = useState<string>("medication");
     const [loading , setLoading] = useState<boolean>(false)
+    const [isCloseBatchOpen, setIsCloseBatchOpen] = useState(false)
+    const [assignFeedingOpen, setAssignFeedingOpen] = useState(false)
+    const token = useSelector((state: RootState) => state.authentication.token)
+    const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
+    const isActiveBatch = flockStatus === "active"
+
+    const activeFeedingSchedules = useMemo(
+      () =>
+        (feedingSchedule || []).filter(
+          (s) => String(s.status || "").toLowerCase() !== "cancelled"
+        ),
+      [feedingSchedule]
+    )
+    const activeFeeding = activeFeedingSchedules[0] || null
     
     const {totalSchedules, totalActiveSchedules, totalCompletedSchedules, totalOverdueSchedules} = useMemo(() => {
-        const totalFeedingSchedule = feedingSchedule.length > 0 ? feedingSchedule[0].items.length : 0;
+        const totalFeedingSchedule = activeFeeding ? activeFeeding.items.length : 0;
         const totalMedicationSchedules = medicationSchedule.length > 0 ? medicationSchedule[0].items.length : 0;
         const totalVaccinationSchedules = vaccinationSchedule.length > 0 ? vaccinationSchedule[0].items.length : 0;
         const totalSchedules = totalFeedingSchedule + totalVaccinationSchedules + totalMedicationSchedules;
 
-        // Calculate the total number of active schedules (status === "active")
-        const activeFeedingSchedules = feedingSchedule.length > 0
-          ? feedingSchedule[0].items.filter(item => item.status === "scheduled").length
+        const activeFeedingItemCount = activeFeeding
+          ? activeFeeding.items.filter(item => item.status === "scheduled").length
           : 0;
         const activeMedicationSchedules = medicationSchedule.length > 0
           ? medicationSchedule[0].items.filter(item => item.status === "scheduled").length
@@ -47,11 +98,10 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
         const activeVaccinationSchedules = vaccinationSchedule.length > 0
           ? vaccinationSchedule[0].items.filter(item => item.status === "scheduled").length
           : 0;
-        const totalActiveSchedules = activeFeedingSchedules + activeMedicationSchedules + activeVaccinationSchedules;
+        const totalActiveSchedules = activeFeedingItemCount + activeMedicationSchedules + activeVaccinationSchedules;
 
-        // Calculate the total number of completed schedules (status === "completed")
-        const completedFeedingSchedules = feedingSchedule.length > 0
-          ? feedingSchedule[0].items.filter(item => item.status === "completed").length
+        const completedFeedingSchedules = activeFeeding
+          ? activeFeeding.items.filter(item => item.status === "completed").length
           : 0;
         const completedMedicationSchedules = medicationSchedule.length > 0
           ? medicationSchedule[0].items.filter(item => item.status === "completed").length
@@ -61,9 +111,14 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
           : 0;
         const totalCompletedSchedules = completedFeedingSchedules + completedMedicationSchedules + completedVaccinationSchedules;
 
-        // Calculate the total number of overdue schedules (status === "overdue")
-        const overdueFeedingSchedules = feedingSchedule.length > 0
-          ? feedingSchedule[0].items.filter(item => item.status === "overdue").length
+        const overdueFeedingSchedules = activeFeeding
+          ? listMissedFeedingDays({
+              scheduleItems: activeFeeding.schedule?.items || [],
+              executedItems: activeFeeding.items || [],
+              currentFeedingDay,
+              arrivalDate,
+              flockQuantity,
+            }).length
           : 0;
         const overdueMedicationSchedules = medicationSchedule.length > 0
           ? medicationSchedule[0].items.filter(item => item.status === "overdue").length
@@ -73,7 +128,7 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
           : 0;
         const totalOverdueSchedules = overdueFeedingSchedules + overdueMedicationSchedules + overdueVaccinationSchedules;
         return { totalSchedules  , totalActiveSchedules , totalCompletedSchedules, totalOverdueSchedules };
-    } , [feedingSchedule , medicationSchedule , vaccinationSchedule])
+    } , [activeFeeding , medicationSchedule , vaccinationSchedule, currentFeedingDay, arrivalDate, flockQuantity])
 
 
     // Simulate loading schedules
@@ -108,6 +163,21 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {isActiveBatch ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-300 text-amber-800 hover:bg-amber-50"
+                      onClick={() => setIsCloseBatchOpen(true)}
+                    >
+                      <Lock className="h-4 w-4 mr-2" />
+                      Close Batch
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="capitalize px-3 py-1">
+                      Batch {flockStatus}
+                    </Badge>
+                  )}
                   <Button variant="outline" size="sm">
                     <BarChart3 className="h-4 w-4 mr-2" />
                     Analytics
@@ -116,7 +186,7 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
                   </Button>
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700" disabled={!isActiveBatch}>
                     <Plus className="h-4 w-4 mr-2" />
                     New Schedule
                   </Button>
@@ -216,13 +286,13 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
                     </TabsTrigger>
                     <TabsTrigger value="feeding" className="flex items-center gap-2">
                       <Wheat className="h-4 w-4" />
-                      Feeding ({feedingSchedule.length > 0 ? feedingSchedule[0].schedule.items.length : 0})
+                      Feeding ({activeFeeding ? activeFeeding.schedule?.items?.length || 0 : 0})
                     </TabsTrigger>
                   </TabsList>
                 
                 <TabsContent value="medication" className="mt-6">
                   {medicationSchedule && medicationSchedule.length > 0 ? (
-                    <MedicationScheduleView schedule={medicationSchedule[0]} />
+                    <MedicationScheduleView schedule={medicationSchedule[0]} currentAge={currentAge} onRefresh={onRefresh} readOnly={!isActiveBatch} />
                   ) : (
                     <div className="text-center text-gray-500 py-12">
                       <Pill className="h-12 w-12 mx-auto text-gray-300 mb-3" />
@@ -233,7 +303,7 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
                 </TabsContent>
                 <TabsContent value="vaccination" className="mt-6">
                   {vaccinationSchedule && vaccinationSchedule.length > 0 ? (
-                    <VaccinationScheduleView schedule={vaccinationSchedule[0]} />
+                    <VaccinationScheduleView schedule={vaccinationSchedule[0]} currentAge={currentAge} onRefresh={onRefresh} readOnly={!isActiveBatch} />
                   ) : (
                     <div className="text-center text-gray-500 py-12">
                       <Shield className="h-12 w-12 mx-auto text-gray-300 mb-3" />
@@ -244,13 +314,34 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
                 </TabsContent>
 
                 <TabsContent value="feeding" className="mt-6">
-                  {feedingSchedule && feedingSchedule.length > 0 ? (
-                    <FeedingScheduleView schedule={feedingSchedule[0]} flockQuantity={flockQuantity} onRefresh={onRefresh} />
+                  {activeFeeding ? (
+                    <FeedingScheduleView
+                      schedule={activeFeeding}
+                      flockQuantity={flockQuantity}
+                      currentFeedingDay={currentFeedingDay}
+                      arrivalDate={arrivalDate}
+                      onRefresh={onRefresh}
+                      readOnly={!isActiveBatch}
+                      onChangeSchedule={
+                        isActiveBatch ? () => setAssignFeedingOpen(true) : undefined
+                      }
+                    />
                   ) : (
                     <div className="text-center text-gray-500 py-12">
                       <Wheat className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                       <p className="text-lg font-medium">No feeding schedules available</p>
-                      <p className="text-sm mt-1">Create a feeding schedule to manage feed distribution</p>
+                      <p className="text-sm mt-1">
+                        Assign an existing feeding program to this flock to manage feed distribution
+                      </p>
+                      {isActiveBatch && (
+                        <Button
+                          className="mt-4"
+                          onClick={() => setAssignFeedingOpen(true)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Assign Feeding Schedule
+                        </Button>
+                      )}
                     </div>
                   )}
                 </TabsContent>
@@ -270,6 +361,35 @@ const BatchScheduleView = ({feedingSchedule , medicationSchedule , vaccinationSc
           
           </div>
  </div>
+
+      {farmId && token && (
+        <CloseBatchModal
+          open={isCloseBatchOpen}
+          onOpenChange={setIsCloseBatchOpen}
+          token={token}
+          farmId={farmId}
+          flockId={flockId}
+          flockName={flockName}
+          liveBirdCount={flockQuantity}
+          onSuccess={() => {
+            onBatchClosed?.()
+            onRefresh?.()
+          }}
+        />
+      )}
+      {farmId && token && (
+        <AssignFeedingScheduleModal
+          open={assignFeedingOpen}
+          onOpenChange={setAssignFeedingOpen}
+          token={token}
+          farmId={farmId}
+          flockId={flockId}
+          poultryTypeId={poultryTypeId}
+          poultryTypeName={poultryTypeName}
+          currentFeedingScheduleId={activeFeeding?.feeding_schedule_id}
+          onAssigned={() => onRefresh?.()}
+        />
+      )}
       </TooltipProvider>
     )
   }

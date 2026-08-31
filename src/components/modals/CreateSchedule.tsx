@@ -15,6 +15,8 @@ import { getPoultryTypes, getMedications, getVaccines, getFeedTypes } from "@/li
 import type { PoultryType, Medication, vaccine, FeedType } from "@/lib/types"
 import { AlertDialog } from "@/components/ui/alert-dialog"
 import { Naira } from "@/lib/utils"
+import FeedingRangeEditor, { type FeedingRangeDraft } from "@/components/poultry/schedules/FeedingRangeEditor"
+import { formatFeedingDayRange, validateFeedingRanges } from "@/lib/feeding-range"
 const scheduleTypeIcons = {
     medication: <Pill className="h-5 w-5" />,
     vaccination: <Shield className="h-5 w-5" />,
@@ -69,6 +71,8 @@ const CreateSchedule  =({
   
     const [isAddingItem, setIsAddingItem] = useState(false)
     const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
+    /** Feeding entry mode: classic per-day vs flexible ranges. Default daily. */
+    const [feedingEntryMode, setFeedingEntryMode] = useState<"daily" | "range">("daily")
     
     // Alert dialog state
     const [alertDialog, setAlertDialog] = useState<{
@@ -148,8 +152,72 @@ const CreateSchedule  =({
         errors.push("At least one schedule item is required")
         return errors
       }
+
+      if (formData.schedule_type === "feeding") {
+        if (feedingEntryMode === "range") {
+          const normalized = formData.items.map((item: any, i: number) => ({
+            id: i,
+            start_day: Number(item.start_day ?? item.age_days ?? 1),
+            end_day: item.open_ended
+              ? null
+              : item.end_day != null
+                ? Number(item.end_day)
+                : Number(item.start_day ?? item.age_days ?? 1),
+          }))
+          const check = validateFeedingRanges(normalized)
+          errors.push(...check.errors)
+
+          formData.items.forEach((item: any, index: number) => {
+            if (!item.feed_type_id) {
+              errors.push(`Range ${index + 1}: Feed type is required`)
+            }
+            if (!item.quantity || Number(item.quantity) <= 0) {
+              errors.push(`Range ${index + 1}: Quantity (g/bird/day) is required`)
+            }
+            const times = item.feeding_times || []
+            if (times.length === 0) {
+              errors.push(`Range ${index + 1}: At least one feeding time is required`)
+            } else {
+              const total = times.reduce((s: number, ft: any) => s + Number(ft.percentage || 0), 0)
+              if (Math.abs(total - 100) > 0.01) {
+                errors.push(`Range ${index + 1}: Feeding time percentages must total 100%`)
+              }
+            }
+          })
+          return errors
+        }
+
+        // Daily mode: one rate per placement day
+        formData.items.forEach((item: any, index: number) => {
+          const day = Number(item.start_day ?? item.age_days ?? 0)
+          if (day < 1) {
+            errors.push(`Item ${index + 1}: Feeding day must be at least 1`)
+          }
+          if (!item.feed_type_id) {
+            errors.push(`Item ${index + 1}: Feed type is required`)
+          }
+          if (!item.quantity || Number(item.quantity) <= 0) {
+            errors.push(`Item ${index + 1}: Quantity (g/bird/day) is required`)
+          }
+          const times = item.feeding_times || []
+          if (times.length === 0) {
+            errors.push(`Item ${index + 1}: At least one feeding time is required`)
+          } else {
+            const total = times.reduce((s: number, ft: any) => s + Number(ft.percentage || 0), 0)
+            if (Math.abs(total - 100) > 0.01) {
+              errors.push(`Item ${index + 1}: Feeding time percentages must total 100%`)
+            }
+          }
+        })
+        const dailyNormalized = formData.items.map((item: any, i: number) => {
+          const day = Number(item.start_day ?? item.age_days ?? 1)
+          return { id: i, start_day: day, end_day: day }
+        })
+        errors.push(...validateFeedingRanges(dailyNormalized).errors)
+        return errors
+      }
       
-      // Validate each item
+      // Validate each item (med/vac)
       formData.items.forEach((item, index) => {
         const itemErrors: string[] = []
         
@@ -157,27 +225,11 @@ const CreateSchedule  =({
           itemErrors.push(`Item ${index + 1}: Name is required`)
         }
         
-       
-        
         if (item.age_days < 1) {
           itemErrors.push(`Item ${index + 1}: Age must be at least 1 day`)
         }
         
-        // Schedule type specific validations
-        if (formData.schedule_type === "feeding") {
-          if (!item.feed_type_id) {
-            itemErrors.push(`Item ${index + 1}: Feed type is required`)
-          }
-          
-          if (!item.feeding_times || item.feeding_times.length === 0) {
-            itemErrors.push(`Item ${index + 1}: At least one feeding time is required`)
-          } else {
-            const totalPercentage = item.feeding_times.reduce((sum: number, ft: any) => sum + (ft.percentage || 0), 0)
-            if (Math.abs(totalPercentage - 100) > 0.01) {
-              itemErrors.push(`Item ${index + 1}: Feeding time percentages must total 100%`)
-            }
-          }
-        } else if (formData.schedule_type === "medication") {
+        if (formData.schedule_type === "medication") {
           if (!item.medication_id) {
             itemErrors.push(`Item ${index + 1}: Medication selection is required`)
           }
@@ -206,9 +258,27 @@ const CreateSchedule  =({
         )
         return
       }
+
+      // Normalize daily feeding items to start_day = end_day before submit
+      if (formData.schedule_type === "feeding" && feedingEntryMode === "daily") {
+        onSubmit({
+          ...formData,
+          items: formData.items.map((item: any) => {
+            const day = Number(item.start_day ?? item.age_days ?? 1)
+            return {
+              ...item,
+              age_days: day,
+              start_day: day,
+              end_day: day,
+              open_ended: false,
+              feeding_day: day,
+            }
+          }),
+        })
+        return
+      }
       
       onSubmit(formData)
-      // Don't close the modal here - let the parent component handle it based on success/error
     }
   
     const handleClose = () => {
@@ -233,6 +303,7 @@ const CreateSchedule  =({
       })
       setIsAddingItem(false)
       setEditingItemIndex(null)
+      setFeedingEntryMode("daily")
       onClose()
     }
   
@@ -253,7 +324,7 @@ const CreateSchedule  =({
       const errors: string[] = []
       
       // Common required fields for all schedule types
-      if (!currentItem.name?.trim()) {
+      if (formData.schedule_type !== "feeding" && !currentItem.name?.trim()) {
         errors.push("Item name is required")
       }
       
@@ -338,15 +409,43 @@ const CreateSchedule  =({
         // Update existing item
         setFormData((prev) => ({
           ...prev,
-          items: prev.items.map((item, index) => (index === editingItemIndex ? { ...currentItem } : item)),
+          items: prev.items.map((item, index) => {
+            if (index !== editingItemIndex) return item
+            if (prev.schedule_type === "feeding" && feedingEntryMode === "daily") {
+              const day = Number(currentItem.age_days) || 1
+              return {
+                ...currentItem,
+                age_days: day,
+                start_day: day,
+                end_day: day,
+                open_ended: false,
+                name: currentItem.name?.trim() || `Day ${day}`,
+              }
+            }
+            return { ...currentItem }
+          }),
         }))
         setEditingItemIndex(null)
       } else {
         // Add new item
-        setFormData((prev) => ({
-          ...prev,
-          items: [...prev.items, { ...currentItem }],
-        }))
+        setFormData((prev) => {
+          let nextItem: any = { ...currentItem }
+          if (prev.schedule_type === "feeding" && feedingEntryMode === "daily") {
+            const day = Number(currentItem.age_days) || 1
+            nextItem = {
+              ...currentItem,
+              age_days: day,
+              start_day: day,
+              end_day: day,
+              open_ended: false,
+              name: currentItem.name?.trim() || `Day ${day}`,
+            }
+          }
+          return {
+            ...prev,
+            items: [...prev.items, nextItem],
+          }
+        })
       }
   
       resetCurrentItem()
@@ -422,6 +521,24 @@ const CreateSchedule  =({
           return true
       }
     };
+  
+    const switchFeedingEntryMode = (mode: "daily" | "range") => {
+      if (mode === feedingEntryMode) return
+      if (formData.items.length > 0) {
+        const ok = window.confirm(
+          "Switching between Daily and Range clears the current feeding items. Continue?"
+        )
+        if (!ok) return
+        setFormData((prev) => ({ ...prev, items: [] }))
+      }
+      setFeedingEntryMode(mode)
+      setIsAddingItem(false)
+      setEditingItemIndex(null)
+      resetCurrentItem()
+    }
+
+    const showItemEditor =
+      formData.schedule_type !== "feeding" || feedingEntryMode === "daily"
   
     return (
       <>
@@ -523,12 +640,87 @@ const CreateSchedule  =({
   
             {/* Schedule Items */}
             <Card className="p-4">
+              {formData.schedule_type === "feeding" && (
+                <div className="mb-4 space-y-2">
+                  <Label className="text-sm font-semibold text-slate-800">Entry mode</Label>
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={feedingEntryMode === "daily" ? "default" : "ghost"}
+                      className="h-8"
+                      onClick={() => switchFeedingEntryMode("daily")}
+                    >
+                      Daily (per day)
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={feedingEntryMode === "range" ? "default" : "ghost"}
+                      className="h-8"
+                      onClick={() => switchFeedingEntryMode("range")}
+                    >
+                      Day ranges
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {feedingEntryMode === "daily"
+                      ? "Set a feed rate for each placement day (Day 1, Day 2, …)."
+                      : "Set one rate across a span of days, including open-ended ranges."}
+                  </p>
+                </div>
+              )}
+
+              {formData.schedule_type === "feeding" && feedingEntryMode === "range" ? (
+                <FeedingRangeEditor
+                  ranges={formData.items.map((item: any, i: number) => ({
+                    __localId: `item-${i}`,
+                    feed_type_id: item.feed_type_id ?? null,
+                    start_day: Number(item.start_day ?? item.age_days ?? 1),
+                    end_day: item.open_ended
+                      ? null
+                      : item.end_day != null
+                        ? Number(item.end_day)
+                        : Number(item.start_day ?? item.age_days ?? 1),
+                    open_ended: Boolean(item.open_ended),
+                    quantity: item.quantity ?? 40,
+                    feeding_times: item.feeding_times?.length
+                      ? item.feeding_times
+                      : [
+                          { time: "08:00", percentage: 50 },
+                          { time: "17:00", percentage: 50 },
+                        ],
+                  }))}
+                  feedTypes={feedTypes}
+                  onChange={(ranges: FeedingRangeDraft[]) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      items: ranges.map((r) => ({
+                        name: formatFeedingDayRange(
+                          r.start_day,
+                          r.open_ended ? null : r.end_day
+                        ),
+                        age_days: Number(r.start_day) || 1,
+                        start_day: Number(r.start_day) || 1,
+                        end_day: r.open_ended ? null : Number(r.end_day ?? r.start_day),
+                        open_ended: Boolean(r.open_ended),
+                        description: "",
+                        quantity: String(r.quantity ?? 0),
+                        feed_type_id: r.feed_type_id ?? undefined,
+                        feeding_times: r.feeding_times,
+                      })),
+                    }))
+                  }}
+                />
+              ) : (
+              <>
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold">Schedule Items</h3>
                   <p className="text-sm text-gray-600">
-                    Add multiple items to create a comprehensive schedule. Each item represents a specific action at a
-                    certain age.
+                    {formData.schedule_type === "feeding"
+                      ? "Add one feeding rate per placement day."
+                      : "Add multiple items to create a comprehensive schedule. Each item represents a specific action at a certain age."}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -537,6 +729,16 @@ const CreateSchedule  =({
                     type="button"
                     onClick={() => {
                       resetCurrentItem()
+                      if (formData.schedule_type === "feeding") {
+                        setCurrentItem((prev) => ({
+                          ...prev,
+                          feeding_times: [
+                            { time: "08:00", percentage: 50 },
+                            { time: "17:00", percentage: 50 },
+                          ],
+                          quantity: "40",
+                        }))
+                      }
                       setIsAddingItem(true)
                       setEditingItemIndex(null)
                     }}
@@ -560,12 +762,11 @@ const CreateSchedule  =({
                           <div className="flex items-center gap-4 mb-2">
                             <span className="font-medium text-gray-900">{item.name}</span>
                             <Badge variant="outline" className="bg-blue-50">
-                              Day {item.age_days}
+                              Day {item.age_days ?? item.start_day}
                             </Badge>
                             <Badge variant="outline" className="bg-green-50">
                               {item.quantity} {formData.schedule_type === "feeding" ? "g" : "units"}
                             </Badge>
-                          
                             {formData.schedule_type === "feeding" && item.feed_type_id && (
                               <Badge variant="outline" className="bg-yellow-50">
                                 {getFeedTypeName(item.feed_type_id)}
@@ -606,9 +807,11 @@ const CreateSchedule  =({
                   </div>
                 </div>
               )}
+              </>
+              )}
   
-              {/* Add/Edit Item Form */}
-              {isAddingItem && (
+              {/* Add/Edit Item Form (med/vac, or feeding daily mode) */}
+              {showItemEditor && isAddingItem && (
                 <Card className="p-4 border-2 border-blue-200 bg-blue-50/30">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -637,7 +840,9 @@ const CreateSchedule  =({
                       </div>
   
                       <div  className="flex flex-col gap-2">
-                        <Label htmlFor="age-days">Age (Days) *</Label>
+                        <Label htmlFor="age-days">
+                          {formData.schedule_type === "feeding" ? "Feeding Day *" : "Age (Days) *"}
+                        </Label>
                         <Input
                           id="age-days"
                           type="number"
@@ -880,7 +1085,7 @@ const CreateSchedule  =({
               )}
   
               {/* Empty State */}
-              {formData.items.length === 0 && !isAddingItem && (
+              {showItemEditor && formData.items.length === 0 && !isAddingItem && (
                 <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
                   <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No items added yet</h3>

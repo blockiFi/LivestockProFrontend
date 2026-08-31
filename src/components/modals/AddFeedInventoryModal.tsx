@@ -1,11 +1,14 @@
 "use client"
-import React, { useState, useEffect } from "react"
+import React, { useMemo, useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-toastify"
 import { createFeedInventory, GetToken, getFarm, getFeedTypes, getFeedProducts } from "@/lib/request"
+import { bagsToKg, FEED_BAG_KG, formatBagsFromKg } from "@/lib/feed-bags"
 
 import type { FeedInventoryType } from "@/lib/types"
+
+type EntryMode = "bag" | "kg"
 
 export default function AddFeedInventoryModal({
   isOpen,
@@ -27,6 +30,7 @@ export default function AddFeedInventoryModal({
     batch_number: "",
     notes: "",
   })
+  const [entryMode, setEntryMode] = useState<EntryMode>("bag")
   const [formError, setFormError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [feedTypes, setFeedTypes] = useState<any[]>([])
@@ -37,7 +41,10 @@ export default function AddFeedInventoryModal({
   useEffect(() => {
     if (!isOpen) {
       setForm({ productName: "", manufacturer: "", quantity: "", unit_cost: "", expiry_date: "", batch_number: "", notes: "" })
+      setEntryMode("bag")
       setFormError(null)
+      setSelectedFeedType(null)
+      setSelectedProduct(null)
     }
   }, [isOpen])
 
@@ -47,22 +54,40 @@ export default function AddFeedInventoryModal({
     const farm = getFarm()
     if (!token || !farm) return
 
+    const deriveFallbackTypes = () => {
+      const byId = new Map<number, { id: number; name: string }>()
+      for (const it of existingItems || []) {
+        const ft =
+          (it as any).poultry_feed_type ||
+          (it as any).feed_type ||
+          null
+        if (ft?.id) {
+          byId.set(Number(ft.id), { id: Number(ft.id), name: String(ft.name || `Feed type #${ft.id}`) })
+        } else if ((it as any).poultry_feed_type_id) {
+          const id = Number((it as any).poultry_feed_type_id)
+          if (!byId.has(id)) byId.set(id, { id, name: `Feed type #${id}` })
+        }
+      }
+      return Array.from(byId.values())
+    }
+
     // fetch feed types for the farm (poultryTypeId=0 to fetch all)
     ;(async () => {
       try {
         const res: any = await getFeedTypes(token, farm.id, 0, false)
 
-        if (res.success) {
-          setFeedTypes(res.data || [])
-          console.log("Feed types fetched:", res.data);
-        } else if (existingItems && existingItems.length) {
-            console.log("Using fallback feed types from existing items");
-          // fallback: derive feed types from existing items
-          const fallback = Array.from(new Set(existingItems.map((it: any) => (it.poultry_feed_type?.id ? JSON.stringify({ id: it.poultry_feed_type.id, name: it.poultry_feed_type.name }) : null)).filter(Boolean))).map((s: any) => JSON.parse(s))
-          if (fallback.length) setFeedTypes(fallback)
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setFeedTypes(res.data)
+        } else {
+          const fallback = deriveFallbackTypes()
+          setFeedTypes(fallback)
+          if (!res.success) {
+            console.error("Feed types fetch failed:", res.error)
+          }
         }
       } catch (err) {
         console.error("Error fetching feed types", err)
+        setFeedTypes(deriveFallbackTypes())
       }
     })()
     // fetch all products for the farm once on open
@@ -71,13 +96,12 @@ export default function AddFeedInventoryModal({
         const prodRes: any = await getFeedProducts(GetToken() || '', (farm as any).id, undefined, false)
         if (prodRes && prodRes.success) {
           setProducts(prodRes.data || [])
-          console.log('Feed products fetched:', prodRes.data)
         }
       } catch (err) {
         console.error('Error fetching feed products on open', err)
       }
     })()
-  }, [isOpen])
+  }, [isOpen, existingItems])
 
   // when feed type changes we will filter products client-side; clear selected product and form
   useEffect(() => {
@@ -87,12 +111,30 @@ export default function AddFeedInventoryModal({
 
   const filteredProducts = selectedFeedType ? products.filter((p: any) => Number(p.poultry_feed_type_id) === Number(selectedFeedType)) : products
 
+  const quantityValue = Number(form.quantity)
+  const costValue = Number(form.unit_cost)
+
+  const quantityKg = useMemo(() => {
+    if (!Number.isFinite(quantityValue) || quantityValue <= 0) return 0
+    return entryMode === "bag" ? bagsToKg(quantityValue) : quantityValue
+  }, [entryMode, quantityValue])
+
+  const unitCostPerKg = useMemo(() => {
+    if (!Number.isFinite(costValue) || costValue < 0) return 0
+    return entryMode === "bag" ? costValue / FEED_BAG_KG : costValue
+  }, [costValue, entryMode])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
 
-    if (!form.quantity) {
-      setFormError("Quantity is required")
+    if (!form.quantity || !Number.isFinite(quantityValue) || quantityValue <= 0) {
+      setFormError(entryMode === "bag" ? "Number of bags is required" : "Quantity in kg is required")
+      return
+    }
+
+    if (form.unit_cost && (!Number.isFinite(costValue) || costValue < 0)) {
+      setFormError(entryMode === "bag" ? "Cost per bag must be a valid number" : "Cost per kg must be a valid number")
       return
     }
 
@@ -106,8 +148,8 @@ export default function AddFeedInventoryModal({
     const payload: any = {
       poultry_feed_type_id: selectedFeedType ? Number(selectedFeedType) : undefined,
       poultry_feed_product_id: selectedProduct ? Number(selectedProduct) : undefined,
-      quantity: Number(form.quantity),
-      unit_cost: Number(form.unit_cost) || 0,
+      quantity: quantityKg,
+      unit_cost: unitCostPerKg,
       batch_number: form.batch_number || undefined,
       expiry_date: form.expiry_date || undefined,
       notes: form.notes || undefined,
@@ -192,16 +234,80 @@ export default function AddFeedInventoryModal({
             <input value={form.manufacturer} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} className="w-full border rounded px-3 py-2 mt-1" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium">Quantity</label>
-              <input value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} type="number" className="w-full border rounded px-3 py-2 mt-1" />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Unit Cost</label>
-              <input value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} type="number" className="w-full border rounded px-3 py-2 mt-1" />
+          <div>
+            <label className="text-sm font-medium">Enter by</label>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={entryMode === "bag" ? "default" : "outline"}
+                className={entryMode === "bag" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                onClick={() => setEntryMode("bag")}
+              >
+                Bags ({FEED_BAG_KG}kg)
+              </Button>
+              <Button
+                type="button"
+                variant={entryMode === "kg" ? "default" : "outline"}
+                className={entryMode === "kg" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                onClick={() => setEntryMode("kg")}
+              >
+                Kilograms
+              </Button>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">
+                {entryMode === "bag" ? `Bags (${FEED_BAG_KG}kg each)` : "Quantity (kg)"}
+              </label>
+              <input
+                value={form.quantity}
+                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                type="number"
+                min="0"
+                step={entryMode === "bag" ? "1" : "0.01"}
+                placeholder={entryMode === "bag" ? "e.g. 10" : "e.g. 250"}
+                className="w-full border rounded px-3 py-2 mt-1"
+              />
+              {quantityKg > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {entryMode === "bag"
+                    ? `Total: ${quantityKg} kg`
+                    : `Equals ${formatBagsFromKg(quantityKg)}`}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="text-sm font-medium">
+                {entryMode === "bag" ? "Cost per bag" : "Cost per kg"}
+              </label>
+              <input
+                value={form.unit_cost}
+                onChange={(e) => setForm({ ...form, unit_cost: e.target.value })}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder={entryMode === "bag" ? "e.g. 12500" : "e.g. 500"}
+                className="w-full border rounded px-3 py-2 mt-1"
+              />
+              {Number.isFinite(costValue) && costValue > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {entryMode === "bag"
+                    ? `≈ ₦${unitCostPerKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} / kg`
+                    : `≈ ₦${(costValue * FEED_BAG_KG).toLocaleString(undefined, { maximumFractionDigits: 2 })} / bag`}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {quantityKg > 0 && Number.isFinite(costValue) && costValue > 0 && (
+            <div className="rounded-md border bg-slate-50 px-3 py-2 text-xs text-muted-foreground">
+              Stocking {quantityKg} kg ({formatBagsFromKg(quantityKg)}) at ₦{unitCostPerKg.toLocaleString(undefined, { maximumFractionDigits: 2 })}/kg
+              {" · "}
+              Total value ₦{(quantityKg * unitCostPerKg).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </div>
+          )}
 
           <div>
             <label className="text-sm font-medium">Expiry Date</label>

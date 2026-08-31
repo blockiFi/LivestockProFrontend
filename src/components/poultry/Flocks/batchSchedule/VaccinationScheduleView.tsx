@@ -21,9 +21,12 @@ import ImplementScheduleModal from "./ImplementScheduleModal"
 
 interface VaccinationScheduleViewProps {
   schedule: BatchSchedule
+  currentAge: number
+  onRefresh?: () => void
+  readOnly?: boolean
 }
 
-const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => {
+const VaccinationScheduleView = ({ schedule, currentAge, onRefresh, readOnly = false }: VaccinationScheduleViewProps) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState<ScheduleItem | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -34,8 +37,7 @@ const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => 
   }
 
   const handleModalSuccess = () => {
-    // Refresh the data or update state
-    window.location.reload() // Simple refresh for now
+    onRefresh?.()
   }
   
   const getStatusColor = (status: string) => {
@@ -46,6 +48,7 @@ const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => 
         return 'bg-amber-100 text-amber-800 border-amber-200'
       case 'scheduled':
         return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'missed':
       case 'overdue':
         return 'bg-red-100 text-red-800 border-red-200'
       case 'active':
@@ -61,6 +64,7 @@ const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => 
         return <CheckCircle className="h-4 w-4" />
       case 'pending':
         return <Clock className="h-4 w-4" />
+      case 'missed':
       case 'overdue':
         return <AlertCircle className="h-4 w-4" />
       default:
@@ -74,7 +78,11 @@ const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => 
   
   const totalItems = allScheduleItems.length
   const completedItems = executedItems.length  // All items in batch schedule are completed
-  const pendingItems = allScheduleItems.length - executedItems.length  // Items not yet in batch schedule
+  const pendingItems = allScheduleItems.filter((item) => {
+    const executed = executedItems.find(ei => ei.schedule_item_id === item.id)
+    if (executed) return false
+    return typeof item.age_days === "number" ? item.age_days >= currentAge : true
+  }).length
   const totalCost = executedItems.reduce((sum, item) => sum + Number(item.cost || 0), 0)
 
   return (
@@ -156,8 +164,16 @@ const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => 
             const scheduledDate = executedItem ? new Date(executedItem.scheduled_date) : null
             const actualDate = executedItem?.actual_date ? new Date(executedItem.actual_date) : null
             
-            // Determine status - if item exists in batch schedule, it's completed; otherwise pending
-            const status = executedItem ? 'completed' : 'pending'
+            // Determine status relative to current flock age:
+            // - completed: has executed batch item
+            // - missed: no execution and scheduled age_days < currentAge
+            // - pending: otherwise
+            let status: 'completed' | 'pending' | 'missed' = 'pending'
+            if (executedItem) {
+              status = 'completed'
+            } else if (typeof scheduleItem.age_days === 'number' && scheduleItem.age_days < currentAge) {
+              status = 'missed'
+            }
 
             return (
               <Card 
@@ -214,14 +230,18 @@ const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => 
                           Age: {scheduleItem.age_days} days
                         </div>
                       )}
-                      {status === 'pending' && (
+                      {(status === 'pending' || status === 'missed') && !readOnly && (
                         <Button
                           size="sm"
                           onClick={() => handleImplementClick(scheduleItem)}
-                          className="bg-cyan-600 hover:bg-cyan-700 text-white"
+                          className={
+                            status === 'missed'
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "bg-cyan-600 hover:bg-cyan-700 text-white"
+                          }
                         >
                           <Plus className="h-3 w-3 mr-1" />
-                          Implement Schedule
+                          {status === 'missed' ? 'Implement Late' : 'Implement Schedule'}
                         </Button>
                       )}
                     </div>
@@ -333,6 +353,12 @@ const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => 
                       <span>Pending - Not yet administered</span>
                     </div>
                   )}
+                  {status === 'missed' && (
+                    <div className="mt-4 flex items-center gap-2 text-sm text-red-700 bg-red-50 p-2 rounded-lg border border-red-200">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Missed - Age for this vaccination has passed</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )
@@ -365,6 +391,7 @@ const VaccinationScheduleView = ({ schedule }: VaccinationScheduleViewProps) => 
           scheduleItem={selectedScheduleItem}
           batchScheduleId={schedule.id}
           scheduleType="vaccination"
+          currentAge={currentAge}
           onSuccess={handleModalSuccess}
         />
       )}

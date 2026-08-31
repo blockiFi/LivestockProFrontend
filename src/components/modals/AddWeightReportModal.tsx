@@ -39,16 +39,18 @@ interface WeightReportFormData {
 }
 
 const AddWeightReportModal = ({ isOpen, onClose, onSubmit, flock }: AddWeightReportModalProps) => {
-  // Calculate current bird count accounting for mortality
+  // Use backend-computed current bird count when available
   const getCurrentBirdCount = () => {
     if (!flock) return 0
-    // Check if flock has mortality_reports (DetailedFlockRecord)
+    if ('actual_quantity' in flock && flock.actual_quantity != null) {
+      return flock.actual_quantity
+    }
     const mortalityReports = (flock as DetailedFlockRecord).mortality_reports
     if (mortalityReports) {
       const totalMortality = mortalityReports.reduce((sum: number, report) => sum + report.mortality_count, 0)
       return flock.quantity - totalMortality
     }
-    return flock.quantity // If no mortality data available, return original quantity
+    return flock.quantity
   }
 
   const currentBirdCount = getCurrentBirdCount()

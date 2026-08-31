@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar"
 import type { PoultryFeedUsageRecord, FlockRecord, FeedInventoryType, FeedType } from "@/lib/types"
 import { Naira, formatCurrency, cn } from "@/lib/utils"
+import { effectiveFeedAgeRange, flockAgeDaysOnDate, formatFeedAgeRange, isFeedTypeAgeAppropriate } from "@/lib/feed-age"
 import { format } from "date-fns"
-import { Wheat, Package, DollarSign, CalendarIcon, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
+import { Wheat, Package, DollarSign, CalendarIcon, ChevronDown, ChevronUp, Loader2, AlertTriangle } from "lucide-react"
 
 interface AddFeedUsageModalProps {
   isOpen: boolean
@@ -117,6 +118,26 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
   // Get selected feed inventory for cost suggestion
   const selectedFeedInventory = safeFeedInventories.find(inv => inv.id === formData.poultry_feed_inventory_id)
 
+  const selectedFeedType = safeFeedTypes.find((ft) => ft.id === formData.poultry_feed_type_id)
+
+  const flockAgeOnUsageDate = useMemo(() => {
+    if (!flock?.arrival_date) return null
+    return flockAgeDaysOnDate(
+      flock.arrival_date,
+      flock.arrival_age_days ?? 0,
+      formData.usage_date
+    )
+  }, [flock?.arrival_date, flock?.arrival_age_days, formData.usage_date])
+
+  const ageWarning = useMemo(() => {
+    if (!selectedFeedType || flockAgeOnUsageDate == null) return null
+    if (isFeedTypeAgeAppropriate(selectedFeedType, flockAgeOnUsageDate)) return null
+    const { start, end } = effectiveFeedAgeRange(selectedFeedType)
+    const rangeLabel = formatFeedAgeRange(start, end)
+    if (!rangeLabel) return null
+    return `${selectedFeedType.name} is intended for day ${rangeLabel}; this flock is on day ${flockAgeOnUsageDate}`
+  }, [selectedFeedType, flockAgeOnUsageDate])
+
   // Update unit cost when feed inventory changes
   useEffect(() => {
     if (selectedFeedInventory && selectedFeedInventory.unit_cost) {
@@ -169,19 +190,23 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
                     <SelectValue placeholder="Select feed type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {safeFeedTypes.map((feedType) => (
-                      <SelectItem key={feedType.id} value={feedType.id.toString()}>
-                        <div>
-                          <div className="font-medium">{feedType.name}</div>
-                          <div className="text-sm text-gray-500">{feedType.description}</div>
-                          {feedType.start_age && feedType.end_age && (
-                            <div className="text-xs text-gray-400">
-                              Age: {feedType.start_age}-{feedType.end_age} days
-                            </div>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {safeFeedTypes.map((feedType) => {
+                      const { start, end } = effectiveFeedAgeRange(feedType)
+                      const rangeLabel = formatFeedAgeRange(start, end)
+                      return (
+                        <SelectItem key={feedType.id} value={feedType.id.toString()}>
+                          <div>
+                            <div className="font-medium">{feedType.name}</div>
+                            <div className="text-sm text-gray-500">{feedType.description}</div>
+                            {rangeLabel && (
+                              <div className="text-xs text-gray-400">
+                                Age: {rangeLabel} days
+                              </div>
+                            )}
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
                 {errors.poultry_feed_type_id && (
@@ -235,6 +260,12 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
                 )}
               </div>
             </div>
+            {ageWarning && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{ageWarning}</span>
+              </div>
+            )}
           </div>
 
           {/* ── Usage Date (inline calendar) ── */}

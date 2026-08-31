@@ -1,10 +1,13 @@
-import { setActiveFarm, setToken, setUser } from '@/store/AuthenticationSlice';
+import { setActiveFarm, setPermissions, setPermissionsLoading, setSubscription, setToken, setUser, logout } from '@/store/AuthenticationSlice';
 import store from '../store/index';
-import { getFarm, getFarmStatistics, getFlock, getPoultryMedicationData, getPoultryStatistics, GetToken, getUser, getPoultryVaccineData, getFeedinVentories, getMedicationInventories, getVaccineInventories, getGroupedPermisssions, getRolesWithPermissions } from './request';
-import type { DetailedFlockRecord, Farm, FeedInventoryType, MedicationData, MedicationInventory, PermissionGroup, Role, VaccineInventory } from './types';
+import { getFarm, getFarmStatistics, getFlock, getPoultryMedicationData, getPoultryStatistics, GetToken, getUser, getPoultryVaccineData, getFeedinVentories, getMedicationInventories, getVaccineInventories, getGroupedPermisssions, getRolesWithPermissions, getFarmUsers, getFarmSalesProfitLoss, getMyPermissions, getUserPreferences, getFarmSettings, getCountries, getFeedAgeRanges, getFarmDashboard, StoreToken, getFarmSubscription, getSubscriptionPlans, getSubscriptionTransactions } from './request';
+import type { DetailedFlockRecord, Farm, FarmSettings, FeedInventoryType, FeedType, MedicationData, MedicationInventory, PermissionGroup, Role, UserSettings, VaccineInventory, FarmUserRoleSummary, FarmDashboard, FarmAlerts, DashboardDatePreset, FarmSubscriptionSummary, SubscriptionPlan, SubscriptionTransaction } from './types';
 import type { VaccineData } from './types';
-import type { LoadFarmDataType, LoadPoultryOverviewDataType } from './interfaces';
+import type { LoadFarmDataType, LoadPoultryOverviewDataType, LoadSalesProfitLossDataType } from './interfaces';
 import { setPoultryStatistics } from '@/store/StatisticsSlice';
+import { canAny } from './permissions';
+import { matchRoutePermission } from './routePermissions';
+import { redirect } from 'react-router-dom';
 
 type AppState = ReturnType<typeof store.getState>;
 
@@ -31,6 +34,24 @@ export const Authenticated = async (): Promise<boolean> => {
         console.error('Error during authentication check:', err);
         return false;
     }
+};
+
+export const bootstrapImpersonationSession = async (token: string) => {
+    StoreToken(token);
+    store.dispatch(setToken(token));
+
+    const response = await getUser(token);
+    if (!response.success || !response.data) {
+        localStorage.removeItem('authToken');
+        store.dispatch(logout());
+        return {
+            success: false as const,
+            error: response.error ?? ['Invalid or expired impersonation session'],
+        };
+    }
+
+    store.dispatch(setUser(response.data));
+    return { success: true as const, user: response.data };
 };
 
 export const LoadActiveFarm = async (): Promise<{ currentFarm: Farm | null }> => {
@@ -81,6 +102,51 @@ export const LoadPoultryOverviewData = async (): Promise<LoadPoultryOverviewData
     };
 };
 
+export const LoadFarmDashboard = async (options?: {
+    preset?: DashboardDatePreset;
+    start_date?: string;
+    end_date?: string;
+}): Promise<{
+    currentFarm: Farm | null;
+    dashboard: FarmDashboard | null;
+    alerts: FarmAlerts | null;
+    permissions: string[];
+    error?: string | null;
+}> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+    const farmId = currentFarm?.id ?? 0;
+    const permissions = state.authentication.permissions ?? [];
+
+    if (!farmId) {
+        return { currentFarm: null, dashboard: null, alerts: null, permissions, error: 'No farm selected' };
+    }
+
+    const response = await getFarmDashboard(state.authentication.token, farmId, options);
+    if (!response.success) {
+        const message = response.error?.join(', ') || 'Failed to load dashboard';
+        console.error('LoadFarmDashboard failed:', message);
+        return {
+            currentFarm,
+            dashboard: null,
+            alerts: null,
+            permissions,
+            error: message,
+        };
+    }
+
+    const dashboard = response.data ?? null;
+
+    return {
+        currentFarm,
+        dashboard,
+        alerts: dashboard?.alerts ?? null,
+        permissions,
+        error: null,
+    };
+};
+
 export const LoadFlockData = async (flockId: number): Promise<{ Flock: DetailedFlockRecord | null }> => {
     await Authenticated();
     const state: AppState = store.getState();
@@ -95,6 +161,32 @@ export const LoadFlockData = async (flockId: number): Promise<{ Flock: DetailedF
     } catch (err) {
         console.error('Error loading flock data:', err);
         return { Flock: null };
+    }
+};
+
+export const LoadSalesProfitLossData = async (
+    startDate?: string,
+    endDate?: string
+): Promise<LoadSalesProfitLossDataType> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+    const farmId = currentFarm?.id ?? 0;
+
+    try {
+        const response = await getFarmSalesProfitLoss(
+            state.authentication.token,
+            farmId,
+            startDate,
+            endDate
+        );
+        return {
+            salesProfitLoss: response.success ? (response.data ?? null) : null,
+            currentFarm,
+        };
+    } catch (err) {
+        console.error('Error loading sales profit and loss data:', err);
+        return { salesProfitLoss: null, currentFarm };
     }
 };
 
@@ -266,4 +358,219 @@ export const LoadRolesWithPermissions = async (): Promise<{ roles: Role[] | null
         console.error('Error loading roles with permissions data:', err);
         return { roles: null };
     }
+};
+
+export const LoadFarmUsers = async (): Promise<{ users: FarmUserRoleSummary[] | null }> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+    
+    try {
+        const response = await getFarmUsers(state.authentication.token, currentFarm?.id ? currentFarm.id : 0);
+        console.log('Farm Users Response:', response);
+
+        if (response.success) {
+            return { users: response.data ?? null };
+        } else {
+            console.error('Error loading farm users: ', response.error);
+            return { users: null };
+        }
+    } catch (err) {
+        console.error('Error loading farm users:', err);
+        return { users: null };
+    }
+};
+
+export const LoadFarmPermissions = async (force = false): Promise<{
+    currentFarm: Farm | null
+    permissions: string[]
+}> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+
+    if (!currentFarm?.id) {
+        store.dispatch(setPermissions([]));
+        return { currentFarm: null, permissions: [] };
+    }
+
+    const alreadyLoaded =
+        !force &&
+        state.authentication.permissionsLoaded &&
+        state.authentication.permissionsFarmId === currentFarm.id;
+
+    if (alreadyLoaded) {
+        return { currentFarm, permissions: state.authentication.permissions };
+    }
+
+    store.dispatch(setPermissionsLoading(true));
+    const response = await getMyPermissions(state.authentication.token, currentFarm.id);
+    const permissions = response.success ? (response.data ?? []) : [];
+    store.dispatch(setPermissions(permissions));
+
+    return { currentFarm, permissions };
+};
+
+export const LoadFarmSubscription = async (force = false): Promise<{
+    currentFarm: Farm | null
+    subscription: FarmSubscriptionSummary | null
+}> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const { currentFarm } = await LoadActiveFarm();
+
+    if (!currentFarm?.id) {
+        store.dispatch(setSubscription(null));
+        return { currentFarm: null, subscription: null };
+    }
+
+    const alreadyLoaded =
+        !force &&
+        state.authentication.subscription !== null &&
+        state.authentication.subscriptionFarmId === currentFarm.id;
+
+    if (alreadyLoaded) {
+        return { currentFarm, subscription: state.authentication.subscription };
+    }
+
+    const response = await getFarmSubscription(state.authentication.token, currentFarm.id);
+    const subscription = response.success ? (response.data ?? null) : null;
+    store.dispatch(setSubscription(subscription));
+
+    return { currentFarm, subscription };
+};
+
+export const LoadBillingSettings = async (): Promise<{
+    currentFarm: Farm | null
+    subscription: FarmSubscriptionSummary | null
+    plans: SubscriptionPlan[]
+    transactions: SubscriptionTransaction[]
+    permissions: string[]
+}> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const context = await LoadSettingsContext();
+    const { subscription } = await LoadFarmSubscription(true);
+
+    if (!context.currentFarm?.id) {
+        return {
+            currentFarm: null,
+            subscription: null,
+            plans: [],
+            transactions: [],
+            permissions: context.permissions,
+        };
+    }
+
+    const [plansResponse, transactionsResponse] = await Promise.all([
+        getSubscriptionPlans(state.authentication.token),
+        getSubscriptionTransactions(state.authentication.token, context.currentFarm.id),
+    ]);
+
+    return {
+        currentFarm: context.currentFarm,
+        subscription,
+        plans: plansResponse.success ? (plansResponse.data ?? []) : [],
+        transactions: transactionsResponse.success ? (transactionsResponse.data ?? []) : [],
+        permissions: context.permissions,
+    };
+};
+
+export async function requireRoutePermission(pathname: string): Promise<{ permissions: string[] }> {
+    const { permissions } = await LoadFarmPermissions();
+    const required = matchRoutePermission(pathname);
+    if (required && required.length > 0 && !canAny(permissions, required)) {
+        throw redirect(`/dashboard/forbidden?from=${encodeURIComponent(pathname)}`);
+    }
+    return { permissions };
+}
+
+export const LoadSettingsContext = async (): Promise<{
+    currentFarm: Farm | null
+    currentUser: AppState["authentication"]["user"]
+    permissions: string[]
+}> => {
+    await Authenticated();
+    const { currentFarm, permissions } = await LoadFarmPermissions();
+
+    return {
+        currentFarm,
+        currentUser: store.getState().authentication.user,
+        permissions,
+    };
+};
+
+export const LoadUserPreferences = async (): Promise<{
+    currentFarm: Farm | null
+    currentUser: AppState["authentication"]["user"]
+    userSettings: UserSettings | null
+    permissions: string[]
+}> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const context = await LoadSettingsContext();
+    const response = await getUserPreferences(state.authentication.token);
+
+    return {
+        ...context,
+        userSettings: response.success ? (response.data ?? null) : null,
+    };
+};
+
+export const LoadFarmSettings = async (): Promise<{
+    currentFarm: Farm | null
+    farmSettings: FarmSettings | null
+    countries: { id: number; name: string; code?: string | null }[]
+    permissions: string[]
+}> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const context = await LoadSettingsContext();
+
+    if (!context.currentFarm?.id) {
+        return {
+            currentFarm: null,
+            farmSettings: null,
+            countries: [],
+            permissions: context.permissions,
+        };
+    }
+
+    const [settingsResponse, countriesResponse] = await Promise.all([
+        getFarmSettings(state.authentication.token, context.currentFarm.id),
+        getCountries(state.authentication.token),
+    ]);
+
+    return {
+        currentFarm: context.currentFarm,
+        farmSettings: settingsResponse.success ? (settingsResponse.data ?? null) : null,
+        countries: countriesResponse.success ? (countriesResponse.data ?? []) : [],
+        permissions: context.permissions,
+    };
+};
+
+export const LoadFeedAgeRanges = async (): Promise<{
+    currentFarm: Farm | null
+    feedTypes: FeedType[]
+    permissions: string[]
+}> => {
+    await Authenticated();
+    const state: AppState = store.getState();
+    const context = await LoadSettingsContext();
+
+    if (!context.currentFarm?.id) {
+        return {
+            currentFarm: null,
+            feedTypes: [],
+            permissions: context.permissions,
+        };
+    }
+
+    const response = await getFeedAgeRanges(state.authentication.token, context.currentFarm.id);
+
+    return {
+        currentFarm: context.currentFarm,
+        feedTypes: response.success ? (response.data ?? []) : [],
+        permissions: context.permissions,
+    };
 };

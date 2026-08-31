@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { BarChart3, Settings, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { MedicationData, AdministrationMethod } from "@/lib/types"
 import { useLoaderData, useRevalidator } from "react-router-dom"
@@ -11,6 +12,8 @@ import { GetToken, getFarm, createMedicationProduct, createMedication } from "@/
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { Textarea } from "@/components/ui/textarea"
+import { ActionGate } from "@/components/general/ActionGate"
+import { ACTIONS } from "@/lib/actionPermissions"
 
 interface NewMedicationForm {
   poultry_medication_id: number | null
@@ -369,180 +372,214 @@ export default function CategoriesPage() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      
+  const totalProducts = medications.reduce((sum, cat) => sum + cat.products.length, 0)
 
-      {/* Main Content */}
-      <main className="p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Page Header */}
-          <div className="mb-8 flex items-start justify-between">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 p-6 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold mb-2">Medication Categories</h2>
-              <p className="text-muted-foreground">Organize and manage your medication categories</p>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">Medication Categories</h1>
+              <p className="text-gray-600 text-lg">Organize and manage your medication categories and products</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <BarChart3 className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="lg" className="border-gray-300">
+                <BarChart3 className="h-5 w-5 mr-2" />
                 Analytics
               </Button>
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
-              </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" size="sm" onClick={() => setIsCreateCategoryOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Medication
-              </Button>
+              <ActionGate anyOf={ACTIONS.medications.create}>
+                <Button 
+                  onClick={() => setIsCreateCategoryOpen(true)}
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/30 px-6 py-6 text-base font-semibold"
+                  size="lg"
+                >
+                  <Plus className="h-5 w-5" />
+                  Add Medication Category
+                </Button>
+              </ActionGate>
             </div>
           </div>
+        </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="rounded-lg bg-blue-500 text-white p-6">
-              <p className="text-sm font-medium opacity-90">Total Categories</p>
-              <p className="text-3xl font-bold mt-2">{medications.length}</p>
-              <div className="mt-4 text-2xl">📁</div>
-            </div>
-            <div className="rounded-lg bg-green-500 text-white p-6">
-              <p className="text-sm font-medium opacity-90">Total Medications</p>
-              <p className="text-3xl font-bold mt-2">{medications.reduce((sum, cat) => sum + cat.products.length, 0)}</p>
-              <div className="mt-4 text-2xl">💊</div>
-            </div>
-            
-          </div>
-
-          {/* Search and Filters */}
-          <div className="mb-8">
-            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium mb-2">Search  Medication Categories</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name or description..."
-                    className="pl-10"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
+                <p className="text-sm font-medium text-blue-600 mb-1">Total Categories</p>
+                <p className="text-3xl font-bold text-blue-900">{medications.length}</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label>Sort by</Label>
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Name">Name (A-Z)</SelectItem>
-                      <SelectItem value="Products (Most)">Products (Most)</SelectItem>
-                      <SelectItem value="Products (Least)">Products (Least)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-               
+              <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+                <Settings className="w-6 h-6 text-white" />
               </div>
-             
             </div>
+          </Card>
 
-            <div className="flex gap-2 md:justify-end">
-                 
-                  <Button variant="outline" onClick={() => setViewMode("grid")} className="">Grid</Button>
-                  <Button variant="outline" onClick={() => setViewMode("list")} className="">List</Button>
-                
+          <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 border-green-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-600 mb-1">Total Products</p>
+                <p className="text-3xl font-bold text-green-900">{totalProducts}</p>
               </div>
-          </div>
+              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                <Plus className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </Card>
+        </div>
 
-          {/* Categories Grid View */}
+        {/* Search and Filters */}
+        <Card className="p-4 mb-6 border-gray-200 shadow-sm">
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Input
+                placeholder="Search by name or description..."
+                className="pl-10 h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[180px] h-11 border-gray-300">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Name">Name (A-Z)</SelectItem>
+                <SelectItem value="Products (Most)">Products (Most)</SelectItem>
+                <SelectItem value="Products (Least)">Products (Least)</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="text-sm text-gray-500 whitespace-nowrap">
+              Showing {sortedCategories.length} of {medications.length} categories
+            </div>
+          </div>
+        </Card>
+
+        {/* View Mode Toggle */}
+        <div className="flex gap-2 md:justify-end mb-6">
+          <Button variant="outline" onClick={() => setViewMode("grid")} className="border-gray-300">Grid</Button>
+          <Button variant="outline" onClick={() => setViewMode("list")} className="border-gray-300">List</Button>
+        </div>
+
+        {/* Categories Grid View */}
           {viewMode === "grid" && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {sortedCategories.map((category) => (
-                <div
-                  key={category.id}
-                  className="rounded-lg border border-border bg-card overflow-hidden hover:shadow-lg transition-shadow"
-                >
-                  <div className={` h-24 flex items-center justify-center text-white text-4xl`}>
-                    📦
-                  </div>
-                  <div className="p-6">
-                    <h3 className="text-lg font-bold mb-2">{category.name}</h3>
-                    <p className="text-sm text-muted-foreground mb-4">{category.description}</p>
+              {sortedCategories.map((category) => {
+                const colorVariants = [
+                  "from-blue-500 to-blue-600",
+                  "from-purple-500 to-purple-600",
+                  "from-green-500 to-green-600",
+                  "from-orange-500 to-orange-600",
+                  "from-pink-500 to-pink-600",
+                  "from-indigo-500 to-indigo-600",
+                ]
+                const colorIndex = category.id % colorVariants.length
+                const gradient = colorVariants[colorIndex]
 
-                    <div className="grid grid-cols-2 gap-4 mb-4 py-4 border-y border-border">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Medications</p>
-                        <p className="text-2xl font-bold">{category.products.length}</p>
+                return (
+                  <Card
+                    key={category.id}
+                    className="group hover:shadow-xl transition-all duration-300 border border-gray-200 overflow-hidden"
+                  >
+                    <div className={`h-2 bg-gradient-to-r ${gradient}`}></div>
+                    <div className="p-6 bg-white">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className={`w-14 h-14 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center shadow-lg`}>
+                          <Settings className="w-7 h-7 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-gray-900 mb-1">{category.name}</h3>
+                          <p className="text-sm text-gray-600 line-clamp-2">{category.description}</p>
+                        </div>
                       </div>
-                      <div>
-                       
+
+                      <div className="grid grid-cols-2 gap-4 mb-4 py-4 border-y border-gray-200">
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Medications</p>
+                          <p className="text-2xl font-bold text-gray-900">{category.products.length}</p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Status</p>
+                          <p className="text-lg font-bold text-green-600">Active</p>
+                        </div>
                       </div>
+
+                      <p className="text-xs text-gray-500">Updated: {new Date(category.updated_at).toLocaleDateString()}</p>
                     </div>
-
-                    <p className="text-xs text-muted-foreground mb-4">Updated: {category.updated_at}</p>
-
-                    {/* Edit/Delete controls removed for revert */}
-                  </div>
-                </div>
-              ))}
+                  </Card>
+                )
+              })}
             </div>
           )}
 
           {/* Categories List View */}
           {viewMode === "list" && (
             <div className="space-y-4">
-              {sortedCategories.map((category) => (
-                <div
-                  key={category.id}
-                  className="rounded-lg border border-border bg-card p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div
-                        className={` h-16 w-16 rounded-lg flex items-center justify-center text-white text-2xl flex-shrink-0`}
-                      >
-                        📦
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold mb-1">{category.name}</h3>
-                        <p className="text-sm text-muted-foreground mb-3">{category.description}</p>
-                        <p className="text-xs text-muted-foreground">Updated: {category.updated_at}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Medications</p>
-                      <p className="text-2xl font-bold">{category.products.length}</p>
-                    </div>
-                  </div>
+              {sortedCategories.map((category) => {
+                const colorVariants = [
+                  "from-blue-500 to-blue-600",
+                  "from-purple-500 to-purple-600",
+                  "from-green-500 to-green-600",
+                  "from-orange-500 to-orange-600",
+                  "from-pink-500 to-pink-600",
+                  "from-indigo-500 to-indigo-600",
+                ]
+                const colorIndex = category.id % colorVariants.length
+                const gradient = colorVariants[colorIndex]
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 py-4 border-y border-border">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Usage Frequency</p>
-                      <p className="font-semibold">0</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Total Medications</p>
-                      <p className="font-semibold">{category.products.length}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Status</p>
-                      <p className="font-semibold text-green-600">Active</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Last Updated</p>
-                      <p className="font-semibold">{category.updated_at}</p>
-                    </div>
-                  </div>
+                return (
+                  <Card
+                    key={category.id}
+                    className="group hover:shadow-xl transition-all duration-300 border border-gray-200 overflow-hidden"
+                  >
+                    <div className={`h-2 bg-gradient-to-r ${gradient}`}></div>
+                    <div className="p-6 bg-white">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className={`w-14 h-14 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+                            <Settings className="w-7 h-7 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold text-gray-900 mb-1">{category.name}</h3>
+                            <p className="text-sm text-gray-600 mb-3">{category.description}</p>
+                            <p className="text-xs text-gray-500">Updated: {new Date(category.updated_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500">Medications</p>
+                          <p className="text-3xl font-bold text-gray-900">{category.products.length}</p>
+                        </div>
+                      </div>
 
-                  {/* Edit/Delete and View buttons removed for revert */}
-                </div>
-              ))}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 border-t border-gray-200">
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Usage Frequency</p>
+                          <p className="font-bold text-gray-900">0</p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Total Medications</p>
+                          <p className="font-bold text-gray-900">{category.products.length}</p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Status</p>
+                          <p className="font-bold text-green-600">Active</p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Last Updated</p>
+                          <p className="font-bold text-gray-900">{new Date(category.updated_at).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                )
+              })}
             </div>
           )}
-        </div>
-      </main>
+      </div>
+
       <CreateMedicationCategoryModal isOpen={isCreateCategoryOpen} onClose={() => setIsCreateCategoryOpen(false)} onSubmit={handleCreateMedicationCategory} />
       <CreateMedicationModal medications={medications} isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} onSubmit={handleCreateMedication} />
       <ToastContainer position="top-right" autoClose={3000} newestOnTop closeOnClick pauseOnHover draggable theme="colored" />

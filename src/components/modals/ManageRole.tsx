@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Check } from "lucide-react"
+import { Check, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,9 @@ import { GetToken, updateRolePermissions, removePermissionFromRole } from "@/lib
 import { toast } from 'react-toastify'
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
+import { ActionGate } from "@/components/general/ActionGate"
+import { ACTIONS } from "@/lib/actionPermissions"
+import { usePermissions } from "@/hooks/usePermissions"
 
 
 interface ManageRolePermissionsModalProps {
@@ -29,7 +33,10 @@ interface ManageRolePermissionsModalProps {
 export function ManageRolePermissionsModal({ role, open, onOpenChange, GroupPermissions , onSuccess }: ManageRolePermissionsModalProps) {
   const [selectedPermissions, setSelectedPermissions] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
+  const [permissionSearch, setPermissionSearch] = useState("")
   const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id);
+  const { canAny } = usePermissions()
+  const canManage = canAny([...ACTIONS.roles.manage])
   // helper: role.permissions may be number[] or Permission[]; normalize to ids
   const extractIds = (arr: any[] | undefined) => {
     if (!arr) return [] as number[]
@@ -52,8 +59,21 @@ export function ManageRolePermissionsModal({ role, open, onOpenChange, GroupPerm
     return GroupPermissions.map((g) => ({ ...g, permissions: g.permissions ?? [] }))
   }, [GroupPermissions])
 
+  const filteredGroupedPermissions = useMemo(() => {
+    const q = permissionSearch.trim().toLowerCase()
+    if (!q) return groupedPermissions
+    return groupedPermissions
+      .map((g) => ({
+        ...g,
+        permissions: (g.permissions ?? []).filter((p: any) =>
+          String(p?.name ?? "").toLowerCase().includes(q)
+        ),
+      }))
+      .filter((g) => (g.permissions ?? []).length > 0)
+  }, [groupedPermissions, permissionSearch])
+
   const togglePermission = async (permissionId: number) => {
-    if (!role) return
+    if (!role || !canManage) return
     const prev = selectedPermissions
     // Check if we're adding (permission not in list) or removing (permission in list)
     const isAdding = !prev.includes(permissionId)
@@ -140,8 +160,24 @@ export function ManageRolePermissionsModal({ role, open, onOpenChange, GroupPerm
           </DialogDescription>
         </DialogHeader>
 
+        <div className="relative mt-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            value={permissionSearch}
+            onChange={(e) => setPermissionSearch(e.target.value)}
+            placeholder="Search permissions…"
+            className="pl-9"
+          />
+        </div>
+
         <div className="space-y-6 py-4">
-          {groupedPermissions.map((group) => (
+          {filteredGroupedPermissions.length === 0 ? (
+            <div className="text-sm text-gray-500 py-6 text-center">
+              No permissions match “{permissionSearch}”.
+            </div>
+          ) : null}
+
+          {filteredGroupedPermissions.map((group) => (
             <div key={group.id} className="space-y-3">
               <h3 className="font-semibold text-foreground text-sm uppercase tracking-wide">{(group as any).module ?? group.name}</h3>
               <div className="space-y-2 pl-4 border-l-2 border-blue-200">
@@ -154,6 +190,7 @@ export function ManageRolePermissionsModal({ role, open, onOpenChange, GroupPerm
                       type="checkbox"
                       checked={selectedPermissions.includes(permission.id)}
                       onChange={() => togglePermission(permission.id)}
+                      disabled={!canManage}
                       className="mt-1 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <div className="flex-1">
@@ -173,9 +210,11 @@ export function ManageRolePermissionsModal({ role, open, onOpenChange, GroupPerm
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={loading} className="gap-2">
-            {loading ? "Saving..." : "Save Permissions"}
-          </Button>
+          <ActionGate anyOf={ACTIONS.roles.manage}>
+            <Button onClick={handleSave} disabled={loading} className="gap-2">
+              {loading ? "Saving..." : "Save Permissions"}
+            </Button>
+          </ActionGate>
         </DialogFooter>
       </DialogContent>
     </Dialog>
