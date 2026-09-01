@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
 import type { RootState } from "@/store";
-import { toast } from "react-toastify";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +38,20 @@ import { cn, formatCurrency, Naira } from "@/lib/utils";
 import AddEquipmentSheet from "@/components/equipment/AddEquipmentSheet";
 import EquipmentProfileSheet from "@/components/equipment/EquipmentProfileSheet";
 import { ActionGate } from "@/components/general/ActionGate";
+import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { ACTIONS } from "@/lib/actionPermissions";
+import { buildExportFilename, type ExportColumn } from "@/lib/exportData";
+
+const EQUIPMENT_EXPORT_COLUMNS: ExportColumn<Equipment>[] = [
+  { header: "Asset ID", value: (row) => row.asset_id },
+  { header: "Name", value: (row) => row.name },
+  { header: "Category", value: (row) => row.category?.name ?? "" },
+  { header: "Location", value: (row) => row.location ?? "" },
+  { header: "Assignee", value: (row) => row.assignee?.name ?? "" },
+  { header: "Status", value: (row) => row.status },
+  { header: "Condition", value: (row) => row.condition },
+  { header: "Purchase Value", value: (row) => row.purchase_price ?? "" },
+];
 
 function StatCard({
   label,
@@ -265,6 +277,25 @@ export default function EquipmentManagementPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <ExportDataButton
+                columns={EQUIPMENT_EXPORT_COLUMNS}
+                filename={buildExportFilename("equipment")}
+                getRows={async () => {
+                  if (!token || !farmId) return [];
+                  const listRes = await getEquipmentList(token, farmId, {
+                    search: search || undefined,
+                    status: statusFilter !== "all" ? statusFilter : undefined,
+                    category_id: categoryFilter !== "all" ? Number(categoryFilter) : undefined,
+                    sort_by: "created_at",
+                    sort_direction: "desc",
+                  });
+                  if (!listRes.success || !listRes.data) {
+                    throw new Error(listRes.error?.[0] ?? "Failed to load equipment for export");
+                  }
+                  if (Array.isArray(listRes.data)) return listRes.data;
+                  return listRes.data.data || [];
+                }}
+              />
               <div className="flex border rounded-md">
                 <Button variant={viewMode === "table" ? "default" : "ghost"} size="icon" onClick={() => setViewMode("table")}><LayoutList className="h-4 w-4" /></Button>
                 <Button variant={viewMode === "grid" ? "default" : "ghost"} size="icon" onClick={() => setViewMode("grid")}><Grid3X3 className="h-4 w-4" /></Button>

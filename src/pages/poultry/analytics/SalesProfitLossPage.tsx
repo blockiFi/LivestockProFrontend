@@ -36,11 +36,36 @@ import {
 } from "@/lib/request";
 import AddProductSaleModal from "@/components/modals/AddProductSaleModal";
 import { Bird, DollarSign, Edit, Egg, Percent, Plus, ShoppingBag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { ExportDataButton } from "@/components/general/ExportDataButton";
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "react-toastify";
 import { ActionGate } from "@/components/general/ActionGate";
 import { ACTIONS } from "@/lib/actionPermissions";
+
+type FlockPnlRow = FarmSalesProfitLoss["flocks"][number]
+
+const FLOCK_PNL_COLUMNS: ExportColumn<FlockPnlRow>[] = [
+  { header: "Flock", value: (row) => row.flock_name },
+  { header: "Batch", value: (row) => row.batch_number || "" },
+  { header: "Status", value: (row) => row.status },
+  { header: "Birds sold", value: (row) => row.birds_sold },
+  { header: "Live birds revenue", value: (row) => row.live_bird_revenue ?? 0 },
+  { header: "Product revenue", value: (row) => row.product_revenue ?? 0 },
+  { header: "Total revenue", value: (row) => row.total_revenue },
+  { header: "Cost", value: (row) => row.total_cost },
+  { header: "Net P&L", value: (row) => row.net_profit },
+]
+
+const PRODUCT_SALE_COLUMNS: ExportColumn<SalesRecord>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Type", value: (row) => row.type },
+  { header: "Flock", value: (row) => row.flock?.name ?? "" },
+  { header: "Qty", value: (row) => row.quantity },
+  { header: "Total", value: (row) => row.total_amount ?? 0 },
+  { header: "Customer", value: (row) => row.customer_name || row.customer?.name || "" },
+]
 
 type LoaderData = {
   salesProfitLoss: FarmSalesProfitLoss | null;
@@ -270,7 +295,7 @@ const SalesProfitLossPage = () => {
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        labelFormatter={(value) => new Date(value).toLocaleDateString("en-US")}
+                        labelFormatter={(value) => new Date(String(value)).toLocaleDateString("en-US")}
                         formatter={(value) => `${Naira}${(value as number).toLocaleString()}`}
                       />
                     }
@@ -408,11 +433,16 @@ const SalesProfitLossPage = () => {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2">
             <ShoppingBag className="h-5 w-5 text-sky-600" />
             Flock P&L Table
           </CardTitle>
+          <ExportDataButton
+            rows={data.flocks}
+            columns={FLOCK_PNL_COLUMNS}
+            filename={buildExportFilename("sales-profit-loss", "flock-pnl")}
+          />
         </CardHeader>
         <CardContent>
           <div className="border rounded-md overflow-hidden">
@@ -480,18 +510,25 @@ const SalesProfitLossPage = () => {
             </CardTitle>
             <CardDescription>Egg, meat, and manure transactions in this period</CardDescription>
           </div>
-          <ActionGate anyOf={ACTIONS.sales.create}>
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditingProduct(null);
-                setProductModalOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Record sale
-            </Button>
-          </ActionGate>
+          <div className="flex flex-wrap items-center gap-2">
+            <ExportDataButton
+              rows={productSales}
+              columns={PRODUCT_SALE_COLUMNS}
+              filename={buildExportFilename("sales-profit-loss", "product-sales")}
+            />
+            <ActionGate anyOf={ACTIONS.sales.create}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingProduct(null);
+                  setProductModalOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Record sale
+              </Button>
+            </ActionGate>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="border rounded-md overflow-hidden">

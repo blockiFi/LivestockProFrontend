@@ -418,6 +418,7 @@ const FeedingScheduleView = ({
           missed_days: missedPreview,
           count: missedCount,
           total_feed_kg: missedTotalKg,
+          inventory_requirements: [],
         }}
         onSuccess={() => {
           onRefresh?.()

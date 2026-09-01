@@ -1,6 +1,6 @@
 import axios from "./axios"
 import type {    LoginData,  PaginatedRequestType,  RequestResponse } from "./interfaces"
-import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, RevenueByType, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout } from "./types"
+import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout } from "./types"
 import  { isAxiosError } from "axios"
 
 const flattenApiErrors = (error: unknown): string => {
@@ -2401,7 +2401,7 @@ export const getFlockExpenditures = async (
       const rows = Array.isArray(response.data.data) ? response.data.data : [];
       return {
         success: true,
-        data: rows.map((row) => sanitizeFlockExpenditure(row)).filter(Boolean) as FlockExpenditure[],
+        data: rows.map((row: unknown) => sanitizeFlockExpenditure(row)).filter(Boolean) as FlockExpenditure[],
       };
     }
     return { success: false, error: [`Error fetching expenditures: ${response.status}`] };

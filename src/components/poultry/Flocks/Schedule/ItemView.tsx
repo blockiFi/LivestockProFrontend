@@ -1,10 +1,7 @@
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { BatchFeedingSchedule, BatchSchedule, BatchScheduleItem, DetailedSchedule, Schedule, ScheduleItem } from "@/lib/types"
-import { formatDate, Naira } from "@/lib/utils"
+import type { DetailedSchedule, ScheduleItem } from "@/lib/types"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@radix-ui/react-collapsible"
-import { AlertCircle, Check, ChevronDown, ChevronUp, Clock, DollarSign, Edit, FileText, Pill, Shield, Syringe, Thermometer, Trash2, User, Wheat } from "lucide-react"
+import { ChevronDown, ChevronUp, Pill, Shield, Syringe, Thermometer, Wheat } from "lucide-react"
 import { useState } from "react"
 const scheduleTypeIcons = {
   medication: <Pill className="h-5 w-5" />,
@@ -16,18 +13,6 @@ const scheduleTypeColors = {
   medication: "bg-purple-100 text-purple-600",
   vaccination: "bg-blue-100 text-blue-600",
   feeding: "bg-green-100 text-green-600",
-}
-const statusIcons = {
-    scheduled: <Clock className="h-3 w-3" />,
-    administered: <Check className="h-3 w-3" />,
-    overdue: <AlertCircle className="h-3 w-3" />,
-    cancelled: <Trash2 className="h-3 w-3" />,
-  }
-  const itemStatusColors = {
-  scheduled: "bg-sky-100 text-sky-800 border-sky-200",
-  administered: "bg-green-100 text-green-800 border-green-200",
-  overdue: "bg-red-100 text-red-800 border-red-200",
-  cancelled: "bg-gray-100 text-gray-800 border-gray-200",
 }
 const ItemView = ({ schedule , item }: { schedule: DetailedSchedule , item:  ScheduleItem}) => {
     const [isExpanded, setIsExpanded] = useState(false);

@@ -3,10 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
@@ -14,7 +12,6 @@ import {
   Clock, 
   Users, 
   Wheat, 
-  TrendingUp, 
   AlertTriangle, 
   CheckCircle, 
   Play,
@@ -23,9 +20,7 @@ import {
   Filter,
   Search,
   Plus,
-  Eye,
-  Edit,
-  Trash2
+  Edit
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 import type { BatchFeedingSchedule, BatchFeedingScheduleItem } from "@/lib/types";
@@ -45,8 +40,6 @@ const FeedingScheduleView: React.FC<FeedingScheduleViewProps> = ({
   isLoading = false,
   onCreateSchedule,
   onEditSchedule,
-  onDeleteSchedule,
-  onUpdateScheduleItem
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { BarChart3, Settings, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { MedicationData, AdministrationMethod } from "@/lib/types"
 import { useLoaderData, useRevalidator } from "react-router-dom"

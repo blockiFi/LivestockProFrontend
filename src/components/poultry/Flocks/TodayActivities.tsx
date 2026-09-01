@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import type { DetailedFlockRecord } from "@/lib/types";
 import { CalendarClock, Pill, Shield, Wheat, Clock, ChevronUp, ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
-import { coversFeedingDay, formatFeedingDayRange } from "@/lib/feeding-range";
+import { coversFeedingDay } from "@/lib/feeding-range";
 
 interface TodayActivitiesProps {
   flock: DetailedFlockRecord;
@@ -93,7 +93,6 @@ const TodayActivities = ({ flock }: TodayActivitiesProps) => {
 
   const totalActivities = todayMedications.length + todayVaccinations.length + todayFeedings.length;
 
-  const hasAny = totalActivities > 0;
   return (
     <Card className="mb-6 border border-gray-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-sm">
       <CardHeader className="pb-3">

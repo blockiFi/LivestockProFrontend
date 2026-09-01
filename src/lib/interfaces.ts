@@ -1,4 +1,4 @@
-import type { DetailedFlockRecord, Farm, FarmStatsDataType, FarmSubscriptionSummary, FlockDetail, FlockRecord, PoultryDashboardData, User } from "./types";
+import type { DetailedFlockRecord, Farm, FarmStatsDataType, FarmSubscriptionSummary, PoultryDashboardData, User } from "./types";
 
 export interface LoginResponse {
     success : boolean,

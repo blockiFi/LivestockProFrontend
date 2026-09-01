@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 import { AlertTriangle, Edit, Plus, ShoppingBag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { ExportDataButton } from "@/components/general/ExportDataButton";
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
+
+const SALE_EXPORT_COLUMNS: ExportColumn<FlockSale>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Qty", value: (row) => row.quantity },
+  { header: "Unit Price", value: (row) => row.unit_price ?? 0 },
+  { header: "Total", value: (row) => row.total_amount ?? 0 },
+  { header: "Customer", value: (row) => row.customer_name || "" },
+  { header: "Notes", value: (row) => row.notes || "" },
+];
 import AddFlockSaleModal, { type FlockSaleFormPayload } from "@/components/modals/AddFlockSaleModal";
 
 interface FlockSalesViewProps {
@@ -99,12 +110,19 @@ const FlockSalesView = ({
             </p>
           </div>
         </div>
-        {onAddSale && (
-          <Button size="sm" onClick={openAddModal}>
-            <Plus className="h-4 w-4 mr-1" />
-            Record Sale
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportDataButton
+            rows={sales}
+            columns={SALE_EXPORT_COLUMNS}
+            filename={buildExportFilename(flock.name, "live-bird-sales")}
+          />
+          {onAddSale && (
+            <Button size="sm" onClick={openAddModal}>
+              <Plus className="h-4 w-4 mr-1" />
+              Record Sale
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

@@ -72,9 +72,19 @@ export const getEquipmentList = async (
   params?: EquipmentListParams
 ): Promise<RequestResponse<{ data: Equipment[]; total?: number; current_page?: number; last_page?: number } | Equipment[]>> => {
   try {
+    const paginated = params?.page != null || params?.per_page != null
     const res = await axios.get(`/api/farms/${farmId}/equipment`, {
       headers: auth(token),
-      params: { ...params, page: params?.page, per_page: params?.per_page ?? 15 },
+      params: paginated
+        ? { ...params, page: params?.page, per_page: params?.per_page ?? 15 }
+        : {
+            search: params?.search,
+            category_id: params?.category_id,
+            status: params?.status,
+            condition: params?.condition,
+            sort_by: params?.sort_by,
+            sort_direction: params?.sort_direction,
+          },
     })
     if (res.status === 200) return { success: true, data: res.data.data }
     return { success: false, error: [`Error: ${res.status}`] }

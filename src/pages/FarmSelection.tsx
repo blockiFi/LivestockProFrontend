@@ -1,9 +1,9 @@
 import { useSelector } from "react-redux";
 import store, { type RootState } from "../store/index";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { type Farm } from "@/lib/types";
 import type { FarmRequestData } from "@/lib/interfaces";
-import { createFarm, getCountries, getUserFarms, StoreFarm, type CountryOption } from "@/lib/request";
+import { createFarm, getCountries, getUserFarms, GetToken, StoreFarm, type CountryOption } from "@/lib/request";
 import { LoadFarmPermissions } from "@/lib/loader";
 import { setActiveFarm, setUser } from "@/store/AuthenticationSlice";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import TopBar from "@/components/navigation/TopBar";
@@ -478,7 +477,7 @@ function FarmSelection() {
 
 type FarmCardProps = {
   farm: Farm;
-  getTypeIcon: (type: string) => JSX.Element;
+  getTypeIcon: (type: string) => ReactElement;
   getStatusColor: (status: number) => string;
   onSelect: () => void;
   onQuickNavigate: (path: string) => void;

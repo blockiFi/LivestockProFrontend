@@ -16,6 +16,17 @@ import { Badge } from "@/components/ui/badge";
 import AddProductSaleModal from "@/components/modals/AddProductSaleModal";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Edit, Egg, Plus, Trash2 } from "lucide-react";
+import { ExportDataButton } from "@/components/general/ExportDataButton";
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
+
+const PRODUCT_SALE_EXPORT_COLUMNS: ExportColumn<SalesRecord>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Type", value: (row) => row.type },
+  { header: "Qty", value: (row) => row.quantity },
+  { header: "Total", value: (row) => row.total_amount ?? 0 },
+  { header: "Customer", value: (row) => row.customer_name || row.customer?.name || "" },
+  { header: "Status", value: (row) => row.payment_status },
+];
 import { toast } from "react-toastify";
 
 interface ProductSalesViewProps {
@@ -131,19 +142,26 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
             </p>
           </div>
         </div>
-        {canManage && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEditing(null);
-              setModalOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Record product sale
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportDataButton
+            rows={records}
+            columns={PRODUCT_SALE_EXPORT_COLUMNS}
+            filename={buildExportFilename(flockName || "flock", "product-sales")}
+          />
+          {canManage && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Record product sale
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

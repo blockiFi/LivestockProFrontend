@@ -19,14 +19,12 @@ import {
   getFeedComponents,
   getFeedCompositions,
   getFeedProducts,
-  updateFeedComposition,
   createFeedProduct,
   updateFeedProduct,
   deleteFeedProduct,
   analyzeFeedFormula,
   recommendFeedFormula,
   generateFeedComponentWithAI,
-  createFeedComponent,
 } from "@/lib/request";
 import AddFeedCompositionModal from "@/components/modals/AddFeedCompositionModal";
 import AddFeedProductModal from "@/components/modals/AddFeedProductModal";
@@ -357,7 +355,7 @@ export default function FeedCompositionsPage() {
     if (!token || !farmId) return;
     if (editingProduct) {
       const res = await updateFeedProduct(token, farmId, editingProduct.id, payload);
-      if (res.success) {
+      if (res.success && res.data) {
         toast.success("Feed product updated");
         const updated = res.data;
         setProducts((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
@@ -370,7 +368,7 @@ export default function FeedCompositionsPage() {
       }
     } else {
       const res = await createFeedProduct(token, farmId, payload);
-      if (res.success) {
+      if (res.success && res.data) {
         toast.success("Feed product created");
         const newProduct = res.data;
         setProducts((prev) => [...prev, newProduct]);

@@ -2,7 +2,9 @@ import type {  PoultryFeedUsageRecord, FlockRecord, FeedInventoryType, FeedType 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useMemo, useState } from "react"
-import { AlertTriangle, DollarSign, Download, Factory, Package2, TrendingUp, Wheat, Plus, Trash2 } from "lucide-react"
+import { AlertTriangle, DollarSign, Factory, Package2, TrendingUp, Wheat, Plus, Trash2 } from "lucide-react"
+import { ExportDataButton } from "@/components/general/ExportDataButton"
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -11,6 +13,18 @@ import { formatDate, getExpiryStatus } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import AddFeedUsageModal from "@/components/modals/AddFeedUsageModal"
 import { toast } from "react-toastify"
+const FEED_EXPORT_COLUMNS: ExportColumn<PoultryFeedUsageRecord>[] = [
+  { header: "Usage Date", value: (row) => formatExportDate(row.usage_date) },
+  { header: "Feed Type", value: (row) => row.feed_type?.name ?? "" },
+  { header: "Quantity (kg)", value: (row) => row.quantity ?? 0 },
+  { header: "Unit Cost", value: (row) => row.unit_cost ?? 0 },
+  { header: "Total Cost", value: (row) => (Number(row.quantity) || 0) * (Number(row.unit_cost) || 0) },
+  { header: "Manufacturer", value: (row) => row.feed_inventory?.manufacturer ?? "" },
+  { header: "Batch Number", value: (row) => row.feed_inventory?.batch_number ?? "" },
+  { header: "Inventory Status", value: (row) => row.feed_inventory?.status ?? "" },
+  { header: "Expiry Date", value: (row) => formatExportDate(row.feed_inventory?.expiry_date) },
+]
+
 const feedStatusColors = {
   available: "bg-green-100 text-green-800",
   low_stock: "bg-yellow-100 text-yellow-800",
@@ -184,7 +198,7 @@ const FeedUsageView  = ({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {Array.isArray(records) ? Array.from(new Set(records.filter((r) => r.feed_type?.name).map((r) => r.feed_type.name))).map((feedTypeName) => {
+            {Array.isArray(records) ? Array.from(new Set(records.filter((r) => r.feed_type?.name).map((r) => r.feed_type!.name))).map((feedTypeName) => {
               const typeRecords = records.filter((r) => r.feed_type?.name === feedTypeName)
               const typeQuantity = typeRecords.reduce((sum, r) => {
                 const quantity = r?.quantity || 0;
@@ -240,10 +254,11 @@ const FeedUsageView  = ({
             className="max-w-xs"
           />
         </div>
-        <Button variant="outline" size="sm">
-          <Download className="h-4 w-4 mr-2" />
-          Export
-        </Button>
+        <ExportDataButton
+          rows={filteredRecords}
+          columns={FEED_EXPORT_COLUMNS}
+          filename={buildExportFilename(flock?.name || "flock", "feed-usage")}
+        />
       </div>
 
       <div className="rounded-lg border">

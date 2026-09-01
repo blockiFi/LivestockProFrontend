@@ -17,7 +17,6 @@ import { formatCurrency, formatDate, Naira } from "@/lib/utils";
 import {
   AlertTriangle,
   BarChart3,
-  Download,
   DollarSign,
   Edit,
   Loader2,
@@ -35,7 +34,6 @@ import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDial
 import Pagination from "@/components/general/Pagination";
 import {
   EXPENDITURE_CATEGORY_META,
-  exportExpendituresCsv,
   getCategoryBadgeClass,
   getCategoryLabel,
   getSourceLabel,
@@ -46,6 +44,19 @@ import {
 import { getFlockExpenditureSummary } from "@/lib/request";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
+import { ExportDataButton } from "@/components/general/ExportDataButton";
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
+
+const EXPENDITURE_EXPORT_COLUMNS: ExportColumn<FlockExpenditure>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Category", value: (row) => getCategoryLabel(row.category) },
+  { header: "Description", value: (row) => row.description || "" },
+  { header: "Amount", value: (row) => row.amount ?? 0 },
+  { header: "Currency", value: (row) => row.currency || "NGN" },
+  { header: "Source", value: (row) => getSourceLabel(row.source_type) },
+  { header: "Payment Method", value: (row) => row.payment_method || "" },
+  { header: "Reference", value: (row) => row.reference_no || "" },
+];
 
 interface FlockExpenditureViewProps {
   flock: DetailedFlockRecord;
@@ -178,10 +189,6 @@ const FlockExpenditureView = ({
     await loadSummary();
   };
 
-  const handleExport = () => {
-    exportExpendituresCsv(filtered, flock.name);
-  };
-
   const handleDeleteConfirm = async () => {
     if (!deletingExpenditure || !onDeleteExpenditure) return;
     setIsDeleting(true);
@@ -225,10 +232,11 @@ const FlockExpenditureView = ({
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0}>
-            <Download className="h-4 w-4 mr-1" />
-            Export CSV
-          </Button>
+          <ExportDataButton
+            rows={filtered}
+            columns={EXPENDITURE_EXPORT_COLUMNS}
+            filename={buildExportFilename(flock.name, "expenditures")}
+          />
           {onAddExpenditure && (
             <Button size="sm" onClick={() => { setEditingExpenditure(null); setIsModalOpen(true); }}>
               <Plus className="h-4 w-4 mr-1" />

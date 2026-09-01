@@ -1,7 +1,6 @@
 
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { type AuthState } from '@/lib/interfaces';
-import type { Farm, PoultryDashboardData, User } from '@/lib/types';
+import type { PoultryDashboardData } from '@/lib/types';
 // Initial state
 interface StatisticSliceDataType {
     poultryStatistics : PoultryDashboardData | null,

@@ -70,7 +70,7 @@ A modern, responsive frontend application for comprehensive livestock management
    ```
    Update `.env` with your API backend URL:
    ```env
-   VITE_API_BASE_URL=http://localhost:8000/api
+   VITE_API_BASE_URL=http://127.0.0.1:8000
    ```
 
 4. **Start development server**
@@ -96,7 +96,7 @@ A modern, responsive frontend application for comprehensive livestock management
 ### API Configuration
 Update your `.env` file with backend API URL:
 ```env
-VITE_API_BASE_URL=http://localhost:8000/api
+VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
 ### UI Theme Configuration

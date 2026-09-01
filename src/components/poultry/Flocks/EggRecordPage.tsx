@@ -3,10 +3,29 @@ import {  Eye } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDate } from "@/lib/utils"
-const EggRecordPage = ({ reports }: { reports: EggReport[] }) => {
+import { ExportDataButton } from "@/components/general/ExportDataButton"
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
+
+const EGG_EXPORT_COLUMNS: ExportColumn<EggReport>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Eggs Collected", value: (row) => row.eggs_collected },
+  { header: "Avg Egg Weight (g)", value: (row) => row.average_egg_weight },
+  { header: "Production %", value: (row) => row.production_percentage },
+  { header: "Bird Count", value: (row) => row.bird_count },
+  { header: "Recorded By", value: (row) => row.recorded_by },
+  { header: "Notes", value: (row) => row.notes },
+]
+
+const EggRecordPage = ({ reports, flockName }: { reports: EggReport[]; flockName?: string }) => {
   return (
     <div className="space-y-6">
-   
+      <div className="flex justify-end">
+        <ExportDataButton
+          rows={reports}
+          columns={EGG_EXPORT_COLUMNS}
+          filename={buildExportFilename(flockName || "flock", "eggs")}
+        />
+      </div>
 
       <div className="rounded-lg border">
         <Table>

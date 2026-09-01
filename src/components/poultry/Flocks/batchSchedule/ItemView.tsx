@@ -1,10 +1,10 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { BatchFeedingSchedule, BatchSchedule, BatchScheduleItem, Schedule } from "@/lib/types"
+import type { BatchSchedule, BatchScheduleItem } from "@/lib/types"
 import { formatDate, Naira } from "@/lib/utils"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@radix-ui/react-collapsible"
-import { AlertCircle, Check, ChevronDown, ChevronUp, Clock, DollarSign, Edit, FileText, Pill, Shield, Syringe, Thermometer, Trash2, User, Wheat } from "lucide-react"
+import { AlertCircle, Check, ChevronDown, ChevronUp, Clock, Edit, FileText, Pill, Shield, Syringe, Thermometer, Trash2, User, Wheat } from "lucide-react"
 import { useState } from "react"
 const scheduleTypeIcons = {
   medication: <Pill className="h-5 w-5" />,

@@ -188,7 +188,13 @@ export function resolveForFeedingDay<T extends FeedingRangeLike & { id: number }
  * Client-side mirror of FeedingMissedScheduleService::collectMissedDays.
  */
 export function listMissedFeedingDays(params: {
-  scheduleItems: Array<FeedingRangeLike & { id: number; quantity?: number; feeding_times?: { time: string; percentage: number }[] }>
+  scheduleItems: Array<FeedingRangeLike & {
+    id: number
+    quantity?: number
+    feeding_times?: { time: string; percentage: number }[]
+    feed_type_id?: number
+    feed_type?: { id?: number; name?: string }
+  }>
   executedItems: Array<{ feeding_date: string }>
   currentFeedingDay: number
   arrivalDate: string
@@ -215,6 +221,8 @@ export function listMissedFeedingDays(params: {
       feeding_day: day,
       feeding_date: feedingDate,
       feeding_schedule_item_id: scheduleItem.id,
+      feed_type_id: scheduleItem.feed_type_id ?? scheduleItem.feed_type?.id ?? 0,
+      feed_type_name: scheduleItem.feed_type?.name ?? "Unknown",
       planned_quantity: perBirdGrams,
       feeding_times: scheduleItem.feeding_times || [{ time: "08:00", percentage: 100 }],
       planned_total_kg: round((perBirdGrams * flockQuantity) / 1000, 3),
@@ -232,15 +240,20 @@ export function listRevertibleFeedingDays(params: {
   currentFeedingDay: number
   arrivalDate: string
 }): Array<{ feeding_date: string; status: string }> {
-  const { executedItems, currentFeedingDay, arrivalDate } = params
+  const { executedItems, currentFeedingDay } = params
   if (currentFeedingDay <= 1) return []
 
   const today = format(new Date(), "yyyy-MM-dd")
 
-  return executedItems.filter((item) => {
-    const date = item.feeding_date.slice(0, 10)
-    return item.status === "late" && date < today
-  })
+  return executedItems
+    .filter((item) => {
+      const date = item.feeding_date.slice(0, 10)
+      return item.status === "late" && date < today
+    })
+    .map((item) => ({
+      feeding_date: item.feeding_date.slice(0, 10),
+      status: item.status ?? "late",
+    }))
 }
 
 export function countMissedDaysInRange(

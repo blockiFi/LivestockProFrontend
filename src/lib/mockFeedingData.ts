@@ -20,7 +20,8 @@ export const generateMockFeedingSchedules = (): BatchFeedingSchedule[] => {
         start_date: currentDate.toISOString().split('T')[0],
         end_date: futureDate.toISOString().split('T')[0],
         created_at: currentDate.toISOString(),
-        updated_at: currentDate.toISOString()
+        updated_at: currentDate.toISOString(),
+        items: []
       },
       items: [
         {
@@ -47,6 +48,8 @@ export const generateMockFeedingSchedules = (): BatchFeedingSchedule[] => {
               { time: "18:00", percentage: 40 }
             ],
             feeding_day: 1,
+            start_day: 1,
+            end_day: 1,
             quantity: 50,
             created_at: currentDate.toISOString(),
             updated_at: currentDate.toISOString()
@@ -76,6 +79,8 @@ export const generateMockFeedingSchedules = (): BatchFeedingSchedule[] => {
               { time: "18:00", percentage: 40 }
             ],
             feeding_day: 2,
+            start_day: 2,
+            end_day: 2,
             quantity: 45,
             created_at: currentDate.toISOString(),
             updated_at: currentDate.toISOString()
@@ -97,7 +102,8 @@ export const generateMockFeedingSchedules = (): BatchFeedingSchedule[] => {
         start_date: new Date(currentDate.getTime() + 7*24*60*60*1000).toISOString().split('T')[0],
         end_date: new Date(currentDate.getTime() + 37*24*60*60*1000).toISOString().split('T')[0],
         created_at: currentDate.toISOString(),
-        updated_at: currentDate.toISOString()
+        updated_at: currentDate.toISOString(),
+        items: []
       },
       items: [
         {
@@ -122,6 +128,8 @@ export const generateMockFeedingSchedules = (): BatchFeedingSchedule[] => {
               { time: "16:00", percentage: 50 }
             ],
             feeding_day: 1,
+            start_day: 1,
+            end_day: 1,
             quantity: 120,
             created_at: currentDate.toISOString(),
             updated_at: currentDate.toISOString()
@@ -143,7 +151,8 @@ export const generateMockFeedingSchedules = (): BatchFeedingSchedule[] => {
         start_date: new Date(currentDate.getTime() - 30*24*60*60*1000).toISOString().split('T')[0],
         end_date: new Date(currentDate.getTime() - 1*24*60*60*1000).toISOString().split('T')[0],
         created_at: new Date(currentDate.getTime() - 30*24*60*60*1000).toISOString(),
-        updated_at: currentDate.toISOString()
+        updated_at: currentDate.toISOString(),
+        items: []
       },
       items: [
         {
@@ -170,6 +179,8 @@ export const generateMockFeedingSchedules = (): BatchFeedingSchedule[] => {
               { time: "17:30", percentage: 30 }
             ],
             feeding_day: 21,
+            start_day: 21,
+            end_day: 21,
             quantity: 80,
             created_at: currentDate.toISOString(),
             updated_at: currentDate.toISOString()

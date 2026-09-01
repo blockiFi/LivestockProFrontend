@@ -3,7 +3,9 @@ import { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { AlertTriangle, Download, Eye, Factory, Package2, Pill, Plus, Trash2 } from "lucide-react"
+import { AlertTriangle, Eye, Factory, Package2, Pill, Plus, Trash2 } from "lucide-react"
+import { ExportDataButton } from "@/components/general/ExportDataButton"
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import { formatDate, Naira } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,10 +29,25 @@ interface MedicationRecordFormData {
   administration_method_id: number
 }
 
+const MEDICATION_EXPORT_COLUMNS: ExportColumn<PoultryMedicationRecord>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Medication", value: (row) => row.medication?.name ?? "" },
+  { header: "Dosage", value: (row) => `${row.dosage || 0} ${row.dosage_unit || ""}`.trim() },
+  { header: "Quantity", value: (row) => Number(row.quantity) || 0 },
+  { header: "Cost", value: (row) => Number(row.cost) || 0 },
+  { header: "Administered By", value: (row) => row.administered_by },
+  { header: "Method", value: (row) => row.administration_method?.name ?? "" },
+  { header: "Manufacturer", value: (row) => row.medication_inventory?.manufacturer ?? "" },
+  { header: "Batch", value: (row) => row.medication_inventory?.batch_number ?? "" },
+  { header: "Status", value: (row) => row.medication_inventory?.status ?? "" },
+  { header: "Notes", value: (row) => row.notes },
+]
+
 interface MedicationRecordViewProps {
   records: PoultryMedicationRecord[]
   flockId: number
   farmId: number
+  flockName?: string
   medications?: Medication[]
   medicationInventories?: MedicationInventory[]
   administrationMethods?: AdministrationMethod[]
@@ -41,7 +58,8 @@ interface MedicationRecordViewProps {
 const MedicationRecordView = ({ 
   records, 
   flockId, 
-  farmId, 
+  farmId,
+  flockName, 
   medications = [], 
   medicationInventories = [], 
   administrationMethods = [],
@@ -172,10 +190,11 @@ const MedicationRecordView = ({
               Add Record
             </Button>
           )}
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+          <ExportDataButton
+            rows={filteredRecords}
+            columns={MEDICATION_EXPORT_COLUMNS}
+            filename={buildExportFilename(flockName || "flock", "medication")}
+          />
         </div>
       </div>
 

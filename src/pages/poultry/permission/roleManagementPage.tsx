@@ -5,7 +5,6 @@ import { Plus, Edit2, Trash2, Eye, Shield, Search, Users, Key, TrendingUp, MoreV
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { StatCard } from "@/components/general/StatCard"
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -23,8 +22,6 @@ import { ACTIONS } from "@/lib/actionPermissions"
 import type { PermissionGroup } from "@/lib/types"
 import { GetToken } from "@/lib/request"
 import { toast } from "react-toastify"
-import { useSelector } from "react-redux"
-import type { RootState } from "@/store"
 import { AlertDialog } from "@/components/ui/alert-dialog"
 
 interface RoleManagementPageProps {
@@ -42,7 +39,6 @@ function roleManagementPage({ embedded = false, rolesData, permissionGroupsData 
   const [deletingRoleId, setDeletingRoleId] = useState<number | null>(null)
   const [pendingDeleteRole, setPendingDeleteRole] = useState<Role | null>(null)
   const revalidator = useRevalidator()
-  const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
   const token = GetToken()
 
   const loaderData = useLoaderData() as { roles?: Role[] | null } | undefined

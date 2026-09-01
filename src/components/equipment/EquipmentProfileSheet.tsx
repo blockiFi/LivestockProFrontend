@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Equipment, FarmUserRoleSummary } from "@/lib/types";
+import type { Equipment, EquipmentCondition, FarmUserRoleSummary } from "@/lib/types";
 import {
   assignEquipment,
   getEquipment,
@@ -74,7 +74,13 @@ export default function EquipmentProfileSheet({
     next_due_at: "",
     notes: "",
   });
-  const [inspectForm, setInspectForm] = useState({
+  const [inspectForm, setInspectForm] = useState<{
+    inspection_date: string;
+    condition: EquipmentCondition;
+    findings: string;
+    recommended_action: string;
+    next_inspection_date: string;
+  }>({
     inspection_date: new Date().toISOString().slice(0, 10),
     condition: "good",
     findings: "",
@@ -289,7 +295,7 @@ export default function EquipmentProfileSheet({
               <TabsContent value="inspections" className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border rounded-lg p-3 bg-gray-50">
                   <div><Label>Date</Label><Input type="date" value={inspectForm.inspection_date} onChange={(e) => setInspectForm((f) => ({ ...f, inspection_date: e.target.value }))} /></div>
-                  <div><Label>Condition</Label><Input value={inspectForm.condition} onChange={(e) => setInspectForm((f) => ({ ...f, condition: e.target.value }))} /></div>
+                  <div><Label>Condition</Label><Input value={inspectForm.condition} onChange={(e) => setInspectForm((f) => ({ ...f, condition: e.target.value as EquipmentCondition }))} /></div>
                   <div className="sm:col-span-2"><Label>Findings</Label><Textarea value={inspectForm.findings} onChange={(e) => setInspectForm((f) => ({ ...f, findings: e.target.value }))} rows={2} /></div>
                   <div className="sm:col-span-2"><Label>Recommended action</Label><Textarea value={inspectForm.recommended_action} onChange={(e) => setInspectForm((f) => ({ ...f, recommended_action: e.target.value }))} rows={2} /></div>
                   <Button onClick={submitInspection} className="w-fit">Record inspection</Button>

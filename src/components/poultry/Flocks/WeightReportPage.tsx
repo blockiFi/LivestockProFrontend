@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { ExportDataButton } from "@/components/general/ExportDataButton"
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import type { WeightReport, FlockRecord } from "@/lib/types"
 import { Scale, TrendingDown, TrendingUp, Plus, Trash2 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -9,6 +11,16 @@ import chicken from "@/assets/chicken.png"
 import { formatDate } from "@/lib/utils"
 import AddWeightReportModal from "@/components/modals/AddWeightReportModal"
 import { toast } from "react-toastify"
+
+const WEIGHT_EXPORT_COLUMNS: ExportColumn<WeightReport>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.report_date) },
+  { header: "Average Weight (kg)", value: (row) => row.average_weight ?? "" },
+  { header: "Min Weight (kg)", value: (row) => row.min_weight ?? "" },
+  { header: "Max Weight (kg)", value: (row) => row.max_weight ?? "" },
+  { header: "Sample Size", value: (row) => row.sample_size },
+  { header: "Number of Birds", value: (row) => row.number_of_birds },
+  { header: "Recorded By", value: (row) => row.recorded_by_name ?? "" },
+]
 
 interface WeightReportPageProps {
   reports: WeightReport[]
@@ -79,16 +91,21 @@ const WeightReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: Weigh
   return (
     <div className="space-y-6">
       {/* Add Weight Report Button */}
-      {onAddRecord && (
-        <div className="flex items-center justify-end mb-4">
+      <div className="flex items-center justify-end gap-2 mb-4">
+        <ExportDataButton
+          rows={[...reports].reverse()}
+          columns={WEIGHT_EXPORT_COLUMNS}
+          filename={buildExportFilename(flock?.name || "flock", "weight")}
+        />
+        {onAddRecord && (
           <Button 
             onClick={() => setIsAddWeightReportModalOpen(true)}
             className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
           >
             <Plus className="h-4 w-4" /> Add Weight Report
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">

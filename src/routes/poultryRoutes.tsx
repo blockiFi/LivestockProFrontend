@@ -24,7 +24,6 @@ import PermissionManagementPage from "@/pages/poultry/permission/permissionManag
 import RoleManagementPage from "@/pages/poultry/permission/roleManagementPage";
 import UserRoleManagementPage from "@/pages/poultry/permission/userRoleManagementPage";
 import SalesProfitLossPage from "@/pages/poultry/analytics/SalesProfitLossPage";
-import FlockCashierPage from "@/pages/poultry/FlockCashierPage";
 
 const PoultryRoutes = [
     {

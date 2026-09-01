@@ -9,8 +9,6 @@ import {
   Smartphone,
   TrendingUp,
   Users,
-  Play,
-  ChevronDown,
   Activity,
   Bell,
 } from "lucide-react"
@@ -18,7 +16,6 @@ import {
 import logo from "../assets/livestockpro1.png"
 import { Button } from "../components/ui/button"
 import { Card, CardContent } from "../components/ui/card"
-import { Input } from "../components/ui/input"
 
 const Landing = () => {
   return (

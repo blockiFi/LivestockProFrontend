@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import type { PoultryVaccinationRecord, vaccine, PoultryVaccineInventory, AdministrationMethod, BatchSchedule, ScheduleItem } from "@/lib/types";
 import { formatDate, Naira, formatCurrency } from "@/lib/utils";
-import { Activity, AlertTriangle, Calendar, Download, Eye, Factory, Loader2, Package2, RefreshCw, Shield, User, Users, Plus, Edit, Trash2 } from "lucide-react";
+import { Activity, AlertTriangle, Calendar, Eye, Factory, Loader2, Package2, RefreshCw, Shield, User, Users, Plus, Edit, Trash2 } from "lucide-react";
+import { ExportDataButton } from "@/components/general/ExportDataButton"
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -18,10 +20,25 @@ import type { RootState } from "@/store"
 import ImplementScheduleModal from "@/components/poultry/Flocks/batchSchedule/ImplementScheduleModal"
 import { toast } from "react-toastify"
 
+const VACCINATION_EXPORT_COLUMNS: ExportColumn<PoultryVaccinationRecord>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Vaccine", value: (row) => row.vaccine?.name ?? "" },
+  { header: "Dosage", value: (row) => `${row.dosage || 0} ${row.dosage_unit || ""}`.trim() },
+  { header: "Quantity", value: (row) => Number(row.quantity) || 0 },
+  { header: "Cost", value: (row) => Number(row.cost) || 0 },
+  { header: "Administered By", value: (row) => row.administered_by },
+  { header: "Method", value: (row) => row.administration_method?.name ?? "" },
+  { header: "Manufacturer", value: (row) => row.vaccine_inventory?.manufacturer ?? "" },
+  { header: "Batch", value: (row) => row.vaccine_inventory?.batch_number ?? "" },
+  { header: "Status", value: (row) => row.vaccine_inventory?.status ?? "" },
+  { header: "Notes", value: (row) => row.notes },
+]
+
 interface VaccinationRecordViewProps {
   records: PoultryVaccinationRecord[]
   flockId: number
   farmId: number
+  flockName?: string
   vaccines?: vaccine[]
   vaccineInventories?: PoultryVaccineInventory[]
   administrationMethods?: AdministrationMethod[]
@@ -48,7 +65,8 @@ const priorityColors: Record<string, string> = {
 const VaccinationRecordView = ({ 
   records, 
   flockId, 
-  farmId, 
+  farmId,
+  flockName, 
   vaccines = [], 
   vaccineInventories = [], 
   administrationMethods = [],
@@ -406,10 +424,11 @@ const VaccinationRecordView = ({
             Add Vaccination
           </Button>
         )}
-        <Button variant="outline" size="sm">
-          <Download className="h-4 w-4 mr-2" />
-          Export
-        </Button>
+        <ExportDataButton
+          rows={filteredRecords}
+          columns={VACCINATION_EXPORT_COLUMNS}
+          filename={buildExportFilename(flockName || "flock", "vaccination")}
+        />
       </div>
 
       <div className="rounded-lg border overflow-x-auto">

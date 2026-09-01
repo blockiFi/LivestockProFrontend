@@ -1,13 +1,9 @@
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { BatchSchedule } from "@/lib/types"
 import { formatCurrency, formatDate, Naira } from "@/lib/utils"
-import { CollapsibleContent } from "@radix-ui/react-collapsible"
-import { AlertCircle, AlertTriangle, Check, CheckCircle, ChevronsDownUp, ChevronUp, Clock, DollarSign, Edit, FileText, Pill, Shield, Syringe, Thermometer, Trash2, User, Wheat } from "lucide-react"
-import { useState } from "react"
+import { AlertCircle, AlertTriangle, CheckCircle, Clock, Pill, Shield, Wheat } from "lucide-react"
 import ItemView from "./ItemView"
 const scheduleTypeIcons = {
   medication: <Pill className="h-5 w-5" />,

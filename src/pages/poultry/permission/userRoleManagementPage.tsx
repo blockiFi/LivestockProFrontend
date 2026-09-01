@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { Users, Search, Shield, Settings, Key, TrendingUp, UserCheck } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

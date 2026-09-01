@@ -1226,6 +1226,7 @@ const FlockPage = () => {
                       {flock.daily_records && flock.daily_records.length > 0 ? (
                         <DailyRecord
                           records={flock.daily_records}
+                          flockName={flock.name}
                           onEdit={isBatchActive && canUpdateRecords ? (record) => setEditingDailyRecord(record) : undefined}
                           onDelete={isBatchActive && canDeleteRecords ? handleDeleteDailyRecord : undefined}
                         />
@@ -1255,7 +1256,7 @@ const FlockPage = () => {
                     </TabsContent>
 
                     <TabsContent value="eggs" className="mt-6">
-                      <EggRecordPage reports={flock.egg_reports} />
+                      <EggRecordPage reports={flock.egg_reports} flockName={flock.name} />
                     </TabsContent>
 
                     <TabsContent value="feed" className="mt-6">
@@ -1274,6 +1275,7 @@ const FlockPage = () => {
                         records={flock.poultry_medication_records}
                         flockId={flock.id}
                         farmId={farmId || 0}
+                        flockName={flock.name}
                         medications={medications}
                         medicationInventories={medicationInventories}
                         administrationMethods={administrationMethods}
@@ -1287,13 +1289,14 @@ const FlockPage = () => {
                         records={flock.poultry_vaccination_records}
                         flockId={flock.id}
                         farmId={farmId || 0}
+                        flockName={flock.name}
                         vaccines={vaccines}
                         vaccineInventories={vaccineInventories}
                         administrationMethods={administrationMethods}
                         vaccinationSchedules={flock.batch_vaccination_schedules}
                         currentAge={currentAge}
                         onOpenSchedule={() => setView("schedule")}
-                        onRefresh={refreshFlock}
+                        onRefresh={async () => { await refreshFlock(); }}
                         onAddVaccinationRecord={isBatchActive && canCreateRecords ? handleCreateVaccinationRecord : undefined}
                         onDeleteVaccinationRecord={isBatchActive && canDeleteRecords ? handleDeleteVaccinationRecord : undefined}
                       />
@@ -1305,8 +1308,16 @@ const FlockPage = () => {
                         profitLoss={flockProfitLoss}
                         onRefresh={refreshExpenditures}
                         onAddExpenditure={isBatchActive && canCreateRecords ? async (payload) => {
-                          if (!farmId || !token) return;
-                          const res = await createFlockExpenditure(token, farmId, flock.id, payload);
+                          if (!farmId || !token || !payload.category || payload.amount == null) return;
+                          const res = await createFlockExpenditure(token, farmId, flock.id, {
+                            category: payload.category,
+                            amount: payload.amount,
+                            currency: payload.currency,
+                            description: payload.description,
+                            payment_method: payload.payment_method,
+                            reference_no: payload.reference_no,
+                            date: payload.date,
+                          });
                           if (res.success && res.data) {
                             setFlock((prev) => ({
                               ...prev,

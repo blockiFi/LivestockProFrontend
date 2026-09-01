@@ -1,22 +1,39 @@
 import Pagination from "@/components/general/Pagination"
+import { ExportDataButton } from "@/components/general/ExportDataButton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import type { PoultryDailyReport } from "@/lib/types"
 import { formatDate } from "@/lib/utils"
-import { AlertTriangle, Download, Droplets, Edit, Eye, Sun, Thermometer, Trash2 } from "lucide-react"
+import { AlertTriangle, Droplets, Edit, Eye, Sun, Thermometer, Trash2 } from "lucide-react"
 import { useMemo, useState, useEffect } from "react"
-import { Label } from "recharts"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import { toast } from "react-toastify"
+
+const DAILY_EXPORT_COLUMNS: ExportColumn<PoultryDailyReport>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Mortality", value: (row) => row.mortality },
+  { header: "Feed (kg)", value: (row) => row.feed_consumed_kg },
+  { header: "Water (L)", value: (row) => row.water_consumed_liters },
+  { header: "Avg Weight (kg)", value: (row) => (row.avg_weight_grams ? row.avg_weight_grams / 1000 : "") },
+  { header: "Min Temperature (°C)", value: (row) => row.min_temperature },
+  { header: "Max Temperature (°C)", value: (row) => row.max_temperature },
+  { header: "Humidity (%)", value: (row) => row.humidity },
+  { header: "Light Hours", value: (row) => row.light_hours },
+  { header: "Notes", value: (row) => row.notes },
+]
 
 const DailyRecord = ({
   records,
+  flockName,
   onEdit,
   onDelete,
 }: {
   records: PoultryDailyReport[]
+  flockName?: string
   onEdit?: (record: PoultryDailyReport) => void
   onDelete?: (recordId: number) => Promise<void>
 }) => {
@@ -109,10 +126,11 @@ const DailyRecord = ({
             className="max-w-xs"
           />
         </div>
-        <Button variant="outline" size="sm">
-          <Download className="h-4 w-4 mr-2" />
-          Export
-        </Button>
+        <ExportDataButton
+          rows={filteredRecords}
+          columns={DAILY_EXPORT_COLUMNS}
+          filename={buildExportFilename(flockName || "flock", "daily-records")}
+        />
       </div>
 
       <div className="rounded-lg border">

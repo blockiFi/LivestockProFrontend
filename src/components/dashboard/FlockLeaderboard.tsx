@@ -12,6 +12,22 @@ import { formatCount, formatMoney } from "@/lib/utils"
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
+import { ExportDataButton } from "@/components/general/ExportDataButton"
+import { buildExportFilename, type ExportColumn } from "@/lib/exportData"
+
+const LEADERBOARD_COLUMNS: ExportColumn<DashboardFlockRow>[] = [
+  { header: "Flock", value: (row) => row.name },
+  { header: "Batch", value: (row) => row.batch_number || "" },
+  { header: "Type", value: (row) => row.poultry_type },
+  { header: "Status", value: (row) => row.status },
+  { header: "Birds", value: (row) => row.birds },
+  { header: "Age (days)", value: (row) => row.age_days },
+  { header: "Mortality %", value: (row) => row.mortality_percent },
+  { header: "FCR", value: (row) => row.fcr },
+  { header: "Feed cost", value: (row) => row.feed_cost },
+  { header: "Revenue", value: (row) => row.revenue },
+  { header: "Net profit", value: (row) => row.net_profit },
+]
 
 type SortKey = keyof Pick<
   DashboardFlockRow,
@@ -58,9 +74,16 @@ const FlockLeaderboard = ({ flocks }: Props) => {
 
   return (
     <Card className="border-slate-200 bg-white shadow-none">
-      <CardHeader>
-        <CardTitle className="text-base">Flock leaderboard</CardTitle>
-        <CardDescription>Performance by flock for the selected period</CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base">Flock leaderboard</CardTitle>
+          <CardDescription>Performance by flock for the selected period</CardDescription>
+        </div>
+        <ExportDataButton
+          rows={sorted}
+          columns={LEADERBOARD_COLUMNS}
+          filename={buildExportFilename("flock-leaderboard")}
+        />
       </CardHeader>
       <CardContent className="overflow-x-auto">
         {flocks.length === 0 ? (

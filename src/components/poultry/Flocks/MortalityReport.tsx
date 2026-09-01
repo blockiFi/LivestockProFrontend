@@ -8,9 +8,22 @@ import { formatDate } from "@/lib/utils"
 import { getBirdCountOnDate } from "@/lib/flock-birds"
 import { Activity, AlertTriangle, Eye, Heart, TrendingUp, Plus, Trash2 } from "lucide-react"
 import Pagination from "@/components/general/Pagination"
+import { ExportDataButton } from "@/components/general/ExportDataButton"
+import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import { useState, useMemo, useEffect } from "react"
 import AddMortalityRecordModal from "@/components/modals/AddMortalityRecordModal"
 import { toast } from "react-toastify"
+
+type MortalityExportRow = MortalityReport & { bird_count: number; mortality_percentage: number }
+
+const MORTALITY_EXPORT_COLUMNS: ExportColumn<MortalityExportRow>[] = [
+  { header: "Date", value: (row) => formatExportDate(row.date) },
+  { header: "Mortality Count", value: (row) => row.mortality_count },
+  { header: "Mortality %", value: (row) => Number(row.mortality_percentage).toFixed(2) },
+  { header: "Bird Count", value: (row) => row.bird_count },
+  { header: "Avg Weight (kg)", value: (row) => row.average_weight ?? "" },
+  { header: "Notes", value: (row) => row.notes },
+]
 
 const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: { 
   reports: MortalityReport[], 
@@ -108,8 +121,14 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
   return (
     <div className="space-y-6">
       {/* Header with Add Button */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-2">
         <h2 className="text-2xl font-bold text-gray-900">Mortality Reports</h2>
+        <div className="flex flex-wrap items-center gap-2">
+        <ExportDataButton
+          rows={displayReports}
+          columns={MORTALITY_EXPORT_COLUMNS}
+          filename={buildExportFilename(flock?.name || "flock", "mortality")}
+        />
         {onAddRecord && (
           <Button 
             onClick={() => setIsAddModalOpen(true)}
@@ -119,6 +138,7 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
             Add Mortality Record
           </Button>
         )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

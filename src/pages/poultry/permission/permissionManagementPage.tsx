@@ -39,7 +39,7 @@ export default function permissionManagementPage({ embedded = false, permissionG
     setLoading(false)
   }, [PermissionGroups])
 
-  const [moduleFilter, setModuleFilter] = useState<string>("all")
+  const [moduleFilter] = useState<string>("all")
 
   const modules = useMemo(() => {
     if (!PermissionGroups) return [] as string[]

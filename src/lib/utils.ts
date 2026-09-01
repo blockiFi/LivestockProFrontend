@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import type { LoaderFunctionArgs } from "react-router-dom"
 import type { route } from "./interfaces";
 import { requireRoutePermission } from "./loader";
 
@@ -97,13 +98,11 @@ export const exportRoutes = (prefix: string, routes: route[]) => {
     return {
       ...route,
       path: prefix + routePath,
-      loader: async (args?: { request?: Request; params?: Record<string, string> }) => {
-        const pathname = args?.request
-          ? new URL(args.request.url).pathname
-          : `/dashboard/${prefix}${routePath === "/" ? "" : routePath}`.replace(/:\w+/g, "0")
+      loader: async (args: LoaderFunctionArgs) => {
+        const pathname = new URL(args.request.url).pathname
         await requireRoutePermission(pathname)
         if (originalLoader) {
-          return originalLoader(args as Parameters<NonNullable<typeof originalLoader>>[0])
+          return originalLoader(args)
         }
         return null
       },

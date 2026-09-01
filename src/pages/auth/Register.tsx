@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "react-toastify"
 import { StoreToken } from "@/lib/request"
-import { GetToken, UserLogin } from "@/lib/request"
 import axios from "@/lib/axios"
 
 function Register() {
