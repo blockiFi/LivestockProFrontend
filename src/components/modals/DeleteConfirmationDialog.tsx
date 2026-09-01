@@ -31,7 +31,7 @@ const DeleteConfirmationDialog = ({
   const defaultDescription = `Are you sure you want to delete ${itemName ? `"${itemName}"` : 'this item'}? This action cannot be undone and will restore the vaccine inventory.`
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

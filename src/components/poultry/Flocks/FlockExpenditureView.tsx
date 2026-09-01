@@ -595,7 +595,7 @@ const FlockExpenditureView = ({
 
       <DeleteConfirmationDialog
         isOpen={Boolean(deletingExpenditure)}
-        onClose={() => setDeletingExpenditure(null)}
+        onClose={() => !isDeleting && setDeletingExpenditure(null)}
         onConfirm={handleDeleteConfirm}
         title="Delete expenditure"
         description={`Delete this manual expenditure of ${deletingExpenditure ? formatMoney(deletingExpenditure.amount) : ""}? This cannot be undone.`}

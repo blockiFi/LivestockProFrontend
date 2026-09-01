@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import AddProductSaleModal from "@/components/modals/AddProductSaleModal";
+import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDialog";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Edit, Egg, Plus, Trash2 } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
@@ -49,7 +50,8 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SalesRecord | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<SalesRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!token || !farmId) return;
@@ -112,19 +114,20 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
     }
   };
 
-  const handleDelete = async (record: SalesRecord) => {
-    if (!token || !farmId) return;
-    setDeletingId(record.id);
+  const handleDeleteConfirm = async () => {
+    if (!token || !farmId || !deletingRecord) return;
+    setIsDeleting(true);
     try {
-      const res = await deleteSalesRecord(token, farmId, record.id);
+      const res = await deleteSalesRecord(token, farmId, deletingRecord.id);
       if (res.success) {
         toast.success("Product sale deleted");
+        setDeletingRecord(null);
         await load();
       } else if (!res.success) {
         toast.error(Array.isArray(res.error) ? res.error.join(", ") : String(res.error));
       }
     } finally {
-      setDeletingId(null);
+      setIsDeleting(false);
     }
   };
 
@@ -228,8 +231,8 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
                             size="sm"
                             variant="ghost"
                             className="h-8 w-8 p-0 text-rose-600"
-                            disabled={deletingId === row.id}
-                            onClick={() => void handleDelete(row)}
+                            disabled={isDeleting && deletingRecord?.id === row.id}
+                            onClick={() => setDeletingRecord(row)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -254,6 +257,20 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
         editing={editing}
         defaultFlockId={flockId}
         lockFlock
+      />
+
+      <DeleteConfirmationDialog
+        isOpen={Boolean(deletingRecord)}
+        onClose={() => !isDeleting && setDeletingRecord(null)}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+        title="Delete product sale"
+        description={
+          deletingRecord
+            ? `Delete this ${typeLabel[deletingRecord.type] || deletingRecord.type} sale of ${formatCurrency(deletingRecord.total_amount)}? This cannot be undone.`
+            : undefined
+        }
+        itemName={deletingRecord?.customer_name || deletingRecord?.customer?.name || undefined}
       />
     </Card>
   );

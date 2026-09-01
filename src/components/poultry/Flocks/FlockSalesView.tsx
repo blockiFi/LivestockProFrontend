@@ -17,6 +17,7 @@ const SALE_EXPORT_COLUMNS: ExportColumn<FlockSale>[] = [
   { header: "Notes", value: (row) => row.notes || "" },
 ];
 import AddFlockSaleModal, { type FlockSaleFormPayload } from "@/components/modals/AddFlockSaleModal";
+import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDialog";
 
 interface FlockSalesViewProps {
   flock: DetailedFlockRecord;
@@ -35,7 +36,8 @@ const FlockSalesView = ({
 }: FlockSalesViewProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<FlockSale | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingSale, setDeletingSale] = useState<FlockSale | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const sales = Array.isArray(flock.flock_sales) ? flock.flock_sales : [];
 
@@ -69,13 +71,14 @@ const FlockSalesView = ({
     await onUpdateSale(editingSale.id, payload);
   };
 
-  const handleDelete = async (sale: FlockSale) => {
-    if (!onDeleteSale) return;
-    setDeletingId(sale.id);
+  const handleDeleteConfirm = async () => {
+    if (!deletingSale || !onDeleteSale) return;
+    setIsDeleting(true);
     try {
-      await onDeleteSale(sale.id);
+      await onDeleteSale(deletingSale.id);
+      setDeletingSale(null);
     } finally {
-      setDeletingId(null);
+      setIsDeleting(false);
     }
   };
 
@@ -202,8 +205,8 @@ const FlockSalesView = ({
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                              onClick={() => handleDelete(sale)}
-                              disabled={deletingId === sale.id}
+                              onClick={() => setDeletingSale(sale)}
+                              disabled={isDeleting && deletingSale?.id === sale.id}
                               aria-label="Delete sale"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -226,6 +229,24 @@ const FlockSalesView = ({
         editing={editingSale}
         liveBirdCount={flock.actual_quantity}
         onSubmit={editingSale ? handleUpdate : handleAdd}
+      />
+
+      <DeleteConfirmationDialog
+        isOpen={Boolean(deletingSale)}
+        onClose={() => !isDeleting && setDeletingSale(null)}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+        title="Delete sale"
+        description={
+          deletingSale
+            ? `Delete this sale of ${deletingSale.quantity} bird${deletingSale.quantity === 1 ? "" : "s"} for ${(deletingSale.total_amount || 0).toLocaleString(undefined, {
+                style: "currency",
+                currency: "NGN",
+                minimumFractionDigits: 2,
+              })}? Bird count will be restored and this cannot be undone.`
+            : undefined
+        }
+        itemName={deletingSale?.customer_name || undefined}
       />
     </Card>
   );
