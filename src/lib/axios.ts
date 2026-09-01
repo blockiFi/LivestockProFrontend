@@ -1,15 +1,9 @@
 import Axios from "axios";
 
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
-
-const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, "");
-
-const apiBaseUrl = normalizeBaseUrl(
-    import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL,
-);
-
+// Same-origin /api/* — proxied by Vite in dev and by vercel.json rewrites in production.
+// This avoids browser CORS when the UI and API are on different hosts.
 const axios = Axios.create({
-    baseURL: `${apiBaseUrl}/`,
+    baseURL: "/",
     headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
