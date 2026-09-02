@@ -202,7 +202,7 @@ export function buildFlockMetricsPrintHtml(input: FlockMetricsPrintInput): strin
       }
 
       <div class="footer">
-        LiveStockPro · Flock metrics report for ${escapeHtml(flock.name)}
+        Farm Central · Flock metrics report for ${escapeHtml(flock.name)}
       </div>
     </div>
   </body>

@@ -7,7 +7,8 @@ import { SubscriptionBanner } from "@/components/general/SubscriptionBanner"
 import { Loader2 } from "lucide-react"
 
 const Dashboard = () => {
-  const { isLoading } = usePermissions()
+  const { isLoading, isLoaded } = usePermissions()
+  const showPermissionOverlay = isLoading && !isLoaded
 
   return (
     <SidebarProvider>
@@ -16,18 +17,15 @@ const Dashboard = () => {
         <TopBar>
           <SidebarTrigger className="md:hidden text-slate-700" />
         </TopBar>
-        <div className="flex-1 p-4 md:p-6 lg:p-8">
-          {isLoading ? (
-            <div className="flex min-h-[40vh] items-center justify-center gap-2 text-slate-500">
+        <div className="relative flex-1 p-4 md:p-6 lg:p-8">
+          {showPermissionOverlay && (
+            <div className="absolute inset-0 z-10 flex min-h-[40vh] items-center justify-center gap-2 bg-slate-50/80 text-slate-500">
               <Loader2 className="h-5 w-5 animate-spin" />
               Loading permissions...
             </div>
-          ) : (
-            <>
-              <SubscriptionBanner />
-              <Outlet />
-            </>
           )}
+          <SubscriptionBanner />
+          <Outlet />
         </div>
       </SidebarInset>
     </SidebarProvider>

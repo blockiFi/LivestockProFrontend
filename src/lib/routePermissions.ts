@@ -19,6 +19,7 @@ import {
   viewVaccineProducts,
   viewVaccines,
   viewFarmTasks,
+  viewCustomers,
 } from "./permissions"
 
 export type RoutePermissionRule = {
@@ -68,6 +69,9 @@ export const ROUTE_PERMISSION_RULES: RoutePermissionRule[] = [
   // Equipment
   { pattern: /^\/dashboard\/equipment/, anyOf: viewEquipment },
 
+  // CRM
+  { pattern: /^\/dashboard\/crm\/customers/, anyOf: viewCustomers },
+
   // Invoices
   { pattern: /^\/dashboard\/invoices/, anyOf: viewInvoices },
 
@@ -102,6 +106,7 @@ export const NAV_PERMISSIONS: Record<string, string[]> = {
   "/dashboard/poultry/permission/roles": ["view roles", "manage roles"],
   "/dashboard/poultry/permission/user-roles": ["view users", "manage users", "manage user roles"],
   "/dashboard/equipment": viewEquipment,
+  "/dashboard/crm/customers": viewCustomers,
   "/dashboard/invoices": viewInvoices,
   "/dashboard/notifications": viewFarmSettings,
   "/dashboard/settings": [],

@@ -35,16 +35,17 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-import type { ScheduleItem, VaccineProduct, MedicationProduct, AdministrationMethod } from "@/lib/types"
+import type { ScheduleItem, VaccineProduct, MedicationProduct, AdministrationMethod, BatchScheduleItem } from "@/lib/types"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
-import { getAdministrationMethods, getVaccineProducts, getMedicationProducts, createBatchScheduleItem } from "@/lib/request"
+import { getAdministrationMethods, getVaccineProducts, getMedicationProducts, createBatchScheduleItem, updateBatchScheduleItem } from "@/lib/request"
 import { toast } from "react-toastify"
 
 interface ImplementScheduleModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   scheduleItem: ScheduleItem
+  batchScheduleItem?: BatchScheduleItem | null
   batchScheduleId: number
   scheduleType: "medication" | "vaccination"
   currentAge: number
@@ -55,6 +56,7 @@ const ImplementScheduleModal = ({
   open,
   onOpenChange,
   scheduleItem,
+  batchScheduleItem = null,
   batchScheduleId,
   scheduleType,
   currentAge,
@@ -96,18 +98,22 @@ const ImplementScheduleModal = ({
   // When modal opens, default scheduled date based on schedule age vs current flock age
   useEffect(() => {
     if (open) {
-      const today = new Date()
-      if (typeof scheduleItem.age_days === "number" && !Number.isNaN(currentAge)) {
-        const offset = scheduleItem.age_days - currentAge
-        const scheduled = new Date(today)
-        scheduled.setDate(today.getDate() + offset)
-        setScheduledDate(scheduled)
+      if (batchScheduleItem?.scheduled_date) {
+        setScheduledDate(new Date(batchScheduleItem.scheduled_date))
       } else {
-        setScheduledDate(today)
+        const today = new Date()
+        if (typeof scheduleItem.age_days === "number" && !Number.isNaN(currentAge)) {
+          const offset = scheduleItem.age_days - currentAge
+          const scheduled = new Date(today)
+          scheduled.setDate(today.getDate() + offset)
+          setScheduledDate(scheduled)
+        } else {
+          setScheduledDate(today)
+        }
       }
       setActualDate(undefined)
     }
-  }, [open, scheduleItem, currentAge])
+  }, [open, scheduleItem, currentAge, batchScheduleItem])
 
   const fetchDropdownData = async () => {
     setLoadingData(true)
@@ -191,7 +197,9 @@ const ImplementScheduleModal = ({
         }),
       }
 
-      const result = await createBatchScheduleItem(token, farmId, scheduleType, payload)
+      const result = batchScheduleItem
+        ? await updateBatchScheduleItem(token, farmId, scheduleType, batchScheduleItem.id, payload)
+        : await createBatchScheduleItem(token, farmId, scheduleType, payload)
 
       if (!result.success) {
         const msg = Array.isArray(result.error) ? result.error.join(", ") : String(result.error)

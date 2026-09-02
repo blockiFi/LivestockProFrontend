@@ -5,6 +5,7 @@ import { exportRoutes } from "@/lib/utils";
 import FlockManagementPage from "@/pages/poultry/FlockManagementPage";
 import HousingManagementPage from "@/pages/poultry/HousingManagementPage";
 import FlockPage from "@/pages/poultry/FlockPage";
+import BatchActivitiesReportPage from "@/pages/poultry/BatchActivitiesReportPage";
 import OverviewPage from "@/pages/poultry/OverviewPage";
 import ScheduleManagementPage from "@/pages/poultry/ScheduleManagementPage";
 import TaskManagementPage from "@/pages/poultry/TaskManagementPage";
@@ -75,6 +76,28 @@ const PoultryRoutes = [
     },
         element: <FlockPage />
 },
+    {
+        path: "/flock-management/:flockId/activities",
+        loader: async ({ params }: { params: { flockId?: string } }): Promise<{ Flock: DetailedFlockRecord }> => {
+            const rawId = params.flockId;
+            const flockId = rawId ? Number(rawId) : NaN;
+
+            if (!rawId || Number.isNaN(flockId)) {
+                toast.error("Invalid flock ID");
+                throw new Error("Invalid flock ID");
+            }
+
+            const { Flock } = await LoadFlockData(flockId);
+
+            if (Flock === null) {
+                toast.error("Flock not found");
+                return redirect("/dashboard/poultry/flock-management") as unknown as { Flock: DetailedFlockRecord };
+            }
+
+            return { Flock };
+        },
+        element: <BatchActivitiesReportPage />
+    },
 {
     path : "/schedules" , 
     loader : async () => {
@@ -240,8 +263,8 @@ const PoultryRoutes = [
       toast.error("You must be logged in to access this page.");
       return redirect('/login');
     }
-    const { PermissionGroups } = await LoadPermissionGroups();
-    return { PermissionGroups };
+    const { PermissionGroups, totalPermissions } = await LoadPermissionGroups();
+    return { PermissionGroups, totalPermissions };
   },
   element: <PermissionManagementPage />
 },

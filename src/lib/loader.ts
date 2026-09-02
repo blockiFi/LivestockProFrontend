@@ -317,7 +317,10 @@ export const LoadVaccineInventories = async (): Promise<{  vaccineInventories: V
     }
 };
 
-export const LoadPermissionGroups = async (): Promise<{ PermissionGroups: PermissionGroup[] | null }> => {
+export const LoadPermissionGroups = async (): Promise<{
+  PermissionGroups: PermissionGroup[] | null
+  totalPermissions: number
+}> => {
     await Authenticated();
     const state: AppState = store.getState();
     const { currentFarm } = await LoadActiveFarm();
@@ -325,15 +328,18 @@ export const LoadPermissionGroups = async (): Promise<{ PermissionGroups: Permis
     try {
         const response = await getGroupedPermisssions(state.authentication.token, currentFarm?.id ? currentFarm.id : 0);
         console.log('Permission Groups Response:', response);
-        if (response.success) {
-            return { PermissionGroups: response.data ?? null };
+        if (response.success && response.data) {
+            return {
+              PermissionGroups: response.data.groups ?? null,
+              totalPermissions: response.data.total_permissions ?? 0,
+            };
         } else {
             console.error('Error loading permission groups data: ', response.error);
-            return { PermissionGroups: null };
+            return { PermissionGroups: null, totalPermissions: 0 };
         }
     } catch (err) {
         console.error('Error loading permission groups data:', err);
-        return { PermissionGroups: null };
+        return { PermissionGroups: null, totalPermissions: 0 };
     }
 };
 

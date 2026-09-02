@@ -310,6 +310,8 @@ const ScheduleManagementPage = () => {
           scheduleResponse.data.id,
           scheduleData.items.map((item) => ({
             age_days: item.age_days,
+            is_recurring: item.is_recurring ?? false,
+            interval_days: item.is_recurring ? item.interval_days ?? null : null,
             poultry_vaccine_id: item.vaccine_id,
             poultry_medication_id: item.medication_id,
             name: item.name,

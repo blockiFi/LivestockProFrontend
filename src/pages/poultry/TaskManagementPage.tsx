@@ -28,7 +28,7 @@ import {
   TriangleAlert,
 } from "lucide-react"
 import { toast } from "react-toastify"
-import { getFarmUsers } from "@/lib/request"
+import { getFarmUsers, getFlocks } from "@/lib/request"
 import {
   approveFarmTaskInstance,
   completeFarmTaskInstance,
@@ -55,6 +55,7 @@ import type {
   FarmTaskStats,
   FarmTaskTemplate,
   FarmUserRoleSummary,
+  FlockRecord,
 } from "@/lib/types"
 import CreateTaskScheduleSheet from "@/components/poultry/tasks/CreateTaskScheduleSheet"
 import CompleteTaskDialog from "@/components/poultry/tasks/CompleteTaskDialog"
@@ -126,6 +127,7 @@ const TaskManagementPage = () => {
   const [schedules, setSchedules] = useState<FarmTaskSchedule[]>([])
   const [templates, setTemplates] = useState<FarmTaskTemplate[]>([])
   const [workers, setWorkers] = useState<FarmUserRoleSummary[]>([])
+  const [flocks, setFlocks] = useState<FlockRecord[]>([])
   const [notifications, setNotifications] = useState<FarmTaskNotification[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState("")
@@ -157,13 +159,14 @@ const TaskManagementPage = () => {
       const from = toDateKey(new Date(Math.min(...candidates.map((d) => d.getTime()))))
       const to = toDateKey(new Date(Math.max(...candidates.map((d) => d.getTime()))))
 
-      const [statsRes, instRes, schedRes, tmplRes, usersRes, notifRes] = await Promise.all([
+      const [statsRes, instRes, schedRes, tmplRes, usersRes, notifRes, flocksRes] = await Promise.all([
         getFarmTaskStats(token, farmId),
         getFarmTaskInstances(token, farmId, { from, to }),
         getFarmTaskSchedules(token, farmId),
         getFarmTaskTemplates(token, farmId),
         getFarmUsers(token, farmId),
         getFarmTaskNotifications(token, farmId),
+        getFlocks(token, farmId),
       ])
 
       if (statsRes.success && statsRes.data) setStats(statsRes.data)
@@ -172,6 +175,7 @@ const TaskManagementPage = () => {
       if (tmplRes.success && tmplRes.data) setTemplates(tmplRes.data)
       if (usersRes.success && usersRes.data) setWorkers(usersRes.data)
       if (notifRes.success && notifRes.data) setNotifications(notifRes.data)
+      if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)
     } finally {
       setLoading(false)
     }
@@ -908,6 +912,7 @@ const TaskManagementPage = () => {
           }
         }}
         workers={workers}
+        flocks={flocks}
         templates={templates}
         initial={editingSchedule}
         templatePreset={templatePreset}

@@ -93,32 +93,6 @@ export function isManualExpenditure(sourceType: string | null): boolean {
   return !sourceType || sourceType === "manual";
 }
 
-export type DateRangePreset = "all" | "this_month" | "last_30" | "last_90" | "custom";
+export type DateRangePreset = import("./dateRange").ExpenditureDateRangePreset;
 
-export function resolveDateRange(preset: DateRangePreset, customFrom: string, customTo: string) {
-  const today = new Date();
-  const toIso = (d: Date) => d.toISOString().split("T")[0];
-
-  if (preset === "all") {
-    return { dateFrom: "", dateTo: "" };
-  }
-
-  if (preset === "this_month") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    return { dateFrom: toIso(start), dateTo: toIso(today) };
-  }
-
-  if (preset === "last_30") {
-    const start = new Date(today);
-    start.setDate(start.getDate() - 30);
-    return { dateFrom: toIso(start), dateTo: toIso(today) };
-  }
-
-  if (preset === "last_90") {
-    const start = new Date(today);
-    start.setDate(start.getDate() - 90);
-    return { dateFrom: toIso(start), dateTo: toIso(today) };
-  }
-
-  return { dateFrom: customFrom, dateTo: customTo };
-}
+export { resolveExpenditureDateRange as resolveDateRange } from "./dateRange";

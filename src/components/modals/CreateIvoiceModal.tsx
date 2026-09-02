@@ -1,53 +1,81 @@
-
 import { useEffect, useMemo, useState } from "react"
-import type { FarmSettings, Invoice, InvoiceItem } from "@/lib/types"
+import { useSelector } from "react-redux"
+import { toast } from "react-toastify"
+import type { FarmSettings, InvoiceItem } from "@/lib/types"
+import type { RootState } from "@/store"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Trash2 } from "lucide-react"
 import { formatCurrency } from "@/lib/currency"
+import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker"
+import { createInvoice, getCustomer } from "@/lib/crmRequest"
 
 interface CreateInvoiceModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreateInvoice: (invoice: Omit<Invoice, "id">) => void
+  onCreated: () => void
   farmSettings?: FarmSettings | null
+  defaultCustomerId?: number | null
 }
 
-export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice, farmSettings }: CreateInvoiceModalProps) {
-  const [clientName, setClientName] = useState("")
-  const [clientEmail, setClientEmail] = useState("")
+const emptyCustomer = (): CustomerSelection => ({
+  customer_id: null,
+  customer_name: "",
+  customer_phone: "",
+})
+
+export function CreateInvoiceModal({
+  open,
+  onOpenChange,
+  onCreated,
+  farmSettings,
+  defaultCustomerId = null,
+}: CreateInvoiceModalProps) {
+  const token = useSelector((state: RootState) => state.authentication.token)
+  const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
+  const [customer, setCustomer] = useState<CustomerSelection>(emptyCustomer())
   const [dueDate, setDueDate] = useState("")
   const [notes, setNotes] = useState("")
-  const [paymentInstructions, setPaymentInstructions] = useState(farmSettings?.invoice_payment_instructions ?? "")
-  const [taxEnabled, setTaxEnabled] = useState(farmSettings?.invoice_tax_enabled ?? true)
   const [items, setItems] = useState<InvoiceItem[]>([{ description: "", quantity: 1, unitPrice: 0, total: 0 }])
-  const taxRate = useMemo(() => Number(farmSettings?.invoice_tax_rate ?? 10), [farmSettings?.invoice_tax_rate])
+  const [submitting, setSubmitting] = useState(false)
 
   const today = new Date().toISOString().split("T")[0]
-  const invoiceNumber = `${farmSettings?.invoice_prefix ?? "INV"}-${new Date().getFullYear()}-${String(farmSettings?.invoice_next_number ?? Math.floor(Math.random() * 1000)).padStart(3, "0")}`
+  const taxRate = useMemo(() => Number(farmSettings?.invoice_tax_rate ?? 10), [farmSettings?.invoice_tax_rate])
+  const taxEnabled = farmSettings?.invoice_tax_enabled ?? true
 
   useEffect(() => {
-    if (open) {
-      setPaymentInstructions(farmSettings?.invoice_payment_instructions ?? "")
-      setTaxEnabled(farmSettings?.invoice_tax_enabled ?? true)
+    if (!open) return
+    setDueDate("")
+    setNotes("")
+    setItems([{ description: "", quantity: 1, unitPrice: 0, total: 0 }])
+    if (!defaultCustomerId) {
+      setCustomer(emptyCustomer())
+      return
     }
-  }, [farmSettings?.invoice_payment_instructions, farmSettings?.invoice_tax_enabled, open])
+    setCustomer({ customer_id: defaultCustomerId, customer_name: "", customer_phone: "" })
+    if (!token || !farmId) return
+    void getCustomer(token, farmId, defaultCustomerId).then((res) => {
+      if (!res.success || !res.data?.customer) return
+      setCustomer({
+        customer_id: res.data.customer.id,
+        customer_name: res.data.customer.name,
+        customer_phone: res.data.customer.phone ?? "",
+      })
+    })
+  }, [open, defaultCustomerId, token, farmId])
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
     const newItems = [...items]
     if (field === "quantity" || field === "unitPrice") {
-      ;(newItems[index] as any)[field] = Number(value)
+      newItems[index][field] = Number(value)
     } else {
-      ;(newItems[index] as any)[field] = value as string
+      newItems[index][field] = value as string
     }
-
-    // Calculate total
     newItems[index].total = newItems[index].quantity * newItems[index].unitPrice
-
     setItems(newItems)
   }
 
@@ -63,37 +91,44 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice, farmSe
   const tax = taxEnabled ? Math.round(subtotal * (taxRate / 100)) : 0
   const total = subtotal + tax
 
-  const handleCreate = () => {
-    if (!clientName || !clientEmail || !dueDate || items.length === 0) {
-      alert("Please fill in all required fields")
+  const handleCreate = async () => {
+    if (!token || !farmId) return
+    if (!customer.customer_id) {
+      toast.error("Please select a customer for this invoice")
+      return
+    }
+    if (!dueDate) {
+      toast.error("Due date is required")
+      return
+    }
+    if (items.length === 0 || items.some((item) => !item.description.trim() || item.quantity <= 0)) {
+      toast.error("Add at least one valid line item")
       return
     }
 
-    onCreateInvoice({
-      invoiceNumber,
-      date: today,
-      dueDate,
-      status: "Pending",
-      clientName,
-      clientEmail,
-      items,
-      subtotal,
-      tax,
-      taxRate,
-      taxEnabled,
-      total,
-      notes,
-      paymentInstructions: paymentInstructions.trim() || undefined,
+    setSubmitting(true)
+    const res = await createInvoice(token, farmId, {
+      customer_id: customer.customer_id,
+      invoice_date: today,
+      due_date: dueDate,
+      status: "pending",
+      notes: notes.trim() || null,
+      items: items.map((item) => ({
+        description: item.description.trim(),
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+      })),
     })
+    setSubmitting(false)
 
-    // Reset form
-    setClientName("")
-    setClientEmail("")
-    setDueDate("")
-    setNotes("")
-    setPaymentInstructions(farmSettings?.invoice_payment_instructions ?? "")
-    setTaxEnabled(farmSettings?.invoice_tax_enabled ?? true)
-    setItems([{ description: "", quantity: 1, unitPrice: 0, total: 0 }])
+    if (!res.success) {
+      toast.error(res.error?.join(", ") || "Failed to create invoice")
+      return
+    }
+
+    toast.success("Invoice created")
+    onOpenChange(false)
+    onCreated()
   }
 
   return (
@@ -104,104 +139,137 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice, farmSe
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Invoice Number Display */}
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-muted-foreground">Invoice Number</p>
-            <p className="text-lg font-semibold text-blue-600">{invoiceNumber}</p>
+          <div className="rounded-lg bg-blue-50 p-4">
+            <p className="text-sm text-muted-foreground">Invoice number</p>
+            <p className="text-lg font-semibold text-blue-600">Assigned automatically on save</p>
           </div>
 
-          {/* Client Information */}
           <div className="space-y-4 border-b pb-4">
-            <h3 className="font-semibold text-foreground">Client Information</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <Input placeholder="Client Name" value={clientName} onChange={(e) => setClientName(e.target.value)} />
-              <Input
-                placeholder="Client Email"
-                type="email"
-                value={clientEmail}
-                onChange={(e) => setClientEmail(e.target.value)}
-              />
-            </div>
-            <Input type="date" placeholder="Due Date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <h3 className="font-semibold text-foreground">Client information</h3>
+            <CustomerPicker value={customer} onChange={setCustomer} />
+            <Input type="date" placeholder="Due date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </div>
 
-          {/* Line Items */}
           <div className="space-y-4 border-b pb-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-foreground">Line Items</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-foreground">Line items</h3>
               <Button variant="outline" size="sm" onClick={addItem} className="gap-2 bg-transparent">
                 <Plus className="w-4 h-4" />
-                Add Item
+                Add item
               </Button>
             </div>
 
-            <div className="space-y-3">
+            <div className="hidden sm:grid sm:grid-cols-[1fr_88px_112px_112px_40px] sm:gap-3 sm:items-end px-1">
+              <Label className="text-xs font-medium text-muted-foreground">Name</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Quantity</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Unit price</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Total</Label>
+              <span className="sr-only">Remove</span>
+            </div>
+
+            <div className="space-y-4">
               {items.map((item, index) => (
-                <div key={index} className="flex gap-3 items-end">
-                  <Input
-                    placeholder="Description"
-                    value={item.description}
-                    onChange={(e) => updateItem(index, "description", e.target.value)}
-                    className="flex-1"
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Qty"
-                    value={item.quantity}
-                    onChange={(e) => updateItem(index, "quantity", e.target.value)}
-                    className="w-20"
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Price"
-                    value={item.unitPrice}
-                    onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
-                    className="w-24"
-                  />
-                  <div className="text-right min-w-24">
-                    <p className="text-sm font-medium">{formatCurrency(item.total, { farmSettings })}</p>
+                <div
+                  key={index}
+                  className="grid gap-3 sm:grid-cols-[1fr_88px_112px_112px_40px] sm:items-end rounded-lg border bg-slate-50/50 p-3 sm:border-0 sm:bg-transparent sm:p-0"
+                >
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`invoice-item-name-${index}`} className="text-xs sm:sr-only">
+                      Name
+                    </Label>
+                    <Input
+                      id={`invoice-item-name-${index}`}
+                      placeholder="Item name"
+                      value={item.description}
+                      onChange={(e) => updateItem(index, "description", e.target.value)}
+                    />
                   </div>
-                  {items.length > 1 && (
-                    <Button variant="ghost" size="sm" onClick={() => removeItem(index)}>
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
-                  )}
+
+                  <div className="grid grid-cols-2 gap-3 sm:contents">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`invoice-item-qty-${index}`} className="text-xs sm:sr-only">
+                        Quantity
+                      </Label>
+                      <Input
+                        id={`invoice-item-qty-${index}`}
+                        type="number"
+                        min={1}
+                        step={1}
+                        placeholder="1"
+                        value={item.quantity}
+                        onChange={(e) => updateItem(index, "quantity", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`invoice-item-price-${index}`} className="text-xs sm:sr-only">
+                        Unit price
+                      </Label>
+                      <Input
+                        id={`invoice-item-price-${index}`}
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="0.00"
+                        value={item.unitPrice}
+                        onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs sm:sr-only">Total</Label>
+                    <div className="flex h-10 items-center justify-between rounded-md border bg-white px-3 sm:justify-end">
+                      <span className="text-xs text-muted-foreground sm:hidden">Total</span>
+                      <p className="text-sm font-semibold tabular-nums">
+                        {formatCurrency(item.total, { farmSettings })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end sm:justify-center">
+                    {items.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={() => removeItem(index)}
+                        aria-label="Remove line item"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    ) : (
+                      <div className="hidden sm:block sm:h-10 sm:w-10" />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Totals */}
-          <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-center gap-2 pb-2 border-b border-border">
-              <Checkbox
-                id="tax-enabled"
-                checked={taxEnabled}
-                onCheckedChange={(checked) => setTaxEnabled(checked === true)}
-              />
-              <label htmlFor="tax-enabled" className="text-sm font-medium text-foreground cursor-pointer">
-                Apply tax ({taxRate}%)
-              </label>
-            </div>
+          <div className="space-y-2 rounded-lg bg-gray-50 p-4">
+            <p className="text-sm text-muted-foreground">
+              Tax {taxEnabled ? `(${taxRate}%)` : "disabled"} is calculated server-side from farm settings.
+            </p>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal:</span>
               <span className="font-medium">{formatCurrency(subtotal, { farmSettings })}</span>
             </div>
             {taxEnabled && (
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Tax ({taxRate}%):</span>
+                <span className="text-muted-foreground">Estimated tax ({taxRate}%):</span>
                 <span className="font-medium">{formatCurrency(tax, { farmSettings })}</span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold border-t pt-2">
-              <span>Total:</span>
+            <div className="flex justify-between border-t pt-2 text-lg font-bold">
+              <span>Estimated total:</span>
               <span className="text-blue-600">{formatCurrency(total, { farmSettings })}</span>
             </div>
           </div>
 
-          {/* Notes */}
           <div>
-            <label className="text-sm font-medium text-foreground block mb-2">Notes (Optional)</label>
+            <label className="mb-2 block text-sm font-medium text-foreground">Notes (optional)</label>
             <Textarea
               placeholder="Add any additional notes..."
               value={notes}
@@ -210,24 +278,12 @@ export function CreateInvoiceModal({ open, onOpenChange, onCreateInvoice, farmSe
             />
           </div>
 
-          {/* Payment Instructions */}
-          <div>
-            <label className="text-sm font-medium text-foreground block mb-2">Payment Instructions (Optional)</label>
-            <Textarea
-              placeholder="Bank name, account number, payment reference, etc."
-              value={paymentInstructions}
-              onChange={(e) => setPaymentInstructions(e.target.value)}
-              rows={4}
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleCreate}>
-              Create Invoice
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => void handleCreate()} disabled={submitting}>
+              {submitting ? "Creating..." : "Create invoice"}
             </Button>
           </div>
         </div>

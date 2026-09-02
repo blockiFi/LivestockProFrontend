@@ -12,14 +12,16 @@ import { useSettingsForm } from "@/hooks/useSettingsForm"
 import { logoutOtherDevices, updatePassword } from "@/lib/request"
 import type { RootState } from "@/store"
 
+const EMPTY_PASSWORD_FORM = {
+  current_password: "",
+  password: "",
+  password_confirmation: "",
+}
+
 export default function SecuritySettingsPage() {
   const token = useSelector((state: RootState) => state.authentication.token)
   const [showSignOutDialog, setShowSignOutDialog] = useState(false)
-  const { form, setForm, dirty, saving, setSaving, reset, commit } = useSettingsForm({
-    current_password: "",
-    password: "",
-    password_confirmation: "",
-  })
+  const { form, setForm, dirty, saving, setSaving, reset, commit } = useSettingsForm(EMPTY_PASSWORD_FORM)
 
   const handleSave = async () => {
     if (!form.current_password || !form.password || !form.password_confirmation) {

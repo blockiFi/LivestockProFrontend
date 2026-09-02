@@ -13,31 +13,46 @@ import { ACTIONS } from "@/lib/actionPermissions"
 interface PermissionManagementPageProps {
   embedded?: boolean
   permissionGroups?: PermissionGroup[] | null
+  totalPermissions?: number
 }
 
-export default function permissionManagementPage({ embedded = false, permissionGroups }: PermissionManagementPageProps = {}) {
+export default function permissionManagementPage({ embedded = false, permissionGroups, totalPermissions: totalPermissionsProp }: PermissionManagementPageProps = {}) {
   const [permissions, setPermissions] = useState<Permission[]>([])
+  const [totalPermissions, setTotalPermissions] = useState(0)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const loaderData = useLoaderData() as { PermissionGroups?: PermissionGroup[] | null } | undefined
+  const loaderData = useLoaderData() as {
+    PermissionGroups?: PermissionGroup[] | null
+    totalPermissions?: number
+  } | undefined
   const PermissionGroups = permissionGroups ?? loaderData?.PermissionGroups ?? null
 
   useEffect(() => {
-    console.log("PermissionGroups from loader:", PermissionGroups);
     if (PermissionGroups && Array.isArray(PermissionGroups)) {
       const allPermissions = PermissionGroups.flatMap((group) => {
-        // Handle both cases: group.permissions might be an array or undefined
         return Array.isArray(group.permissions) ? group.permissions : []
       })
-      console.log("Extracted permissions:", allPermissions);
-      setPermissions(allPermissions)
+      const unique = new Map<number, Permission>()
+      for (const permission of allPermissions) {
+        if (permission?.id != null) unique.set(permission.id, permission)
+      }
+      setPermissions(Array.from(unique.values()))
     } else {
-      console.warn("PermissionGroups is null or not an array:", PermissionGroups);
       setPermissions([])
     }
+
+    const countedTotal =
+      typeof totalPermissionsProp === "number"
+        ? totalPermissionsProp
+        : typeof loaderData?.totalPermissions === "number"
+          ? loaderData.totalPermissions
+          : PermissionGroups
+            ? PermissionGroups.flatMap((group) => group.permissions ?? []).length
+            : 0
+    setTotalPermissions(countedTotal)
     setLoading(false)
-  }, [PermissionGroups])
+  }, [PermissionGroups, totalPermissionsProp, loaderData?.totalPermissions])
 
   const [moduleFilter] = useState<string>("all")
 
@@ -114,7 +129,7 @@ export default function permissionManagementPage({ embedded = false, permissionG
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-blue-600 mb-1">Total Permissions</p>
-              <p className="text-3xl font-bold text-blue-900">{permissions.length}</p>
+              <p className="text-3xl font-bold text-blue-900">{totalPermissions}</p>
             </div>
             <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
               <Lock className="w-6 h-6 text-white" />
@@ -160,7 +175,7 @@ export default function permissionManagementPage({ embedded = false, permissionG
             />
           </div>
           <div className="text-sm text-gray-500">
-            Showing {filteredPermissions.length} of {permissions.length} permissions
+            Showing {filteredPermissions.length} of {totalPermissions} permissions
           </div>
         </div>
       </Card>

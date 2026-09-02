@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Eye, EyeOff, Mail, Lock, User as UserIcon, ArrowLeft } from "lucide-react"
-import logo from "@/assets/livestockpro1.png"
+import logo from "@/assets/farm-central-logo.png"
+import { APP_NAME } from "@/lib/brand"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -86,18 +87,19 @@ function Register() {
           {/* Header */}
           <div className="text-center">
             <Link
-              to="/landing"
+              to="/"
               className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to home
             </Link>
 
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-200">
-                <img className="h-5 w-5" src={logo} />
-              </div>
-              <span className="text-2xl font-bold">LiveStockPro</span>
+            <div className="mb-6 flex justify-center px-2">
+              <img
+                className="h-28 sm:h-32 w-auto max-w-full object-contain"
+                src={logo}
+                alt={APP_NAME}
+              />
             </div>
 
             <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
@@ -201,8 +203,14 @@ function Register() {
                   />
                   <Label htmlFor="terms" className="text-xs text-muted-foreground leading-snug">
                     I agree to the{" "}
-                    <span className="font-semibold text-emerald-700">Terms of Service</span> and{" "}
-                    <span className="font-semibold text-emerald-700">Privacy Policy</span>.
+                    <Link to="/terms" className="font-semibold text-emerald-700 hover:underline">
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link to="/privacy" className="font-semibold text-emerald-700 hover:underline">
+                      Privacy Policy
+                    </Link>
+                    .
                   </Label>
                 </div>
 
@@ -234,7 +242,7 @@ function Register() {
           </h2>
           <p className="text-sm text-slate-300">
             Track flock performance, automate feed and health schedules, and get a unified view of
-            your farm’s KPIs. LiveStockPro helps you make better decisions, faster.
+            your farm’s KPIs. {APP_NAME} helps you make better decisions, faster.
           </p>
           <ul className="space-y-3 text-sm text-slate-200">
             <li>• Smart dashboards across flocks, feed, and health</li>

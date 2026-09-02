@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useBlocker } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,8 @@ export function SettingsSaveBar({ dirty, saving = false, onSave, onDiscard }: Se
     ({ currentLocation, nextLocation }) =>
       dirty && currentLocation.pathname !== nextLocation.pathname
   )
+  const blockerRef = useRef(blocker)
+  blockerRef.current = blocker
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -32,11 +34,11 @@ export function SettingsSaveBar({ dirty, saving = false, onSave, onDiscard }: Se
 
     const confirmed = window.confirm("You have unsaved changes. Leave this page without saving?")
     if (confirmed) {
-      blocker.proceed()
+      blockerRef.current.proceed()
     } else {
-      blocker.reset()
+      blockerRef.current.reset()
     }
-  }, [blocker.state, blocker])
+  }, [blocker.state])
 
   if (!dirty) return null
 

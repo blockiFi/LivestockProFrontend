@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/utils";
 import { AlertTriangle, Edit, Plus, ShoppingBag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
+import { CustomerNameLink } from "@/components/crm/CustomerNameLink";
 
 const SALE_EXPORT_COLUMNS: ExportColumn<FlockSale>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
@@ -178,7 +179,7 @@ const FlockSalesView = ({
                       })}
                     </TableCell>
                     <TableCell className="text-xs text-gray-700">
-                      {sale.customer_name || "—"}
+                      <CustomerNameLink customerId={sale.customer_id} name={sale.customer_name} />
                       {sale.customer_phone ? (
                         <div className="text-gray-500">{sale.customer_phone}</div>
                       ) : null}

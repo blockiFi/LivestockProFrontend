@@ -40,6 +40,8 @@ export interface FarmRequestData {
 export interface NewScheduleItem {
   name: string
   age_days: number
+  is_recurring?: boolean
+  interval_days?: number | null
   dose?: number
   dose_unit?: string
   withdrawal_period_days?: number

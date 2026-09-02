@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, Settings, User } from 'lucide-react'
+import { ArrowLeftRight, LogOut, Settings, User } from 'lucide-react'
 import avater from "@/assets/avater.png"
 import Logo from './Logo'
 import NotificationBell from "@/components/notifications/NotificationBell"
@@ -17,6 +17,8 @@ import type { RootState } from "@/store"
 import { logout } from "@/store/AuthenticationSlice"
 import { useNavigate } from "react-router-dom"
 import { LoadFarmPermissions } from "@/lib/loader"
+import { goToFarmSelection } from "@/lib/farmContext"
+import { clearStoredFarm } from "@/lib/request"
 
 const TopBar = ({ children }: { children?: React.ReactNode }) => {
   const dispatch = useDispatch()
@@ -48,9 +50,8 @@ const TopBar = ({ children }: { children?: React.ReactNode }) => {
     "User"
 
   const handleLogout = () => {
-    // Clear persisted auth + farm context
     localStorage.removeItem("authToken")
-    localStorage.removeItem("activeFarm")
+    clearStoredFarm()
     dispatch(logout())
     navigate("/login")
   }
@@ -67,7 +68,7 @@ const TopBar = ({ children }: { children?: React.ReactNode }) => {
             {children}
             </div>
              
-            <Logo style='gap-1  md:hidden' />
+            <Logo style="gap-1 md:hidden" size="sm" />
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -108,6 +109,14 @@ const TopBar = ({ children }: { children?: React.ReactNode }) => {
               >
                 <Settings className="h-4 w-4" />
                 Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => goToFarmSelection(navigate)}
+                className="gap-2"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                Switch farm
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={handleLogout} className="gap-2 text-red-600 focus:text-red-600">

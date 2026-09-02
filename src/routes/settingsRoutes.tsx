@@ -99,13 +99,14 @@ const settingsRoutes = [
           const context = await LoadSettingsContext()
           const { users } = await LoadFarmUsers()
           const { roles } = await LoadRolesWithPermissions()
-          const { PermissionGroups } = await LoadPermissionGroups()
+          const { PermissionGroups, totalPermissions } = await LoadPermissionGroups()
 
           return {
             ...context,
             users,
             roles,
             PermissionGroups,
+            totalPermissions,
           }
         },
         element: <TeamAccessSettingsPage />,

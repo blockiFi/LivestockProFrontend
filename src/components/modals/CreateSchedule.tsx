@@ -61,6 +61,8 @@ const CreateSchedule  =({
     const [currentItem, setCurrentItem] = useState<NewScheduleItem>({
       name: "",
       age_days: 1,
+      is_recurring: false,
+      interval_days: null,
       dose: 1,
       withdrawal_period_days: 0,
       storage_instructions: "",
@@ -293,6 +295,8 @@ const CreateSchedule  =({
       setCurrentItem({
         name: "",
         age_days: 1,
+        is_recurring: false,
+        interval_days: null,
         dose: 1,
         withdrawal_period_days: 0,
         storage_instructions: "",
@@ -311,6 +315,8 @@ const CreateSchedule  =({
       setCurrentItem({
         name: "",
         age_days: 1,
+        is_recurring: false,
+        interval_days: null,
         dose: 1,
         withdrawal_period_days: 0,
         storage_instructions: "",
@@ -332,6 +338,12 @@ const CreateSchedule  =({
       
       if (currentItem.age_days < 1) {
         errors.push("Age must be at least 1 day")
+      }
+
+      if (formData.schedule_type !== "feeding" && currentItem.is_recurring) {
+        if (!currentItem.interval_days || currentItem.interval_days < 1) {
+          errors.push("Repeat interval must be at least 1 day for recurrent items")
+        }
       }
       
       // Schedule type specific validations
@@ -764,6 +776,11 @@ const CreateSchedule  =({
                             <Badge variant="outline" className="bg-blue-50">
                               Day {item.age_days ?? item.start_day}
                             </Badge>
+                            {formData.schedule_type !== "feeding" && item.is_recurring && (
+                              <Badge variant="outline" className="bg-violet-50">
+                                Every {item.interval_days ?? 1}d
+                              </Badge>
+                            )}
                             <Badge variant="outline" className="bg-green-50">
                               {item.quantity} {formData.schedule_type === "feeding" ? "g" : "units"}
                             </Badge>
@@ -854,6 +871,45 @@ const CreateSchedule  =({
                           required
                         />
                       </div>
+
+                      {formData.schedule_type !== "feeding" && (
+                        <>
+                          <div className="flex flex-col gap-2 md:col-span-2">
+                            <label className="flex items-center gap-2 text-sm font-medium">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(currentItem.is_recurring)}
+                                onChange={(e) =>
+                                  setCurrentItem((prev) => ({
+                                    ...prev,
+                                    is_recurring: e.target.checked,
+                                    interval_days: e.target.checked ? prev.interval_days ?? 7 : null,
+                                  }))
+                                }
+                              />
+                              Recurrent until flock expected end date
+                            </label>
+                          </div>
+                          {currentItem.is_recurring && (
+                            <div className="flex flex-col gap-2">
+                              <Label htmlFor="interval-days">Repeat every (days) *</Label>
+                              <Input
+                                id="interval-days"
+                                type="number"
+                                min="1"
+                                value={currentItem.interval_days ?? ""}
+                                onChange={(e) =>
+                                  setCurrentItem((prev) => ({
+                                    ...prev,
+                                    interval_days: Number.parseInt(e.target.value) || 1,
+                                  }))
+                                }
+                                required
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
   
                      {
                       formData.schedule_type === "feeding" && 

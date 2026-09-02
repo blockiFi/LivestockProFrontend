@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "react-toastify";
 import { ActionGate } from "@/components/general/ActionGate";
 import { ACTIONS } from "@/lib/actionPermissions";
+import { CustomerNameLink } from "@/components/crm/CustomerNameLink";
 
 type FlockPnlRow = FarmSalesProfitLoss["flocks"][number]
 
@@ -578,7 +579,12 @@ const SalesProfitLossPage = () => {
                       </TableCell>
                       <TableCell className="text-right">{Number(row.quantity).toLocaleString()}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(row.total_amount)}</TableCell>
-                      <TableCell>{row.customer_name || row.customer?.name || "—"}</TableCell>
+                      <TableCell>
+                        <CustomerNameLink
+                          customerId={row.customer_id}
+                          name={row.customer_name || row.customer?.name}
+                        />
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <ActionGate anyOf={ACTIONS.sales.update}>

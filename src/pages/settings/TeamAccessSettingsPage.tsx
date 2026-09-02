@@ -14,10 +14,11 @@ type LoaderData = {
   roles: Role[] | null
   currentFarm: Farm | null
   PermissionGroups: PermissionGroup[] | null
+  totalPermissions?: number
 }
 
 export default function TeamAccessSettingsPage() {
-  const { users, roles, currentFarm, PermissionGroups } = useLoaderData() as LoaderData
+  const { users, roles, currentFarm, PermissionGroups, totalPermissions } = useLoaderData() as LoaderData
   const { canAny } = usePermissions()
 
   const canViewUsers = canAny([...ACTIONS.users.view])
@@ -69,7 +70,11 @@ export default function TeamAccessSettingsPage() {
       )}
       {canViewPermissions && (
         <TabsContent value="permissions">
-          <PermissionManagementPage embedded permissionGroups={PermissionGroups} />
+          <PermissionManagementPage
+            embedded
+            permissionGroups={PermissionGroups}
+            totalPermissions={totalPermissions}
+          />
         </TabsContent>
       )}
     </Tabs>

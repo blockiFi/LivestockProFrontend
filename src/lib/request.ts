@@ -194,6 +194,10 @@ export const createFarm = async (
   localStorage.setItem('activeFarm', JSON.stringify(farm));
   }
 
+  export const clearStoredFarm = () => {
+    localStorage.removeItem('activeFarm');
+  }
+
   export const getFarm = () : Farm | null => {
   const farmString = localStorage.getItem('activeFarm');
   if (farmString) {
@@ -2456,6 +2460,148 @@ export const getFlockExpenditureSummary = async (
   }
 };
 
+export type BatchActivityCategory =
+  | "feeding"
+  | "feed_consumption"
+  | "medication"
+  | "deworming"
+  | "vaccination"
+  | "mortality"
+  | "weighing"
+  | "egg_production"
+  | "water_consumption"
+  | "transfer"
+  | "sale"
+  | "task"
+  | "daily_record";
+
+export type BatchActivityRow = {
+  id: string;
+  date: string;
+  activity: string;
+  category: BatchActivityCategory;
+  description: string;
+  quantity: number | null;
+  unit: string | null;
+  performed_by: string | null;
+  status: string;
+  source_type: string;
+  source_id: number;
+};
+
+export type BatchActivitySummary = {
+  total_activities: number;
+  feed_consumed_kg?: number;
+  feed_planned_kg?: number;
+  medication_count?: number;
+  deworming_count?: number;
+  vaccination_count?: number;
+  mortality_count?: number;
+  tasks_completed?: number;
+  egg_total?: number;
+  water_liters?: number;
+  feeding_count?: number;
+  transfer_count?: number;
+  birds_sold?: number;
+};
+
+export type BatchActivityReportMeta = {
+  batch: {
+    id: number;
+    name: string;
+    batch_number: string | null;
+    poultry_type: string | null;
+    arrival_date: string;
+    batch_week: number;
+    current_age_days: number;
+  };
+  date_range: { from: string; to: string; label: string };
+  farm_name: string;
+  generated_at: string;
+  summary: BatchActivitySummary;
+  activities: {
+    data: BatchActivityRow[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+};
+
+export type FlockActivityFilters = {
+  start_date: string;
+  end_date: string;
+  activity_type?: BatchActivityCategory | "";
+  search?: string;
+  page?: number;
+  per_page?: number;
+};
+
+export const getFlockActivities = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  filters: FlockActivityFilters
+): Promise<RequestResponse<BatchActivityReportMeta>> => {
+  try {
+    const params = new URLSearchParams();
+    params.set("start_date", filters.start_date);
+    params.set("end_date", filters.end_date);
+    if (filters.activity_type) params.set("activity_type", filters.activity_type);
+    if (filters.search) params.set("search", filters.search);
+    if (filters.page) params.set("page", String(filters.page));
+    if (filters.per_page) params.set("per_page", String(filters.per_page));
+
+    const response = await axios.get(
+      `/api/farms/${farmId}/flocks/${flockId}/activities?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data as BatchActivityReportMeta };
+    }
+    return { success: false, error: [`Error fetching activities: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error:
+          error.response?.data?.errors ||
+          [error.response?.data?.message] ||
+          ["Failed to fetch flock activities"],
+      };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+};
+
+export const fetchAllFlockActivities = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  filters: Omit<FlockActivityFilters, "page" | "per_page">
+): Promise<BatchActivityRow[]> => {
+  const perPage = 100;
+  let page = 1;
+  let lastPage = 1;
+  const rows: BatchActivityRow[] = [];
+
+  do {
+    const result = await getFlockActivities(token, farmId, flockId, {
+      ...filters,
+      page,
+      per_page: perPage,
+    });
+    if (!result.success || !result.data) {
+      throw new Error(result.error?.[0] ?? "Failed to fetch activities");
+    }
+    rows.push(...(result.data.activities.data ?? []));
+    lastPage = result.data.activities.last_page ?? 1;
+    page += 1;
+  } while (page <= lastPage && page <= 10);
+
+  return rows;
+};
+
 export const deleteFlockExpenditure = async (
   token: string,
   farmId: number,
@@ -2493,6 +2639,7 @@ export const createFlockSale = async (
     quantity: number;
     unit_price: number;
     date: string;
+    customer_id?: number | null;
     customer_name?: string | null;
     customer_phone?: string | null;
     notes?: string | null;
@@ -2535,6 +2682,7 @@ export const updateFlockSale = async (
     quantity?: number;
     unit_price?: number;
     date?: string;
+    customer_id?: number | null;
     customer_name?: string | null;
     customer_phone?: string | null;
     notes?: string | null;
@@ -5421,19 +5569,46 @@ export async function getMedications(
     return { success: false, error: ["An unexpected error occurred"] };
   }
 }
+export type GroupedPermissionsResponse = {
+  groups: PermissionGroup[]
+  total_permissions: number
+}
+
 export const getGroupedPermisssions = async (
     token: string,
     farmId: number
-  ): Promise<RequestResponse<PermissionGroup[]>> => {
+  ): Promise<RequestResponse<GroupedPermissionsResponse>> => {
     try {
       const response = await axios.get(
         `/api/permissions/group/${farmId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (response.status === 200) {
+        const payload = response.data?.data ?? response.data
+        if (Array.isArray(payload)) {
+          const groups = payload as PermissionGroup[]
+          const total = groups.reduce(
+            (sum, group) => sum + (Array.isArray(group.permissions) ? group.permissions.length : 0),
+            0
+          )
+          return {
+            success: true,
+            data: { groups, total_permissions: total },
+          }
+        }
+
+        const groups = Array.isArray(payload?.groups) ? (payload.groups as PermissionGroup[]) : []
+        const total =
+          typeof payload?.total_permissions === "number"
+            ? payload.total_permissions
+            : groups.reduce(
+                (sum, group) => sum + (Array.isArray(group.permissions) ? group.permissions.length : 0),
+                0
+              )
+
         return {
           success: true,
-          data: response.data.data
+          data: { groups, total_permissions: total },
         }
       } else {
         return {
@@ -5741,6 +5916,53 @@ export const getGroupedPermisssions = async (
       return { success: false, error: ['An unexpected error occurred'] }
     }
   }
+
+export const updateBatchScheduleItem = async (
+  token: string,
+  farmId: number,
+  scheduleType: 'vaccination' | 'medication',
+  itemId: number,
+  data: {
+    batch_schedule_id?: number
+    schedule_item_id?: number
+    scheduled_date?: string
+    actual_date?: string | null
+    status?: 'scheduled' | 'completed' | 'missed' | 'late'
+    administered_by?: string | null
+    dosage?: number | null
+    quantity?: number | null
+    cost?: number | null
+    notes?: string | null
+    administration_method_id?: number | null
+    poultry_vaccine_product_id?: number
+    vaccine_product_batch_id?: number | null
+    poultry_medication_id?: number
+  }
+): Promise<RequestResponse<any>> => {
+  try {
+    const response = await axios.put(
+      `/api/farms/${farmId}/${scheduleType}/batch-schedule-items/${itemId}`,
+      data,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (response.status === 200) {
+      return { success: true, data: response.data.data ?? response.data ?? null }
+    }
+    return { success: false, error: [`Error updating batch schedule item: ${response.status}`] }
+  } catch (error: unknown) {
+    console.error('Error updating batch schedule item:', error)
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error:
+          error.response?.data?.errors ||
+          [error.response?.data?.message] ||
+          ['Failed to update batch schedule item'],
+      }
+    }
+    return { success: false, error: ['An unexpected error occurred'] }
+  }
+}
 
   export const createFeedingBatchItem = async (
     token: string,

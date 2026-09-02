@@ -13,6 +13,8 @@ import store from './store/index.js';
 import Landing from './pages/Landing.tsx';
 import Login from './pages/auth/Login.tsx';
 import Register from './pages/auth/Register.tsx';
+import PrivacyPage from './pages/legal/PrivacyPage.tsx';
+import TermsPage from './pages/legal/TermsPage.tsx';
 import FarmSelection from './pages/FarmSelection.tsx';
 import { Authenticated, LoadActiveFarm, LoadFarmData, LoadFarmPermissions, LoadFarmSettings, LoadFarmDashboard, LoadFarmSubscription, requireRoutePermission } from './lib/loader.ts';
 import Dashboard from './pages/Dashboard.tsx';
@@ -20,6 +22,7 @@ import FarmPage from './pages/FarmPage.tsx';
 import PoultryRoutes from "./routes/poultryRoutes";
 import SettingsRoutes from "./routes/settingsRoutes";
 import EquipmentRoutes from "./routes/equipmentRoutes";
+import CrmRoutes from "./routes/crmRoutes";
 import { InvoicesPage } from './pages/Invoice.tsx';
 import { ThemeProvider, useTheme } from './providers/ThemeProvider.tsx';
 import NotificationCenterPage from './pages/NotificationCenterPage.tsx';
@@ -59,6 +62,14 @@ const router = createBrowserRouter([
   {
     path: "/register",
     element : <Register />
+  },
+  {
+    path: "/privacy",
+    element: <PrivacyPage />,
+  },
+  {
+    path: "/terms",
+    element: <TermsPage />,
   },
 
   {
@@ -139,6 +150,7 @@ const router = createBrowserRouter([
       },
       ...SettingsRoutes,
       ...EquipmentRoutes,
+      ...CrmRoutes,
       ...PoultryRoutes
 
     ]

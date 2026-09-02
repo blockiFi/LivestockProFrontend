@@ -1,8 +1,9 @@
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import {
+  ArrowLeftRight,
   Bell,
   ChevronRight,
   ClipboardList,
@@ -40,6 +41,7 @@ import Logo from "./Logo"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/usePermissions"
 import { canAccessNav } from "@/lib/routePermissions"
+import { goToFarmSelection } from "@/lib/farmContext"
 
 type NavLink = {
   to: string
@@ -248,11 +250,12 @@ function NavSectionCollapsible({
 
 const SideBarCom = () => {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const { open, toggleSidebar } = useSidebar()
   const activeFarm = useSelector((state: RootState) => state.authentication.activeFarm)
   const { permissions, isLoaded } = usePermissions()
 
-  const canSeeNav = (path: string) => !isLoaded || canAccessNav(path, permissions)
+  const canSeeNav = (path: string) => isLoaded && canAccessNav(path, permissions)
 
   const visiblePoultryLinks = POULTRY_LINKS.filter((item) => canSeeNav(item.to))
   const visiblePoultrySections = POULTRY_SECTIONS.map((section) => ({
@@ -262,6 +265,23 @@ const SideBarCom = () => {
 
   const poultryActive = pathname.includes("/dashboard/poultry")
   const [poultryOpen, setPoultryOpen] = useState(poultryActive)
+
+  const crmNav = [
+    {
+      to: "/dashboard/crm/customers",
+      icon: Users,
+      label: "Customers",
+      isActive: pathname.includes("/dashboard/crm/customers"),
+    },
+    {
+      to: "/dashboard/invoices",
+      icon: FileText,
+      label: "Invoice Generator",
+      isActive: pathname.includes("/dashboard/invoices"),
+    },
+  ].filter((item) => canSeeNav(item.to))
+
+  const showCrmNav = crmNav.length > 0
 
   useEffect(() => {
     if (poultryActive) setPoultryOpen(true)
@@ -291,12 +311,6 @@ const SideBarCom = () => {
         (pathname.startsWith("/dashboard/notifications/") && !pathname.includes("/settings/")),
     },
     {
-      to: "/dashboard/invoices",
-      icon: FileText,
-      label: "Invoices",
-      isActive: pathname.includes("/dashboard/invoices"),
-    },
-    {
       to: "/dashboard/settings/profile",
       icon: Settings,
       label: "Settings",
@@ -314,14 +328,22 @@ const SideBarCom = () => {
       collapsible="icon"
       className="border-r border-slate-200/80 bg-gradient-to-b from-white via-slate-50 to-emerald-50/40 text-slate-900 shadow-sm [&_[data-sidebar=sidebar]]:bg-transparent"
     >
-      <SidebarHeader className="border-b border-slate-200/80 px-3 py-4">
-        <Logo compact={!open} variant="light" />
+      <SidebarHeader className="border-b border-slate-200/80 px-3 py-5">
+        <Logo compact={!open} size="md" />
         {open && activeFarm?.name && (
           <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
               Active farm
             </p>
             <p className="truncate text-sm font-medium text-slate-900">{activeFarm.name}</p>
+            <button
+              type="button"
+              onClick={() => goToFarmSelection(navigate)}
+              className="mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+            >
+              <ArrowLeftRight className="h-3 w-3" />
+              Switch farm
+            </button>
           </div>
         )}
       </SidebarHeader>
@@ -350,7 +372,9 @@ const SideBarCom = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="my-2 bg-slate-200" />
+        {(showPoultryNav || showCrmNav || systemNav.length > 0) && (
+          <SidebarSeparator className="my-2 bg-slate-200" />
+        )}
 
         {showPoultryNav && (
         <SidebarGroup>
@@ -425,7 +449,41 @@ const SideBarCom = () => {
         </SidebarGroup>
         )}
 
-        {showPoultryNav && systemNav.length > 0 && <SidebarSeparator className="my-2 bg-slate-200" />}
+        {showPoultryNav && showCrmNav && <SidebarSeparator className="my-2 bg-slate-200" />}
+
+        {showCrmNav && (
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            Sales & CRM
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {crmNav.map((item) => {
+                const Icon = item.icon
+                return (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={item.isActive}
+                      tooltip={item.label}
+                      className="text-slate-600 hover:bg-slate-100 hover:text-slate-900 data-[active=true]:bg-emerald-50 data-[active=true]:font-medium data-[active=true]:text-emerald-800"
+                    >
+                      <Link to={item.to}>
+                        <Icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        )}
+
+        {(showPoultryNav || showCrmNav) && systemNav.length > 0 && (
+          <SidebarSeparator className="my-2 bg-slate-200" />
+        )}
 
         {systemNav.length > 0 && (
         <SidebarGroup>
@@ -460,6 +518,18 @@ const SideBarCom = () => {
 
       <SidebarFooter className="border-t border-slate-200/80 p-2">
         <SidebarMenu>
+          {!open && activeFarm?.name && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => goToFarmSelection(navigate)}
+                tooltip={`Switch farm (${activeFarm.name})`}
+                className="text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                <span>Switch farm</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleSidebar}

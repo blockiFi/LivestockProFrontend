@@ -30,6 +30,8 @@ function normalizePermissionNames(raw: unknown): string[] {
     .filter(Boolean)
 }
 
+const SETTINGS_BASE = "/dashboard/settings"
+
 const SETTINGS_SECTIONS: SettingsSection[] = [
   { to: "profile", label: "Profile", icon: User, group: "account" },
   { to: "security", label: "Security", icon: LockKeyhole, group: "account" },
@@ -79,7 +81,7 @@ export default function SettingsLayout() {
     return (
       <NavLink
         key={section.to}
-        to={section.to}
+        to={`${SETTINGS_BASE}/${section.to}`}
         end
         className={({ isActive }) =>
           cn(

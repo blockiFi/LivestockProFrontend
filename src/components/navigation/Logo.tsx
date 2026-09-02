@@ -1,41 +1,37 @@
-import logo from "@/assets/livestockpro1.png"
+import logo from "@/assets/farm-central-logo.png"
+import { APP_NAME } from "@/lib/brand"
 import { cn } from "@/lib/utils"
 
 interface LogoProps {
   style?: string
   compact?: boolean
-  variant?: "light" | "dark"
+  size?: "sm" | "md" | "lg"
 }
 
-const Logo = ({ style, compact = false, variant = "light" }: LogoProps) => {
-  const isDark = variant === "dark"
+const sizeClasses = {
+  sm: "h-14 w-auto max-w-[180px]",
+  md: "h-16 w-auto max-w-[220px]",
+  lg: "h-20 w-auto max-w-[280px]",
+} as const
 
+const Logo = ({ style, compact = false, size = "md" }: LogoProps) => {
   return (
-    <div className={cn("flex items-center gap-3", style)}>
-      <div
-        className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
-          isDark
-            ? "bg-gradient-to-br from-emerald-400 to-emerald-600 ring-1 ring-emerald-400/30"
-            : "bg-gradient-to-br from-emerald-100 to-emerald-200 ring-1 ring-emerald-200"
-        )}
-      >
-        <img className="h-5 w-5 object-contain" src={logo} alt="LiveStockPro" />
-      </div>
-      {!compact && (
-        <div className="min-w-0">
-          <p
-            className={cn(
-              "text-lg font-bold leading-tight tracking-tight",
-              isDark ? "text-white" : "text-gray-900"
-            )}
-          >
-            LiveStockPro
-          </p>
-          <p className={cn("text-[11px] font-medium", isDark ? "text-emerald-200/70" : "text-emerald-700")}>
-            Farm management
-          </p>
-        </div>
+    <div className={cn("flex items-center", style)}>
+      {compact ? (
+        <img
+          className="h-12 w-12 shrink-0 rounded-full object-cover object-left shadow-sm"
+          src={logo}
+          alt={APP_NAME}
+        />
+      ) : (
+        <img
+          className={cn(
+            "shrink-0 object-contain object-left bg-transparent",
+            sizeClasses[size]
+          )}
+          src={logo}
+          alt={APP_NAME}
+        />
       )}
     </div>
   )

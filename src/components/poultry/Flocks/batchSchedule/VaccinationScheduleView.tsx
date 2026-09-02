@@ -1,22 +1,22 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { 
-  Shield, 
-  Clock, 
-  Calendar, 
-  ChevronDown, 
+import {
+  Shield,
+  Clock,
+  Calendar,
+  ChevronDown,
   ChevronUp,
   CheckCircle,
   AlertCircle,
   DollarSign,
   Syringe,
   User,
-  Package,
-  Plus
+  Plus,
 } from "lucide-react"
-import type { BatchSchedule, ScheduleItem } from "@/lib/types"
+import type { BatchSchedule, BatchScheduleItem, ScheduleItem } from "@/lib/types"
+import { buildMedVacDisplayRows, formatRecurrenceLabel } from "@/lib/medVacScheduleRows"
 import ImplementScheduleModal from "./ImplementScheduleModal"
 
 interface VaccinationScheduleViewProps {
@@ -29,77 +29,63 @@ interface VaccinationScheduleViewProps {
 const VaccinationScheduleView = ({ schedule, currentAge, onRefresh, readOnly = false }: VaccinationScheduleViewProps) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState<ScheduleItem | null>(null)
+  const [selectedBatchItem, setSelectedBatchItem] = useState<BatchScheduleItem | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  const handleImplementClick = (item: ScheduleItem) => {
-    setSelectedScheduleItem(item)
+  const displayRows = useMemo(() => buildMedVacDisplayRows(schedule, currentAge), [schedule, currentAge])
+
+  const handleImplementClick = (scheduleItem: ScheduleItem, batchItem?: BatchScheduleItem) => {
+    setSelectedScheduleItem(scheduleItem)
+    setSelectedBatchItem(batchItem ?? null)
     setIsModalOpen(true)
   }
 
-  const handleModalSuccess = () => {
-    onRefresh?.()
-  }
-  
+  const totalItems = displayRows.length
+  const completedItems = displayRows.filter((row) => row.status === "completed" || row.status === "late").length
+  const pendingItems = displayRows.filter((row) => row.status === "scheduled" || row.status === "pending").length
+  const totalCost = (schedule.items || []).reduce((sum, item) => sum + Number(item.cost || 0), 0)
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'pending':
-        return 'bg-amber-100 text-amber-800 border-amber-200'
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'missed':
-      case 'overdue':
-        return 'bg-red-100 text-red-800 border-red-200'
-      case 'active':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case "completed":
+      case "late":
+        return "bg-green-100 text-green-800 border-green-200"
+      case "pending":
+      case "scheduled":
+        return "bg-amber-100 text-amber-800 border-amber-200"
+      case "missed":
+      case "overdue":
+        return "bg-red-100 text-red-800 border-red-200"
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'completed':
+      case "completed":
+      case "late":
         return <CheckCircle className="h-4 w-4" />
-      case 'pending':
-        return <Clock className="h-4 w-4" />
-      case 'missed':
-      case 'overdue':
+      case "missed":
+      case "overdue":
         return <AlertCircle className="h-4 w-4" />
       default:
         return <Clock className="h-4 w-4" />
     }
   }
 
-  // Calculate statistics using schedule items as base
-  const allScheduleItems = schedule.schedule?.items || []
-  const executedItems = schedule.items || []
-  
-  const totalItems = allScheduleItems.length
-  const completedItems = executedItems.length  // All items in batch schedule are completed
-  const pendingItems = allScheduleItems.filter((item) => {
-    const executed = executedItems.find(ei => ei.schedule_item_id === item.id)
-    if (executed) return false
-    return typeof item.age_days === "number" ? item.age_days >= currentAge : true
-  }).length
-  const totalCost = executedItems.reduce((sum, item) => sum + Number(item.cost || 0), 0)
-
   return (
     <div className="space-y-4">
-      {/* Header Card */}
-      <Card className="border-l-4 border-l-cyan-500 shadow-md hover:shadow-lg transition-shadow">
+      <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-cyan-100 rounded-lg">
-                  <Shield className="h-6 w-6 text-cyan-600" />
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Shield className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl font-bold text-gray-900">
-                    {schedule.schedule.name}
-                  </CardTitle>
+                  <CardTitle className="text-xl font-bold text-gray-900">{schedule.schedule.name}</CardTitle>
                   <p className="text-sm text-gray-500 mt-1">
                     {schedule.schedule.description || "Vaccination schedule for the flock"}
                   </p>
@@ -110,12 +96,7 @@ const VaccinationScheduleView = ({ schedule, currentAge, onRefresh, readOnly = f
               <Badge className={`${getStatusColor(schedule.status)} border px-3 py-1`}>
                 {schedule.status.toUpperCase()}
               </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="h-8"
-              >
+              <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-8">
                 {isExpanded ? (
                   <>
                     <ChevronUp className="h-4 w-4 mr-1" />
@@ -131,13 +112,11 @@ const VaccinationScheduleView = ({ schedule, currentAge, onRefresh, readOnly = f
             </div>
           </div>
         </CardHeader>
-
-        {/* Statistics Bar */}
         <CardContent className="pt-0">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg border border-cyan-200">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
             <div className="text-center">
               <div className="text-2xl font-bold text-gray-900">{totalItems}</div>
-              <div className="text-xs text-gray-600">Total Vaccines</div>
+              <div className="text-xs text-gray-600">Total Occurrences</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">{completedItems}</div>
@@ -148,251 +127,140 @@ const VaccinationScheduleView = ({ schedule, currentAge, onRefresh, readOnly = f
               <div className="text-xs text-gray-600">Pending</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-cyan-600">${totalCost.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-blue-600">${totalCost.toFixed(2)}</div>
               <div className="text-xs text-gray-600">Total Cost</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Vaccination Items */}
       {isExpanded && (
         <div className="space-y-3">
-          {allScheduleItems.map((scheduleItem, index) => {
-            // Find matching executed item
-            const executedItem = executedItems.find(ei => ei.schedule_item_id === scheduleItem.id)
-            const scheduledDate = executedItem ? new Date(executedItem.scheduled_date) : null
-            const actualDate = executedItem?.actual_date ? new Date(executedItem.actual_date) : null
-            
-            // Determine status relative to current flock age:
-            // - completed: has executed batch item
-            // - missed: no execution and scheduled age_days < currentAge
-            // - pending: otherwise
-            let status: 'completed' | 'pending' | 'missed' = 'pending'
-            if (executedItem) {
-              status = 'completed'
-            } else if (typeof scheduleItem.age_days === 'number' && scheduleItem.age_days < currentAge) {
-              status = 'missed'
-            }
+          {displayRows.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                No vaccination occurrences scheduled for this flock yet.
+              </CardContent>
+            </Card>
+          ) : (
+            displayRows.map((row, index) => {
+              const { scheduleItem, batchItem, scheduledDate, status } = row
+              const recurrenceLabel = formatRecurrenceLabel(scheduleItem)
+              const scheduledDateObj = scheduledDate ? new Date(scheduledDate) : null
+              const actualDate = batchItem?.actual_date ? new Date(batchItem.actual_date) : null
+              const canImplement = !readOnly && status !== "completed" && status !== "late"
 
-            return (
-              <Card 
-                key={scheduleItem.id} 
-                className="border-0 shadow-sm hover:shadow-md transition-all duration-200 bg-white"
-              >
-                <CardContent className="p-5">
-                  {/* Item Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-10 h-10 bg-cyan-100 rounded-full">
-                        <span className="text-cyan-700 font-bold text-sm">
-                          {scheduleItem.age_days || index + 1}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {scheduleItem.name || `Day ${scheduleItem.age_days || index + 1} Vaccination`}
+              return (
+                <Card key={row.key} className="border-0 shadow-sm hover:shadow-md transition-all duration-200 bg-white">
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+                          <span className="text-blue-700 font-bold text-sm">{index + 1}</span>
                         </div>
-                        {scheduledDate && (
-                          <div className="flex items-center gap-2 mt-1">
-                            <Calendar className="h-3 w-3 text-gray-400" />
-                            <span className="text-sm text-gray-600">
-                              Scheduled: {scheduledDate.toLocaleDateString('en-US', {
-                                weekday: 'short',
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </span>
+                        <div>
+                          <div className="font-semibold text-gray-900">
+                            {scheduleItem.name || `Day ${scheduleItem.age_days || index + 1} Vaccination`}
                           </div>
-                        )}
-                        {actualDate && (
-                          <div className="flex items-center gap-2 mt-1">
-                            <CheckCircle className="h-3 w-3 text-green-500" />
-                            <span className="text-xs text-green-600">
-                              Administered: {actualDate.toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge className={`${getStatusColor(status)} border flex items-center gap-1`}>
-                        {getStatusIcon(status)}
-                        {status}
-                      </Badge>
-                      {scheduleItem.age_days && (
-                        <div className="text-xs text-gray-500 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          Age: {scheduleItem.age_days} days
+                          {recurrenceLabel && (
+                            <p className="text-xs text-blue-700 mt-1">{recurrenceLabel}</p>
+                          )}
+                          {scheduledDateObj && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <Calendar className="h-3 w-3 text-gray-400" />
+                              <span className="text-sm text-gray-600">
+                                Scheduled: {scheduledDateObj.toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                          {actualDate && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <CheckCircle className="h-3 w-3 text-green-500" />
+                              <span className="text-xs text-green-600">
+                                Administered: {actualDate.toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {(status === 'pending' || status === 'missed') && !readOnly && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleImplementClick(scheduleItem)}
-                          className={
-                            status === 'missed'
-                              ? "bg-red-600 hover:bg-red-700 text-white"
-                              : "bg-cyan-600 hover:bg-cyan-700 text-white"
-                          }
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {status === 'missed' ? 'Implement Late' : 'Implement Schedule'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Vaccination Details */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Syringe className="h-4 w-4 text-blue-600" />
-                        <div className="text-xs text-gray-500">Dosage</div>
                       </div>
-                      <div className="text-lg font-bold text-gray-900">
-                        {executedItem?.dosage || scheduleItem.dose} {scheduleItem.dose_unit || 'mL'}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        Per bird dosage
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-gradient-to-br from-cyan-50 to-teal-50 rounded-lg border border-cyan-200">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Package className="h-4 w-4 text-cyan-600" />
-                        <div className="text-xs text-gray-500">Quantity</div>
-                      </div>
-                      <div className="text-lg font-bold text-gray-900">
-                        {executedItem ? Number(executedItem.quantity || 0).toFixed(2) : '-'}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {executedItem ? 'Total quantity used' : 'Not administered yet'}
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                      <div className="flex items-center gap-2 mb-1">
-                        <DollarSign className="h-4 w-4 text-green-600" />
-                        <div className="text-xs text-gray-500">Cost</div>
-                      </div>
-                      <div className="text-lg font-bold text-gray-900">
-                        {executedItem ? `$${Number(executedItem.cost || 0).toFixed(2)}` : '-'}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {executedItem ? 'Vaccination cost' : 'Not administered yet'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Vaccine Product & Batch Info */}
-                  {(executedItem?.poultry_vaccine_product_id || executedItem?.vaccine_product_batch_id) && (
-                    <div className="mb-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
-                      <div className="grid grid-cols-2 gap-4">
-                        {executedItem.poultry_vaccine_product_id && (
-                          <div>
-                            <div className="text-xs text-gray-500 mb-1">Vaccine Product ID</div>
-                            <div className="text-sm font-semibold text-gray-900">#{executedItem.poultry_vaccine_product_id}</div>
-                          </div>
-                        )}
-                        {executedItem.vaccine_product_batch_id && (
-                          <div>
-                            <div className="text-xs text-gray-500 mb-1">Batch ID</div>
-                            <div className="text-sm font-semibold text-gray-900">#{executedItem.vaccine_product_batch_id}</div>
-                          </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge className={`${getStatusColor(status)} border flex items-center gap-1`}>
+                          {getStatusIcon(status)}
+                          {status}
+                        </Badge>
+                        {canImplement && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleImplementClick(scheduleItem, batchItem)}
+                            className={
+                              status === "missed"
+                                ? "bg-red-600 hover:bg-red-700 text-white"
+                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                            }
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            {status === "missed" ? "Implement Late" : "Implement"}
+                          </Button>
                         )}
                       </div>
                     </div>
-                  )}
 
-                  {/* Description & Notes */}
-                  {scheduleItem.description && (
-                    <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="text-xs font-semibold text-gray-700 mb-1">Description</div>
-                      <p className="text-sm text-gray-600">{scheduleItem.description}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Syringe className="h-4 w-4 text-blue-600" />
+                          <div className="text-xs text-gray-500">Dosage</div>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {batchItem?.dosage || scheduleItem.dose} {scheduleItem.dose_unit || "dose"}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-lg border border-cyan-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Shield className="h-4 w-4 text-cyan-600" />
+                          <div className="text-xs text-gray-500">Quantity</div>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {batchItem ? Number(batchItem.quantity || 0).toFixed(2) : "-"}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                        <div className="text-lg font-bold text-gray-900">
+                          {batchItem?.cost != null ? `$${Number(batchItem.cost).toFixed(2)}` : "-"}
+                        </div>
+                      </div>
                     </div>
-                  )}
 
-                  {executedItem?.notes && (
-                    <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="text-xs font-semibold text-blue-700 mb-1">Notes</div>
-                      <p className="text-sm text-blue-600">{executedItem.notes}</p>
-                    </div>
-                  )}
+                    {scheduleItem.description && (
+                      <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-sm text-gray-600">{scheduleItem.description}</p>
+                      </div>
+                    )}
 
-                  {/* Storage Instructions */}
-                  {scheduleItem.storage_instructions && (
-                    <div className="mb-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                      <div className="text-xs font-semibold text-amber-700 mb-1">Storage Instructions</div>
-                      <p className="text-sm text-amber-600">{scheduleItem.storage_instructions}</p>
-                    </div>
-                  )}
-
-                  {/* Administered By */}
-                  {executedItem?.administered_by && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-3">
-                      <User className="h-4 w-4" />
-                      <span>Administered by: Staff #{executedItem.administered_by}</span>
-                    </div>
-                  )}
-
-                  {/* Progress Indicator */}
-                  {status === 'completed' && (
-                    <div className="mt-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 p-2 rounded-lg border border-green-200">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Vaccination completed successfully</span>
-                    </div>
-                  )}
-                  {status === 'pending' && (
-                    <div className="mt-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                      <Clock className="h-4 w-4" />
-                      <span>Pending - Not yet administered</span>
-                    </div>
-                  )}
-                  {status === 'missed' && (
-                    <div className="mt-4 flex items-center gap-2 text-sm text-red-700 bg-red-50 p-2 rounded-lg border border-red-200">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>Missed - Age for this vaccination has passed</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
+                    {batchItem?.administered_by && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-3">
+                        <User className="h-4 w-4" />
+                        <span>Administered by: {batchItem.administered_by}</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })
+          )}
         </div>
       )}
 
-      {/* Summary Footer */}
-      {pendingItems > 0 && (
-        <Card className="border-l-4 border-l-amber-500 bg-amber-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-amber-600" />
-              <div>
-                <div className="font-semibold text-amber-900">Pending Vaccinations</div>
-                <div className="text-sm text-amber-700">
-                  {pendingItems} vaccination{pendingItems > 1 ? 's' : ''} pending. Please review and schedule administration to protect flock health.
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Implement Schedule Modal */}
       {selectedScheduleItem && (
         <ImplementScheduleModal
           open={isModalOpen}
           onOpenChange={setIsModalOpen}
           scheduleItem={selectedScheduleItem}
+          batchScheduleItem={selectedBatchItem}
           batchScheduleId={schedule.id}
           scheduleType="vaccination"
           currentAge={currentAge}
-          onSuccess={handleModalSuccess}
+          onSuccess={() => onRefresh?.()}
         />
       )}
     </div>

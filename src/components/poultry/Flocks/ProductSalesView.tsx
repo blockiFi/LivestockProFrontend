@@ -19,6 +19,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Edit, Egg, Plus, Trash2 } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
+import { CustomerNameLink } from "@/components/crm/CustomerNameLink";
 
 const PRODUCT_SALE_EXPORT_COLUMNS: ExportColumn<SalesRecord>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
@@ -211,7 +212,12 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
                     </TableCell>
                     <TableCell className="text-right">{Number(row.quantity).toLocaleString()}</TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(row.total_amount)}</TableCell>
-                    <TableCell>{row.customer_name || row.customer?.name || "—"}</TableCell>
+                    <TableCell>
+                      <CustomerNameLink
+                        customerId={row.customer_id}
+                        name={row.customer_name || row.customer?.name}
+                      />
+                    </TableCell>
                     <TableCell className="capitalize">{row.payment_status || "paid"}</TableCell>
                     {canManage && (
                       <TableCell className="text-right">

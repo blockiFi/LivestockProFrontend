@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import type { SalesRecord } from "@/lib/types";
 import type { ProductSaleFormPayload } from "@/lib/request";
+import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker";
 
 export type { ProductSaleFormPayload };
 
@@ -36,8 +37,11 @@ const defaultFormData = (flockId?: number | null) => ({
   quantity: "",
   unit_price: "",
   date: new Date().toISOString().split("T")[0],
-  customer_name: "",
-  customer_phone: "",
+  customer: {
+    customer_id: null,
+    customer_name: "",
+    customer_phone: "",
+  } as CustomerSelection,
   payment_method: "",
   payment_status: "paid" as ProductSaleFormPayload["payment_status"],
   notes: "",
@@ -70,8 +74,11 @@ const AddProductSaleModal = ({
         quantity: String(editing.quantity ?? ""),
         unit_price: String(editing.unit_price ?? ""),
         date: toDateInputValue(editing.date),
-        customer_name: editing.customer_name || "",
-        customer_phone: editing.customer_phone || "",
+        customer: {
+          customer_id: editing.customer_id ?? null,
+          customer_name: editing.customer_name || editing.customer?.name || "",
+          customer_phone: editing.customer_phone || "",
+        },
         payment_method: editing.payment_method || "",
         payment_status: (editing.payment_status as ProductSaleFormPayload["payment_status"]) || "paid",
         notes: editing.notes || "",
@@ -105,8 +112,9 @@ const AddProductSaleModal = ({
         quantity: quantityNum,
         unit_price: unitPriceNum,
         date: formData.date,
-        customer_name: formData.customer_name || null,
-        customer_phone: formData.customer_phone || null,
+        customer_id: formData.customer.customer_id,
+        customer_name: formData.customer.customer_name || null,
+        customer_phone: formData.customer.customer_phone || null,
         payment_method: formData.payment_method || null,
         payment_status: formData.payment_status,
         notes: formData.notes || null,
@@ -202,24 +210,10 @@ const AddProductSaleModal = ({
             {errors.date && <p className="text-xs text-rose-600">{errors.date}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="customer_name">Customer name</Label>
-              <Input
-                id="customer_name"
-                value={formData.customer_name}
-                onChange={(e) => setFormData((prev) => ({ ...prev, customer_name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="customer_phone">Customer phone</Label>
-              <Input
-                id="customer_phone"
-                value={formData.customer_phone}
-                onChange={(e) => setFormData((prev) => ({ ...prev, customer_phone: e.target.value }))}
-              />
-            </div>
-          </div>
+          <CustomerPicker
+            value={formData.customer}
+            onChange={(customer) => setFormData((prev) => ({ ...prev, customer }))}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

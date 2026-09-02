@@ -1,4 +1,5 @@
 import { formatCurrency } from "@/lib/currency"
+import { getInvoiceSenderDetails } from "@/lib/invoiceSender"
 import type { Farm, FarmSettings, Invoice } from "@/lib/types"
 
 function escapeHtml(value: string): string {
@@ -26,7 +27,16 @@ function statusStyles(status: Invoice["status"]): string {
 }
 
 export function buildInvoicePrintHtml(invoice: Invoice, farm: Farm | null, farmSettings?: FarmSettings | null): string {
-  const farmAddress = [farm?.address, farm?.city, farm?.state].filter(Boolean).join(", ")
+  const sender = getInvoiceSenderDetails(farm)
+
+  const senderLines = [
+    sender.email ? `Email: ${sender.email}` : null,
+    sender.phone ? `Phone: ${sender.phone}` : null,
+    sender.website ? sender.website : null,
+  ]
+    .filter(Boolean)
+    .map((line) => `<p class="muted">${escapeHtml(line!)}</p>`)
+    .join("")
 
   const rows = invoice.items
     .map(
@@ -292,8 +302,8 @@ export function buildInvoicePrintHtml(invoice: Invoice, farm: Farm | null, farmS
         <div class="header">
           <div>
             <h1 class="title">INVOICE</h1>
-            <p class="farm-name">${escapeHtml(farm?.name ?? "LiveStockPro")}</p>
-            ${farmAddress ? `<p class="muted">${escapeHtml(farmAddress)}</p>` : ""}
+            <p class="farm-name">${escapeHtml(sender.name)}</p>
+            ${sender.address ? `<p class="muted">${escapeHtml(sender.address)}</p>` : ""}
           </div>
           <div class="meta">
             <p class="number">${escapeHtml(invoice.invoiceNumber)}</p>
@@ -311,9 +321,9 @@ export function buildInvoicePrintHtml(invoice: Invoice, farm: Farm | null, farmS
           </div>
           <div class="right-col">
             <p class="label">From</p>
-            <p class="party-name">LiveStockPro Services</p>
-            <p class="muted">Email: billing@livestockpro.com</p>
-            <p class="muted">Phone: +234 123 456 7890</p>
+            <p class="party-name">${escapeHtml(sender.name)}</p>
+            ${sender.address ? `<p class="muted">${escapeHtml(sender.address)}</p>` : ""}
+            ${senderLines}
           </div>
         </div>
 

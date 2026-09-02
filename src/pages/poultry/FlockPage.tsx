@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Calendar,
+  CalendarRange,
   Pill,
   Wheat,
   Activity,
@@ -20,7 +21,7 @@ import {
   Lock,
   Pencil,
 } from "lucide-react"
-import { useLoaderData } from "react-router-dom"
+import { Link, useLoaderData } from "react-router-dom"
 import type { DetailedFlockRecord, FeedInventoryType, FeedType, FlockProfitLoss, PoultryDailyReport, PoultryFeedUsageRecord } from "@/lib/types"
 import { getDaysInFlock, formatDate, isFlockActive, cn } from "@/lib/utils"
 import FlockOverview from "@/components/poultry/Flocks/FlockOverview"
@@ -841,6 +842,17 @@ const FlockPage = () => {
                     Edit Flock
                   </Button>
                 </ActionGate>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-gray-300"
+                  asChild
+                >
+                  <Link to={`/dashboard/poultry/flock-management/${flock.id}/activities`}>
+                    <CalendarRange className="h-4 w-4 mr-2" />
+                    Activities Report
+                  </Link>
+                </Button>
                 <Button
                   variant={isMetricsModalOpen ? "default" : "outline"}
                   size="sm"

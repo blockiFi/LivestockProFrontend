@@ -2,11 +2,14 @@
 
 import type { Farm, FarmSettings, Invoice } from "@/lib/types"
 import { printInvoice } from "@/lib/print-invoice"
+import { getInvoiceSenderDetails } from "@/lib/invoiceSender"
 import { Button } from "@/components/ui/button"
 import { Printer } from "lucide-react"
 import { formatCurrency } from "@/lib/currency"
 
 export function InvoicePreview({ invoice , farm, farmSettings }: {invoice: Invoice , farm: Farm | null, farmSettings?: FarmSettings | null}) {
+  const sender = getInvoiceSenderDetails(farm)
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end mb-4">
@@ -21,8 +24,10 @@ export function InvoicePreview({ invoice , farm, farmSettings }: {invoice: Invoi
           <div className="flex justify-between items-start mb-10">
             <div>
               <h1 className="text-3xl font-bold tracking-wide text-blue-600">INVOICE</h1>
-              <p className="text-base font-medium text-foreground mt-3">{farm?.name}</p>
-              <p className="text-sm text-muted-foreground mt-1">{farm?.address}</p>
+              <p className="text-base font-medium text-foreground mt-3">{sender.name}</p>
+              {sender.address && (
+                <p className="text-sm text-muted-foreground mt-1">{sender.address}</p>
+              )}
             </div>
             <div className="text-right text-sm">
               <p className="text-lg font-semibold text-foreground">{invoice.invoiceNumber}</p>
@@ -53,9 +58,19 @@ export function InvoicePreview({ invoice , farm, farmSettings }: {invoice: Invoi
             </div>
             <div className="text-sm text-right">
               <p className="font-semibold text-foreground mb-2 uppercase tracking-wide text-xs">From</p>
-              <p className="text-base font-medium text-foreground">LiveStockPro Services</p>
-              <p className="text-muted-foreground mt-1">Email: billing@livestockpro.com</p>
-              <p className="text-muted-foreground">Phone: +234 123 456 7890</p>
+              <p className="text-base font-medium text-foreground">{sender.name}</p>
+              {sender.address && (
+                <p className="text-muted-foreground mt-1">{sender.address}</p>
+              )}
+              {sender.email && (
+                <p className="text-muted-foreground mt-1">Email: {sender.email}</p>
+              )}
+              {sender.phone && (
+                <p className="text-muted-foreground">Phone: {sender.phone}</p>
+              )}
+              {sender.website && (
+                <p className="text-muted-foreground">{sender.website}</p>
+              )}
             </div>
           </div>
 

@@ -52,8 +52,6 @@ function FarmSelection() {
 
     if (CurrentUser?.farms == null) {
       loadFarms(token);
-    } else {
-      setFarms(CurrentUser?.farms);
     }
   }, []);
 
@@ -251,7 +249,7 @@ function FarmSelection() {
             </div>
             <p className="mb-4 text-xs text-gray-600">
               Quickly register a new farm and start tracking flocks, inventory, and health programs with
-              LiveStockPro’s guided setup.
+              Farm Central’s guided setup.
             </p>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>

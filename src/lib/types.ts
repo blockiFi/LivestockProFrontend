@@ -682,6 +682,8 @@ export type ScheduleItem =  {
   id: number;
   schedule_id: number;
   age_days: number;
+  is_recurring?: boolean;
+  interval_days?: number | null;
   poultry_vaccine_id: number | null;
   poultry_medication_id: number | null;
   name: string;
@@ -950,6 +952,7 @@ export type FlockSale = {
   unit_price: number;
   total_amount: number;
   date: string;
+  customer_id?: number | null;
   customer_name: string | null;
   customer_phone: string | null;
   notes: string | null;
@@ -1348,6 +1351,7 @@ export interface Invoice {
   status: "Paid" | "Pending" | "Overdue"
   clientName: string
   clientEmail: string
+  customerId?: number
   items: InvoiceItem[]
   subtotal: number
   tax: number
@@ -1356,6 +1360,70 @@ export interface Invoice {
   total: number
   notes: string
   paymentInstructions?: string
+}
+
+export interface CustomerSummary {
+  product_sale_count: number
+  flock_sale_count: number
+  invoice_count: number
+  product_revenue: number
+  flock_revenue: number
+  invoice_total: number
+  total_revenue: number
+  last_purchase_at: string | null
+}
+
+export interface Customer {
+  id: number
+  farm_id: number
+  name: string
+  company_name?: string | null
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  notes?: string | null
+  is_active: boolean
+  country_id: number
+  country?: { id: number; name: string; iso_code?: string | null }
+  summary?: CustomerSummary
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CustomerHistoryItem {
+  type: "product" | "flock" | "invoice"
+  id: number
+  date: string | null
+  description: string
+  amount: number
+  meta?: Record<string, unknown>
+}
+
+export interface ApiInvoiceItem {
+  id?: number
+  invoice_id?: number
+  description: string
+  quantity: number
+  unit_price: number | string
+  total: number | string
+}
+
+export interface ApiInvoice {
+  id: number
+  farm_id: number
+  customer_id: number
+  invoice_number: string
+  invoice_date: string
+  due_date: string
+  subtotal: number | string
+  tax_amount: number | string
+  total: number | string
+  status: "pending" | "paid" | "overdue"
+  notes?: string | null
+  customer?: Customer
+  items?: ApiInvoiceItem[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1474,6 +1542,7 @@ export type FarmTaskSchedule = {
   days_of_week?: number[] | null;
   month_day?: number | null;
   assignment_mode: FarmTaskAssignmentMode;
+  flock_id?: number | null;
   animal_group?: string | null;
   medication_name?: string | null;
   dosage_instructions?: string | null;
@@ -1521,6 +1590,7 @@ export type FarmTaskInstance = {
   due_time?: string | null;
   status: FarmTaskStatus;
   assigned_to_user_id?: number | null;
+  flock_id?: number | null;
   animal_group?: string | null;
   medication_name?: string | null;
   dosage_instructions?: string | null;
@@ -1580,6 +1650,7 @@ export type FarmTaskSchedulePayload = {
   month_day?: number | null;
   assignment_mode?: FarmTaskAssignmentMode;
   assignee_ids?: number[];
+  flock_id?: number | null;
   animal_group?: string;
   medication_name?: string;
   dosage_instructions?: string;

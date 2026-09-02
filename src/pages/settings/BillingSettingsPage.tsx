@@ -152,7 +152,7 @@ export default function BillingSettingsPage() {
                 Complimentary {subscription.waiver?.plan_name ?? plan.name} access
               </CardTitle>
               <CardDescription className="text-emerald-800">
-                Granted by the LiveStockPro team until {formatDate(subscription.waived_until)}. No payment is needed
+                Granted by the Farm Central team until {formatDate(subscription.waived_until)}. No payment is needed
                 until then.
               </CardDescription>
             </div>

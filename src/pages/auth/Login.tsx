@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { Eye, EyeOff, Mail, Lock, ArrowLeft } from "lucide-react"
-import logo from "@/assets/livestockpro1.png"
+import logo from "@/assets/farm-central-logo.png"
+import { APP_NAME } from "@/lib/brand"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -107,18 +108,19 @@ function Login() {
               {/* Header */}
               <div className="text-center">
                 <Link
-                  to="/landing"
+                  to="/"
                   className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Back to home
                 </Link>
     
-                <div className="flex items-center justify-center gap-2 mb-6">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-200">
-                    <img  className="h-5 w-5" src={logo}  />
-                  </div>
-                  <span className="text-2xl font-bold">LiveStockPro</span>
+                <div className="mb-6 flex justify-center px-2">
+                  <img
+                    className="h-28 sm:h-32 w-auto max-w-full object-contain"
+                    src={logo}
+                    alt={APP_NAME}
+                  />
                 </div>
     
                 <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
@@ -220,7 +222,7 @@ function Login() {
               <div className="max-w-md">
                 <h2 className="text-3xl font-bold text-foreground mb-4">Manage your farms with confidence</h2>
                 <p className="text-lg text-muted-foreground mb-8">
-                  Join thousands of farmers who trust LiveStockPro to optimize their operations and increase productivity.
+                  Join thousands of farmers who trust {APP_NAME} to optimize their operations and increase productivity.
                 </p>
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">

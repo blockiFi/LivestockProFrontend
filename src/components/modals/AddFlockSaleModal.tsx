@@ -6,11 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle } from "lucide-react";
 import type { FlockSale } from "@/lib/types";
+import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker";
 
 export type FlockSaleFormPayload = {
   quantity: number;
   unit_price: number;
   date: string;
+  customer_id?: number | null;
   customer_name?: string | null;
   customer_phone?: string | null;
   notes?: string | null;
@@ -33,8 +35,11 @@ const defaultFormData = () => ({
   quantity: "",
   unit_price: "",
   date: new Date().toISOString().split("T")[0],
-  customer_name: "",
-  customer_phone: "",
+  customer: {
+    customer_id: null,
+    customer_name: "",
+    customer_phone: "",
+  } as CustomerSelection,
   notes: "",
 });
 
@@ -66,8 +71,11 @@ const AddFlockSaleModal = ({
         quantity: String(editing.quantity ?? ""),
         unit_price: String(editing.unit_price ?? ""),
         date: toDateInputValue(editing.date),
-        customer_name: editing.customer_name || "",
-        customer_phone: editing.customer_phone || "",
+        customer: {
+          customer_id: editing.customer_id ?? null,
+          customer_name: editing.customer_name || "",
+          customer_phone: editing.customer_phone || "",
+        },
         notes: editing.notes || "",
       });
     } else {
@@ -98,8 +106,9 @@ const AddFlockSaleModal = ({
         quantity: quantityNum,
         unit_price: unitPriceNum,
         date: formData.date,
-        customer_name: formData.customer_name || undefined,
-        customer_phone: formData.customer_phone || undefined,
+        customer_id: formData.customer.customer_id,
+        customer_name: formData.customer.customer_name || undefined,
+        customer_phone: formData.customer.customer_phone || undefined,
         notes: formData.notes || undefined,
       });
       onClose();
@@ -181,24 +190,10 @@ const AddFlockSaleModal = ({
             {errors.date && <p className="text-xs text-red-500 mt-1">{errors.date}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="customer_name">Customer name</Label>
-              <Input
-                id="customer_name"
-                value={formData.customer_name}
-                onChange={(e) => setFormData((prev) => ({ ...prev, customer_name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="customer_phone">Customer phone</Label>
-              <Input
-                id="customer_phone"
-                value={formData.customer_phone}
-                onChange={(e) => setFormData((prev) => ({ ...prev, customer_phone: e.target.value }))}
-              />
-            </div>
-          </div>
+          <CustomerPicker
+            value={formData.customer}
+            onChange={(customer) => setFormData((prev) => ({ ...prev, customer }))}
+          />
 
           <div className="space-y-1">
             <Label htmlFor="notes">Notes</Label>

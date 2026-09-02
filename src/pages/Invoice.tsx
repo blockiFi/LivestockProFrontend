@@ -1,5 +1,9 @@
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useLoaderData, useSearchParams } from "react-router-dom"
+import { useSelector } from "react-redux"
+import { toast } from "react-toastify"
 import type { Farm, FarmSettings, FarmStatsDataType, Invoice } from "@/lib/types"
+import type { RootState } from "@/store"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,115 +14,65 @@ import { CreateInvoiceModal } from "@/components/modals/CreateIvoiceModal"
 import { InvoicePreview } from "@/components/general/invoice-preview"
 import { formatCurrency } from "@/lib/currency"
 import { printInvoice } from "@/lib/print-invoice"
-import { useLoaderData } from "react-router-dom"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
+import { deleteInvoice, getInvoices, mapApiInvoiceToUi, updateInvoice } from "@/lib/crmRequest"
 
-
- const SAMPLE_INVOICES: Invoice[] = [
-  {
-    id: 1,
-    invoiceNumber: "INV-2024-001",
-    date: "2024-10-15",
-    dueDate: "2024-10-29",
-    status: "Paid",
-    clientName: "Green Valley Poultry Farm",
-    clientEmail: "contact@greenvalley.com",
-    items: [
-      {
-        description: "Feed Supply - Premium Layer Mix",
-        quantity: 50,
-        unitPrice: 120,
-        total: 6000,
-      },
-      {
-        description: "Veterinary Consultation Services",
-        quantity: 2,
-        unitPrice: 500,
-        total: 1000,
-      },
-      {
-        description: "Health Monitoring Equipment",
-        quantity: 1,
-        unitPrice: 2500,
-        total: 2500,
-      },
-    ],
-    subtotal: 9500,
-    tax: 950,
-    taxRate: 10,
-    total: 10450,
-    notes: "Payment terms: Net 14 days. Thank you for your business.",
-    paymentInstructions: "Bank: First Bank of Nigeria\nAccount Name: Green Valley Poultry Ltd\nAccount Number: 0123456789\nReference: INV-2024-001",
-  },
-  {
-    id: 2,
-    invoiceNumber: "INV-2024-002",
-    date: "2024-10-18",
-    dueDate: "2024-11-01",
-    status: "Pending",
-    clientName: "Sunrise Poultry Enterprises",
-    clientEmail: "billing@sunrisepoultry.com",
-    items: [
-      {
-        description: "Feed Supply - Broiler Starter",
-        quantity: 75,
-        unitPrice: 100,
-        total: 7500,
-      },
-      {
-        description: "Vaccination Services",
-        quantity: 1,
-        unitPrice: 1200,
-        total: 1200,
-      },
-    ],
-    subtotal: 8700,
-    tax: 870,
-    taxRate: 10,
-    total: 9570,
-    notes: "Invoice due upon receipt.",
-    paymentInstructions: "Pay via bank transfer to Zenith Bank, Acct: 9876543210. Use invoice number as payment reference.",
-  },
-  {
-    id: 3,
-    invoiceNumber: "INV-2024-003",
-    date: "2024-10-20",
-    dueDate: "2024-11-03",
-    status: "Overdue",
-    clientName: "Rural Farm Cooperative",
-    clientEmail: "accounts@ruralcoop.com",
-    items: [
-      {
-        description: "Feed Supply - Layer Maintenance",
-        quantity: 100,
-        unitPrice: 95,
-        total: 9500,
-      },
-    ],
-    subtotal: 9500,
-    tax: 0,
-    taxEnabled: false,
-    total: 9500,
-    notes: "Payment due by November 3rd.",
-  },
-]
+const statusToApi = (status: Invoice["status"]) => status.toLowerCase() as "pending" | "paid" | "overdue"
 
 export function InvoicesPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>(SAMPLE_INVOICES)
+  const token = useSelector((state: RootState) => state.authentication.token)
+  const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [showPreview, setShowPreview] = useState(false)
-  const { currentFarm, farmSettings } = useLoaderData() as { currentFarm: Farm | null; farmStats: FarmStatsDataType | null; farmSettings?: FarmSettings | null }
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { currentFarm, farmSettings } = useLoaderData() as {
+    currentFarm: Farm | null
+    farmStats: FarmStatsDataType | null
+    farmSettings?: FarmSettings | null
+  }
+
+  const defaultCustomerId = useMemo(() => {
+    const raw = searchParams.get("customerId")
+    return raw ? Number(raw) : null
+  }, [searchParams])
+
+  const loadInvoices = useCallback(async () => {
+    if (!token || !farmId) return
+    setLoading(true)
+    const res = await getInvoices(token, farmId, {
+      status: statusFilter === "all" ? undefined : statusFilter.toLowerCase(),
+    })
+    if (!res.success || !res.data) {
+      toast.error(res.error?.join(", ") || "Failed to load invoices")
+      setLoading(false)
+      return
+    }
+    const rows = Array.isArray(res.data) ? res.data : res.data.data ?? []
+    setInvoices(rows.map((invoice) => mapApiInvoiceToUi(invoice, farmSettings)))
+    setLoading(false)
+  }, [token, farmId, statusFilter, farmSettings])
+
+  useEffect(() => {
+    void loadInvoices()
+  }, [loadInvoices])
+
+  useEffect(() => {
+    if (defaultCustomerId) {
+      setShowCreateModal(true)
+    }
+  }, [defaultCustomerId])
+
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesSearch =
       invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       invoice.clientName.toLowerCase().includes(searchQuery.toLowerCase())
-
     const matchesStatus = statusFilter === "all" || invoice.status === statusFilter
-
     return matchesSearch && matchesStatus
   })
 
@@ -129,26 +83,43 @@ export function InvoicesPage() {
     overdue: invoices.filter((i) => i.status === "Overdue").length,
   }
 
-  const handleCreateInvoice = (newInvoice: Omit<Invoice, "id">) => {
-    const invoice: Invoice = {
-      ...newInvoice,
-      id: invoices.length + 1,
+  const handleDeleteInvoice = async (id: number) => {
+    if (!token || !farmId) return
+    if (!window.confirm("Delete this invoice?")) return
+    const res = await deleteInvoice(token, farmId, id)
+    if (!res.success) {
+      toast.error(res.error?.join(", ") || "Failed to delete invoice")
+      return
     }
-    setInvoices([invoice, ...invoices])
-    setShowCreateModal(false)
+    toast.success("Invoice deleted")
+    void loadInvoices()
   }
 
-  const handleDeleteInvoice = (id: number) => {
-    setInvoices(invoices.filter((i) => i.id !== id))
+  const handleStatusChange = async (invoice: Invoice, status: Invoice["status"]) => {
+    if (!token || !farmId) return
+    const res = await updateInvoice(token, farmId, invoice.id, { status: statusToApi(status) })
+    if (!res.success) {
+      toast.error(res.error?.join(", ") || "Failed to update invoice status")
+      return
+    }
+    toast.success("Invoice status updated")
+    void loadInvoices()
   }
 
   const handlePrintInvoice = (invoice: Invoice) => {
     printInvoice(invoice, currentFarm, farmSettings)
   }
 
+  const closeCreateModal = (open: boolean) => {
+    setShowCreateModal(open)
+    if (!open && searchParams.has("customerId")) {
+      searchParams.delete("customerId")
+      setSearchParams(searchParams, { replace: true })
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Invoices</h1>
@@ -162,7 +133,6 @@ export function InvoicesPage() {
         </ActionGate>
       </div>
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-blue-600 text-white rounded-lg p-4">
           <p className="text-sm opacity-90">Total Invoices</p>
@@ -182,7 +152,6 @@ export function InvoicesPage() {
         </div>
       </div>
 
-      {/* Search and Filters */}
       <div className="space-y-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -209,9 +178,12 @@ export function InvoicesPage() {
         </div>
       </div>
 
-      {/* Invoices List */}
       <div className="space-y-3">
-        {filteredInvoices.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading invoices...</p>
+          </div>
+        ) : filteredInvoices.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground">No invoices found</p>
           </div>
@@ -228,10 +200,27 @@ export function InvoicesPage() {
                     <p className="text-sm text-muted-foreground">{invoice.clientName}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-foreground">{formatCurrency(invoice.total, { farmSettings, farm: currentFarm })}</p>
+                    <p className="font-semibold text-foreground">
+                      {formatCurrency(invoice.total, { farmSettings, farm: currentFarm })}
+                    </p>
                     <p className="text-xs text-muted-foreground">Due: {invoice.dueDate}</p>
                   </div>
-                  <div>
+                  <ActionGate anyOf={ACTIONS.invoices.update}>
+                    <Select
+                      value={invoice.status}
+                      onValueChange={(value) => void handleStatusChange(invoice, value as Invoice["status"])}
+                    >
+                      <SelectTrigger className="h-8 w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="Paid">Paid</SelectItem>
+                        <SelectItem value="Overdue">Overdue</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </ActionGate>
+                  <div className="md:hidden">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${
                         invoice.status === "Paid"
@@ -247,7 +236,6 @@ export function InvoicesPage() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex items-center gap-2 ml-4">
                 <Button
                   variant="ghost"
@@ -259,15 +247,11 @@ export function InvoicesPage() {
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handlePrintInvoice(invoice)}
-                >
+                <Button variant="ghost" size="sm" onClick={() => handlePrintInvoice(invoice)}>
                   <Printer className="w-4 h-4" />
                 </Button>
                 <ActionGate anyOf={ACTIONS.invoices.delete}>
-                  <Button variant="ghost" size="sm" onClick={() => handleDeleteInvoice(invoice.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => void handleDeleteInvoice(invoice.id)}>
                     <Trash2 className="w-4 h-4 text-red-500" />
                   </Button>
                 </ActionGate>
@@ -277,12 +261,12 @@ export function InvoicesPage() {
         )}
       </div>
 
-      {/* Modals */}
       <CreateInvoiceModal
         open={showCreateModal}
-        onOpenChange={setShowCreateModal}
-        onCreateInvoice={handleCreateInvoice}
+        onOpenChange={closeCreateModal}
+        onCreated={() => void loadInvoices()}
         farmSettings={farmSettings}
+        defaultCustomerId={defaultCustomerId}
       />
 
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
@@ -290,7 +274,9 @@ export function InvoicesPage() {
           <DialogHeader>
             <DialogTitle>Invoice Preview</DialogTitle>
           </DialogHeader>
-          {selectedInvoice && <InvoicePreview farm={currentFarm} farmSettings={farmSettings} invoice={selectedInvoice} />}
+          {selectedInvoice && (
+            <InvoicePreview farm={currentFarm} farmSettings={farmSettings} invoice={selectedInvoice} />
+          )}
         </DialogContent>
       </Dialog>
     </div>

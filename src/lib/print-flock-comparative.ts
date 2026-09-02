@@ -190,7 +190,7 @@ export function buildFlockComparativePrintHtml(input: FlockComparativePrintInput
 
   ${aiSection}
 
-  <div class="footer">LiveStockPro · Comparative batch report for ${escapeHtml(flockName)}</div>
+  <div class="footer">Farm Central · Comparative batch report for ${escapeHtml(flockName)}</div>
 </body>
 </html>`
 }

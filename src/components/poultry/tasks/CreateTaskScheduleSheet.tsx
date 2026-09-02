@@ -29,6 +29,7 @@ import type {
   FarmTaskSection,
   FarmTaskTemplate,
   FarmUserRoleSummary,
+  FlockRecord,
 } from "@/lib/types"
 import { Loader2 } from "lucide-react"
 
@@ -36,6 +37,7 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   workers: FarmUserRoleSummary[]
+  flocks?: FlockRecord[]
   templates: FarmTaskTemplate[]
   initial?: FarmTaskSchedule | null
   templatePreset?: FarmTaskTemplate | null
@@ -62,6 +64,7 @@ const emptyForm = () => ({
   month_day: 1,
   assignment_mode: "single" as FarmTaskAssignmentMode,
   assignee_ids: [] as number[],
+  flock_id: null as number | null,
   animal_group: "",
   medication_name: "",
   dosage_instructions: "",
@@ -78,6 +81,7 @@ export default function CreateTaskScheduleSheet({
   open,
   onOpenChange,
   workers,
+  flocks = [],
   templates,
   initial,
   templatePreset,
@@ -108,6 +112,7 @@ export default function CreateTaskScheduleSheet({
         month_day: initial.month_day || 1,
         assignment_mode: initial.assignment_mode,
         assignee_ids: (initial.assignees ?? []).map((a) => a.user_id),
+        flock_id: initial.flock_id ?? null,
         animal_group: initial.animal_group ?? "",
         medication_name: initial.medication_name ?? "",
         dosage_instructions: initial.dosage_instructions ?? "",
@@ -220,7 +225,8 @@ export default function CreateTaskScheduleSheet({
       month_day: form.recurrence === "monthly" ? form.month_day : null,
       assignment_mode: form.assignment_mode,
       assignee_ids: form.assignee_ids,
-      animal_group: form.section === "medication" ? form.animal_group : undefined,
+      flock_id: form.flock_id || null,
+      animal_group: form.animal_group || undefined,
       medication_name: form.section === "medication" ? form.medication_name : undefined,
       dosage_instructions:
         form.section === "medication" ? form.dosage_instructions : undefined,
@@ -326,6 +332,38 @@ export default function CreateTaskScheduleSheet({
               onChange={(e) => setForm((p) => ({ ...p, instructions: e.target.value }))}
               rows={2}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Link to batch (optional)</Label>
+            <Select
+              value={form.flock_id ? String(form.flock_id) : "none"}
+              onValueChange={(v) =>
+                setForm((p) => ({
+                  ...p,
+                  flock_id: v === "none" ? null : Number(v),
+                  animal_group:
+                    v === "none"
+                      ? p.animal_group
+                      : flocks.find((f) => String(f.id) === v)?.batch_number ||
+                        flocks.find((f) => String(f.id) === v)?.name ||
+                        p.animal_group,
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Farm-wide task" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No specific batch</SelectItem>
+                {flocks.map((flock) => (
+                  <SelectItem key={flock.id} value={String(flock.id)}>
+                    {flock.batch_number ? `Batch #${flock.batch_number}` : flock.name}
+                    {flock.name && flock.batch_number ? ` · ${flock.name}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {form.section === "medication" && (
