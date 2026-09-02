@@ -185,6 +185,43 @@ export function resolveForFeedingDay<T extends FeedingRangeLike & { id: number }
 }
 
 /**
+ * Client-side mirror of FeedingScheduleRangeService::resolveForMissedBackfillDay.
+ */
+export function resolveForMissedBackfillDay<T extends FeedingRangeLike & { id: number }>(
+  items: T[],
+  day: number
+): T | null {
+  const resolved = resolveForFeedingDay(items, day)
+  if (resolved) return resolved
+
+  if (items.length === 0) return null
+
+  const sorted = [...items].sort((a, b) => {
+    const as = resolveRangeBounds(a).start_day
+    const bs = resolveRangeBounds(b).start_day
+    return as !== bs ? as - bs : a.id - b.id
+  })
+
+  const earliest = sorted[0]
+  const earliestStart = resolveRangeBounds(earliest).start_day
+  if (day < earliestStart) return earliest
+
+  let previous: T | null = null
+  for (const item of sorted) {
+    const { start_day, end_day } = resolveRangeBounds(item)
+    if (day < start_day) {
+      return previous ?? earliest
+    }
+    if (end_day == null || day <= end_day) {
+      return item
+    }
+    previous = item
+  }
+
+  return previous ?? earliest
+}
+
+/**
  * Client-side mirror of FeedingMissedScheduleService::collectMissedDays.
  */
 export function listMissedFeedingDays(params: {
@@ -210,7 +247,7 @@ export function listMissedFeedingDays(params: {
   const missed: MissedFeedingDay[] = []
 
   for (let day = 1; day < currentFeedingDay; day++) {
-    const scheduleItem = resolveForFeedingDay(scheduleItems, day)
+    const scheduleItem = resolveForMissedBackfillDay(scheduleItems, day)
     if (!scheduleItem) continue
 
     const feedingDate = format(addDays(arrival, day - 1), "yyyy-MM-dd")
@@ -278,7 +315,7 @@ export function countMissedDaysInRange(
 
   let missed = 0
   for (let day = startDay; day <= effectiveEnd; day++) {
-    const covering = resolveForFeedingDay(scheduleItems, day)
+    const covering = resolveForMissedBackfillDay(scheduleItems, day)
     if (!covering || covering.id !== scheduleItemId) continue
 
     const feedingDate = format(addDays(arrival, day - 1), "yyyy-MM-dd")
