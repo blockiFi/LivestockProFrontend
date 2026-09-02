@@ -85,7 +85,7 @@ export default function BatchActivitiesReportView({ flock }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [report, setReport] = useState<BatchActivityReportMeta | null>(null)
   const [hasGenerated, setHasGenerated] = useState(false)
-  const [sortKey, setSortKey] = useState<SortKey>("date")
+  const [sortKey] = useState<SortKey>("date")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
   useEffect(() => {

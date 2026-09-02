@@ -139,7 +139,7 @@ export default function CustomersPage() {
           </SelectContent>
         </Select>
         <ExportDataButton
-          data={customers}
+          rows={customers}
           columns={EXPORT_COLUMNS}
           filename={buildExportFilename("customers")}
         />

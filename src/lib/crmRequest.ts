@@ -9,7 +9,7 @@ import type {
   Invoice,
   InvoiceItem,
 } from "@/lib/types"
-import type { RequestResponse } from "@/lib/request"
+import type { RequestResponse } from "@/lib/interfaces"
 
 export type CustomerPayload = {
   name: string
@@ -47,7 +47,9 @@ export function mapApiInvoiceToUi(
 ): Invoice {
   const taxAmount = toNumber(invoice.tax_amount)
   const subtotal = toNumber(invoice.subtotal)
-  const taxRate = farmSettings?.invoice_tax_rate ?? (subtotal > 0 ? (taxAmount / subtotal) * 100 : 0)
+  const taxRate = Number(
+    farmSettings?.invoice_tax_rate ?? (subtotal > 0 ? (taxAmount / subtotal) * 100 : 0)
+  )
 
   return {
     id: invoice.id,

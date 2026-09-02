@@ -34,9 +34,9 @@ export function SettingsSaveBar({ dirty, saving = false, onSave, onDiscard }: Se
 
     const confirmed = window.confirm("You have unsaved changes. Leave this page without saving?")
     if (confirmed) {
-      blockerRef.current.proceed()
+      blockerRef.current.proceed?.()
     } else {
-      blockerRef.current.reset()
+      blockerRef.current.reset?.()
     }
   }, [blocker.state])
 

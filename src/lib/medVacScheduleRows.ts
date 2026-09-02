@@ -22,7 +22,7 @@ export function buildMedVacDisplayRows(
     today.setHours(0, 0, 0, 0)
 
     return batchItems
-      .map((batchItem) => {
+      .map((batchItem): MedVacDisplayRow | null => {
         const scheduleItem =
           batchItem.schedule_item ??
           templateItems.find((item) => item.id === batchItem.schedule_item_id)

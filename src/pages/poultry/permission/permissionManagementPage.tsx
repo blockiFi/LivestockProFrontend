@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useLoaderData } from "react-router-dom"
-import type { Permission, PermissionGroup } from "@/lib/types"
+import type { PermissionGroup } from "@/lib/types"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
 
@@ -17,7 +17,6 @@ interface PermissionManagementPageProps {
 }
 
 export default function permissionManagementPage({ embedded = false, permissionGroups, totalPermissions: totalPermissionsProp }: PermissionManagementPageProps = {}) {
-  const [permissions, setPermissions] = useState<Permission[]>([])
   const [totalPermissions, setTotalPermissions] = useState(0)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -29,19 +28,6 @@ export default function permissionManagementPage({ embedded = false, permissionG
   const PermissionGroups = permissionGroups ?? loaderData?.PermissionGroups ?? null
 
   useEffect(() => {
-    if (PermissionGroups && Array.isArray(PermissionGroups)) {
-      const allPermissions = PermissionGroups.flatMap((group) => {
-        return Array.isArray(group.permissions) ? group.permissions : []
-      })
-      const unique = new Map<number, Permission>()
-      for (const permission of allPermissions) {
-        if (permission?.id != null) unique.set(permission.id, permission)
-      }
-      setPermissions(Array.from(unique.values()))
-    } else {
-      setPermissions([])
-    }
-
     const countedTotal =
       typeof totalPermissionsProp === "number"
         ? totalPermissionsProp

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useLoaderData, useSearchParams } from "react-router-dom"
 import { useSelector } from "react-redux"
 import { toast } from "react-toastify"
-import type { Farm, FarmSettings, FarmStatsDataType, Invoice } from "@/lib/types"
+import type { ApiInvoice, Farm, FarmSettings, FarmStatsDataType, Invoice } from "@/lib/types"
 import type { RootState } from "@/store"
 
 import { Button } from "@/components/ui/button"
@@ -54,7 +54,7 @@ export function InvoicesPage() {
       return
     }
     const rows = Array.isArray(res.data) ? res.data : res.data.data ?? []
-    setInvoices(rows.map((invoice) => mapApiInvoiceToUi(invoice, farmSettings)))
+    setInvoices(rows.map((invoice: ApiInvoice) => mapApiInvoiceToUi(invoice, farmSettings)))
     setLoading(false)
   }, [token, farmId, statusFilter, farmSettings])
 

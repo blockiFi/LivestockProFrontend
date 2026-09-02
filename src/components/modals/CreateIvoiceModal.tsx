@@ -70,12 +70,16 @@ export function CreateInvoiceModal({
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
     const newItems = [...items]
-    if (field === "quantity" || field === "unitPrice") {
-      newItems[index][field] = Number(value)
-    } else {
-      newItems[index][field] = value as string
+    const item = { ...newItems[index] }
+    if (field === "description") {
+      item.description = String(value)
+    } else if (field === "quantity") {
+      item.quantity = Number(value)
+    } else if (field === "unitPrice") {
+      item.unitPrice = Number(value)
     }
-    newItems[index].total = newItems[index].quantity * newItems[index].unitPrice
+    item.total = item.quantity * item.unitPrice
+    newItems[index] = item
     setItems(newItems)
   }
 

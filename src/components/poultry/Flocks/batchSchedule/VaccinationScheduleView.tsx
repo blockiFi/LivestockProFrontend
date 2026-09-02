@@ -10,7 +10,6 @@ import {
   ChevronUp,
   CheckCircle,
   AlertCircle,
-  DollarSign,
   Syringe,
   User,
   Plus,
