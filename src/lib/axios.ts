@@ -1,11 +1,13 @@
 import Axios from "axios";
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+const configuredBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
-// When VITE_API_BASE_URL is set, requests go directly to that backend.
-// Otherwise use same-origin /api/* (Vite proxy in dev, vercel.json rewrites in production).
+// Dev: always same-origin /api/* so Vite proxies to the backend (avoids CORS).
+// Prod: same-origin when unset (Vercel rewrites); set VITE_API_BASE_URL only for direct API hosts.
+const baseURL = import.meta.env.DEV ? "/" : configuredBase || "/";
+
 const axios = Axios.create({
-    baseURL: apiBaseUrl || "/",
+    baseURL,
     headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
