@@ -94,10 +94,16 @@ A modern, responsive frontend application for comprehensive livestock management
 ## 🔧 Configuration
 
 ### API Configuration
-Update your `.env` file with backend API URL:
+
+**Local dev** — set the backend URL for the Vite proxy in `.env`:
+
 ```env
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
+
+The app calls `/api/...` on localhost; Vite forwards those requests to your backend (no CORS).
+
+**Vercel production** — do **not** set `VITE_API_BASE_URL` in Vercel environment variables. `vercel.json` rewrites `/api/*` to Laravel Cloud server-side, so the browser never makes cross-origin API calls.
 
 ### UI Theme Configuration
 The application uses a modern theme with:
