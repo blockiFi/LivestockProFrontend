@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://livestockprobackend-production-sx8vrz.laravel.cloud/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
