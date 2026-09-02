@@ -676,6 +676,8 @@ export type RevertMissedFeedingResult = {
   reverted_count: number;
   total_feed_kg: number;
   inventory_restored_kg: number;
+  daily_records_deleted?: number;
+  daily_records_updated?: number;
 }
 
 export type ScheduleItem =  {
