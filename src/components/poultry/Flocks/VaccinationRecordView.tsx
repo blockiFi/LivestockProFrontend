@@ -1,18 +1,19 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import type { PoultryVaccinationRecord, vaccine, PoultryVaccineInventory, AdministrationMethod, BatchSchedule, ScheduleItem } from "@/lib/types";
 import { formatDate, Naira, formatCurrency } from "@/lib/utils";
+import { isDateInRange } from "@/lib/dateRange";
 import { Activity, AlertTriangle, Calendar, Eye, Factory, Loader2, Package2, RefreshCw, Shield, User, Users, Plus, Edit, Trash2 } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton"
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import AddVaccinationRecordModal, { type VaccinationRecordFormData } from "@/components/modals/AddVaccinationRecordModal"
 import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDialog"
+import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRangeFilter"
+import { useRecordsDateRange } from "@/hooks/useRecordsDateRange"
 import { getFlockNotifications } from "@/lib/request"
 import { mapUpcomingVaccinations, urgencyLabel, type UpcomingVaccinationItem } from "@/lib/upcomingVaccinations"
 import { useSelector } from "react-redux"
@@ -78,7 +79,17 @@ const VaccinationRecordView = ({
   onDeleteVaccinationRecord
 }: VaccinationRecordViewProps) => {
   const token = useSelector((state: RootState) => state.authentication.token)
-  const [dateFilter, setDateFilter] = useState("")
+  const {
+    preset,
+    setPreset,
+    customFrom,
+    setCustomFrom,
+    customTo,
+    setCustomTo,
+    dateFrom,
+    dateTo,
+    rangeLabel,
+  } = useRecordsDateRange()
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [deletingRecordId, setDeletingRecordId] = useState<number | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -89,6 +100,8 @@ const VaccinationRecordView = ({
   const [selectedScheduleItem, setSelectedScheduleItem] = useState<ScheduleItem | null>(null)
   const [selectedBatchScheduleId, setSelectedBatchScheduleId] = useState<number | null>(null)
   const [isImplementModalOpen, setIsImplementModalOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const rowsPerPage = 10
 
   const loadUpcomingVaccinations = useCallback(async () => {
     if (!token || !farmId || !flockId) {
@@ -171,21 +184,22 @@ const VaccinationRecordView = ({
     setRecordToDelete(null)
   }
 
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const rowsPerPage = 10;
+  // Pagination handled above with page / rowsPerPage
 
-  const filteredRecords = useMemo(() => {
-    if (!dateFilter) return records
-    return records.filter((record) => record.date.includes(dateFilter))
-  }, [records, dateFilter])
+  const filteredRecords = useMemo(
+    () => records.filter((record) => isDateInRange(record.date, dateFrom, dateTo)),
+    [records, dateFrom, dateTo]
+  )
 
-  // Paginate filtered records
-  const paginatedRecords = filteredRecords.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+  useEffect(() => {
+    setPage(1)
+  }, [records, dateFrom, dateTo])
 
-  const totalVaccinations = records.length
-  const totalCost = records.reduce((sum, record) => sum + (Number(record.cost) || 0), 0)
-  const uniqueVaccines = new Set(records.map((r) => r.vaccine.name)).size
+  const paginatedRecords = filteredRecords.slice((page - 1) * rowsPerPage, page * rowsPerPage)
+
+  const totalVaccinations = filteredRecords.length
+  const totalCost = filteredRecords.reduce((sum, record) => sum + (Number(record.cost) || 0), 0)
+  const uniqueVaccines = new Set(filteredRecords.map((r) => r.vaccine?.name).filter(Boolean)).size
 
   const overdueCount = useMemo(
     () => upcomingVaccinations.filter((item) => item.daysUntil < 0).length,
@@ -403,32 +417,36 @@ const VaccinationRecordView = ({
         </CardContent>
       </Card>
 
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <Label htmlFor="vaccination-date-filter">Filter by Date</Label>
-          <Input
-            id="vaccination-date-filter"
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="max-w-xs"
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <RecordsDateRangeFilter
+          preset={preset}
+          onPresetChange={setPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+          rangeLabel={rangeLabel}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">
+            Showing {filteredRecords.length} of {records.length}
+          </span>
+          {onAddVaccinationRecord && (
+            <Button 
+              onClick={() => setIsAddModalOpen(true)} 
+              size="sm"
+              className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Vaccination
+            </Button>
+          )}
+          <ExportDataButton
+            rows={filteredRecords}
+            columns={VACCINATION_EXPORT_COLUMNS}
+            filename={buildExportFilename(flockName || "flock", "vaccination")}
           />
         </div>
-        {onAddVaccinationRecord && (
-          <Button 
-            onClick={() => setIsAddModalOpen(true)} 
-            size="sm"
-            className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Vaccination
-          </Button>
-        )}
-        <ExportDataButton
-          rows={filteredRecords}
-          columns={VACCINATION_EXPORT_COLUMNS}
-          filename={buildExportFilename(flockName || "flock", "vaccination")}
-        />
       </div>
 
       <div className="rounded-lg border overflow-x-auto">

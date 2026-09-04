@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Scissors, Trash2, Wheat } from "lucide-react"
 import type { FeedType } from "@/lib/types"
 import {
+  DEFAULT_FEEDING_TIMES,
   formatFeedingDayRange,
+  normalizeFeedingTimesForUi,
   parseWeekHelper,
   plannedKgForRange,
   validateFeedingRanges,
@@ -41,11 +43,6 @@ type Props = {
   allowSplit?: boolean
   onSplit?: (index: number, day: number) => void
 }
-
-const defaultTimes = [
-  { time: "08:00", percentage: 50 },
-  { time: "17:00", percentage: 50 },
-]
 
 export default function FeedingRangeEditor({
   ranges,
@@ -98,7 +95,7 @@ export default function FeedingRangeEditor({
         end_day: nextStart,
         open_ended: false,
         quantity: 40,
-        feeding_times: [...defaultTimes],
+        feeding_times: DEFAULT_FEEDING_TIMES.map((t) => ({ ...t })),
       },
     ])
   }
@@ -115,7 +112,7 @@ export default function FeedingRangeEditor({
         end_day: parsed.end_day,
         open_ended: false,
         quantity: 40,
-        feeding_times: [...defaultTimes],
+        feeding_times: DEFAULT_FEEDING_TIMES.map((t) => ({ ...t })),
       },
     ])
     setWeekHelper("")
@@ -127,10 +124,19 @@ export default function FeedingRangeEditor({
     field: "time" | "percentage",
     value: string | number
   ) => {
-    const range = ranges[rangeIndex]
-    const times = [...(range.feeding_times || [])]
-    times[timeIndex] = { ...times[timeIndex], [field]: value }
-    updateAt(rangeIndex, { feeding_times: times })
+    onChange(
+      ranges.map((range, index) => {
+        if (index !== rangeIndex) return range
+        const times = normalizeFeedingTimesForUi(range.feeding_times)
+        const next = [...times]
+        const current = next[timeIndex] ?? { time: "08:00", percentage: 0 }
+        next[timeIndex] = {
+          ...current,
+          [field]: field === "percentage" ? Number(value) || 0 : String(value),
+        }
+        return { ...range, feeding_times: next }
+      })
+    )
   }
 
   return (
@@ -203,7 +209,8 @@ export default function FeedingRangeEditor({
             Number(range.start_day) || 1,
             openEnded ? null : Number(range.end_day)
           )
-          const timesTotal = (range.feeding_times || []).reduce(
+          const feedingTimes = normalizeFeedingTimesForUi(range.feeding_times)
+          const timesTotal = feedingTimes.reduce(
             (s, t) => s + Number(t.percentage || 0),
             0
           )
@@ -332,7 +339,7 @@ export default function FeedingRangeEditor({
                     {timesTotal.toFixed(0)}%
                   </span>
                 </div>
-                {(range.feeding_times || []).map((ft, ti) => (
+                {feedingTimes.map((ft, ti) => (
                   <div key={ti} className="flex gap-2 items-center">
                     <Input
                       type="time"
@@ -353,7 +360,7 @@ export default function FeedingRangeEditor({
                       }
                     />
                     <span className="text-xs text-slate-500">%</span>
-                    {(range.feeding_times || []).length > 1 && (
+                    {feedingTimes.length > 1 && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -362,7 +369,7 @@ export default function FeedingRangeEditor({
                         disabled={disabled}
                         onClick={() =>
                           updateAt(index, {
-                            feeding_times: (range.feeding_times || []).filter((_, i) => i !== ti),
+                            feeding_times: feedingTimes.filter((_, i) => i !== ti),
                           })
                         }
                       >
@@ -380,7 +387,7 @@ export default function FeedingRangeEditor({
                   onClick={() =>
                     updateAt(index, {
                       feeding_times: [
-                        ...(range.feeding_times || []),
+                        ...feedingTimes,
                         { time: "12:00", percentage: 0 },
                       ],
                     })

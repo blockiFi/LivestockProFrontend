@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -79,8 +80,10 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
   }, [reports]);
 
   const totalMortality = displayReports.reduce((sum, report) => sum + report.mortality_count, 0)
-  const avgMortalityRate = displayReports.length
-    ? displayReports.reduce((sum, report) => sum + report.mortality_percentage, 0) / displayReports.length
+  const initialBirds = flock?.quantity || 0
+  const cumulativeMortalityPct = initialBirds > 0 ? (totalMortality / initialBirds) * 100 : 0
+  const avgDailyMortalityPct = displayReports.length
+    ? displayReports.reduce((sum, report) => sum + Number(report.mortality_percentage || 0), 0) / displayReports.length
     : 0
 
   const handleAddRecord = async (recordData: Omit<MortalityReport, 'id' | 'created_at' | 'updated_at'>) => {
@@ -141,7 +144,7 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-red-100 rounded-lg">
@@ -149,7 +152,10 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Mortality</p>
-              <p className="text-2xl font-bold text-red-600">{totalMortality}</p>
+              <p className="text-2xl font-bold text-red-600">{totalMortality.toLocaleString()}</p>
+              <p className="text-xs text-red-500 mt-0.5">
+                {cumulativeMortalityPct.toFixed(2)}% of initial flock
+              </p>
             </div>
           </div>
         </Card>
@@ -160,10 +166,22 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
               <TrendingUp className="h-5 w-5 text-orange-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Avg Mortality Rate</p>
+              <p className="text-sm text-gray-500">Avg Daily Mortality %</p>
               <p className="text-2xl font-bold text-orange-600">
-                {isNaN(avgMortalityRate) ? "0.00" : avgMortalityRate.toFixed(2)} / day
+                {avgDailyMortalityPct.toFixed(2)}%
               </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-rose-100 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-rose-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Cumulative Mortality %</p>
+              <p className="text-2xl font-bold text-rose-600">{cumulativeMortalityPct.toFixed(2)}%</p>
             </div>
           </div>
         </Card>
@@ -215,18 +233,21 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <span
+                    <Badge
+                      variant="outline"
                       className={
-                        report.mortality_percentage > 0.4
-                          ? "text-red-600 font-medium"
-                          : report.mortality_percentage > 0.2
-                            ? "text-yellow-600 font-medium"
-                            : ""
+                        Number(report.mortality_percentage) > 0.4
+                          ? "bg-rose-100 text-rose-800 border-rose-200"
+                          : Number(report.mortality_percentage) > 0.2
+                            ? "bg-amber-100 text-amber-800 border-amber-200"
+                            : "bg-emerald-50 text-emerald-800 border-emerald-200"
                       }
                     >
-                      {report.mortality_percentage.toFixed(2)}%
-                    </span>
-                    {report.mortality_percentage > 0.4 && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                      {Number(report.mortality_percentage).toFixed(2)}%
+                    </Badge>
+                    {Number(report.mortality_percentage) > 0.4 && (
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                    )}
                   </div>
                 </TableCell>
                 <TableCell>{report.bird_count.toLocaleString()}</TableCell>

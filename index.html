@@ -1,10 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" style="color-scheme: light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/farm-central-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
     <title>Farm Central — Smart Livestock Command Center</title>
+    <script>
+      // Force light mode before React mounts (clears any prior dark preference).
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("themePreference", "light");
+    </script>
   </head>
   <body>
     <div id="root"></div>

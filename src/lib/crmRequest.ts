@@ -208,6 +208,34 @@ export async function getCustomerHistory(
   }
 }
 
+export async function recordCustomerPayment(
+  token: string,
+  farmId: number,
+  customerId: number,
+  payload: {
+    type: "product" | "invoice"
+    id: number
+    amount: number
+    payment_method?: string
+    notes?: string
+  }
+): Promise<RequestResponse<{ payment: { type: string; id: number; amount_paid: number; balance_due: number; payment_status: string }; summary: CustomerSummary }>> {
+  try {
+    const response = await axios.post(`/api/farms/${farmId}/customers/${customerId}/payments`, payload, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message || "Failed to record payment"],
+      }
+    }
+    return { success: false, error: ["Failed to record payment"] }
+  }
+}
+
 export async function getInvoices(
   token: string,
   farmId: number,
@@ -231,6 +259,27 @@ export async function getInvoices(
       }
     }
     return { success: false, error: ["Failed to fetch invoices"] }
+  }
+}
+
+export async function getInvoice(
+  token: string,
+  farmId: number,
+  invoiceId: number
+): Promise<RequestResponse<ApiInvoice>> {
+  try {
+    const response = await axios.get(`/api/farms/${farmId}/invoices/${invoiceId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message || "Failed to fetch invoice"],
+      }
+    }
+    return { success: false, error: ["Failed to fetch invoice"] }
   }
 }
 

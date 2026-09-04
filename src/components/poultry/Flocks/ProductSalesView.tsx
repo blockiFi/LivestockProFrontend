@@ -15,7 +15,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import AddProductSaleModal from "@/components/modals/AddProductSaleModal";
 import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDialog";
+import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRangeFilter";
+import { useRecordsDateRange } from "@/hooks/useRecordsDateRange";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { isDateInRange } from "@/lib/dateRange";
 import { Edit, Egg, Plus, Trash2 } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
@@ -46,6 +49,17 @@ const typeLabel: Record<string, string> = {
 const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSalesViewProps) => {
   const token = useSelector((s: RootState) => s.authentication.token);
   const farmId = useSelector((s: RootState) => s.authentication.activeFarm?.id);
+  const {
+    preset,
+    setPreset,
+    customFrom,
+    setCustomFrom,
+    customTo,
+    setCustomTo,
+    dateFrom,
+    dateTo,
+    rangeLabel,
+  } = useRecordsDateRange();
 
   const [records, setRecords] = useState<SalesRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,21 +72,30 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
     if (!token || !farmId) return;
     setLoading(true);
     try {
-      const res = await getSalesRecords(token, farmId, { flock_id: flockId });
+      const res = await getSalesRecords(token, farmId, {
+        flock_id: flockId,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+      });
       if (res.success && res.data) {
         setRecords(res.data);
       }
     } finally {
       setLoading(false);
     }
-  }, [token, farmId, flockId]);
+  }, [token, farmId, flockId, dateFrom, dateTo]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const filteredRecords = useMemo(
+    () => records.filter((row) => isDateInRange(row.date, dateFrom, dateTo)),
+    [records, dateFrom, dateTo]
+  );
+
   const totals = useMemo(() => {
-    return records.reduce(
+    return filteredRecords.reduce(
       (acc, row) => {
         acc.revenue += row.total_amount || 0;
         acc.byType[row.type] = (acc.byType[row.type] || 0) + (row.total_amount || 0);
@@ -80,7 +103,7 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
       },
       { revenue: 0, byType: {} as Record<string, number> }
     );
-  }, [records]);
+  }, [filteredRecords]);
 
   const handleCreate = async (payload: ProductSaleFormPayload) => {
     if (!token || !farmId) return;
@@ -148,7 +171,7 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportDataButton
-            rows={records}
+            rows={filteredRecords}
             columns={PRODUCT_SALE_EXPORT_COLUMNS}
             filename={buildExportFilename(flockName || "flock", "product-sales")}
           />
@@ -168,6 +191,15 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <RecordsDateRangeFilter
+          preset={preset}
+          onPresetChange={setPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+          rangeLabel={rangeLabel}
+        />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <SummaryTile label="Product revenue" value={formatCurrency(totals.revenue)} />
           <SummaryTile label="Egg sales" value={formatCurrency(totals.byType.egg || 0)} />
@@ -195,14 +227,14 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
                     Loading product sales...
                   </TableCell>
                 </TableRow>
-              ) : records.length === 0 ? (
+              ) : filteredRecords.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={canManage ? 7 : 6} className="text-center text-slate-500 py-8">
-                    No product sales recorded for this flock yet.
+                    No product sales in {rangeLabel}.
                   </TableCell>
                 </TableRow>
               ) : (
-                records.map((row) => (
+                filteredRecords.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>{formatDate(row.date)}</TableCell>
                     <TableCell>

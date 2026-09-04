@@ -11,6 +11,64 @@ export type FeedingRangeLike = {
 
 export type FeedingImportLayout = "range" | "per_day"
 
+export type FeedingTimeSlot = { time: string; percentage: number }
+
+export const DEFAULT_FEEDING_TIMES: FeedingTimeSlot[] = [
+  { time: "08:00", percentage: 50 },
+  { time: "17:00", percentage: 50 },
+]
+
+/**
+ * Normalize API / legacy feeding_times into editable { time, percentage } slots.
+ * Handles JSON strings, legacy string arrays (["08:00", "17:00"]), and missing percentages.
+ */
+export function normalizeFeedingTimesForUi(
+  raw: unknown,
+  fallback: FeedingTimeSlot[] = DEFAULT_FEEDING_TIMES
+): FeedingTimeSlot[] {
+  let value: unknown = raw
+
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return fallback.map((t) => ({ ...t }))
+    }
+  }
+
+  if (!Array.isArray(value) || value.length === 0) {
+    return fallback.map((t) => ({ ...t }))
+  }
+
+  const normalized: FeedingTimeSlot[] = value.map((entry) => {
+    if (typeof entry === "string") {
+      return { time: entry, percentage: 0 }
+    }
+    if (entry && typeof entry === "object") {
+      const obj = entry as Record<string, unknown>
+      const time = String(obj.time ?? obj.feeding_time ?? "08:00")
+      const pct = Number(obj.percentage ?? obj.percent ?? 0)
+      return { time, percentage: Number.isFinite(pct) ? pct : 0 }
+    }
+    return { time: "08:00", percentage: 0 }
+  })
+
+  const total = normalized.reduce((sum, slot) => sum + slot.percentage, 0)
+  if (total > 0) {
+    return normalized
+  }
+
+  const count = normalized.length
+  const base = Math.floor((100 / count) * 100) / 100
+  let remainder = 100
+  return normalized.map((slot, index) => {
+    const percentage =
+      index === count - 1 ? Math.round(remainder * 100) / 100 : base
+    remainder -= percentage
+    return { ...slot, percentage }
+  })
+}
+
 /** Format as "Day 1–7", "Day 50+", or "Day 3". */
 export function formatFeedingDayRange(
   start: number | null | undefined,

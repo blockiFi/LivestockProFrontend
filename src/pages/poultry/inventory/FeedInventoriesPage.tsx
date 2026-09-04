@@ -22,12 +22,14 @@ import {
   BarChart3,
   AlertCircle,
   Wheat,
+  ArrowLeftRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useLoaderData } from "react-router-dom"
 import AddFeedInventoryModal from "@/components/modals/AddFeedInventoryModal"
 import CloseFeedInventoryModal from "@/components/modals/CloseFeedInventoryModal"
 import UpdateFeedInventoryCostModal from "@/components/modals/UpdateFeedInventoryCostModal"
+import TransferFeedInventoryModal from "@/components/modals/TransferFeedInventoryModal"
 import { useRevalidator } from "react-router-dom"
 import { toast } from "react-toastify"
 import type {  FeedInventoryType } from "@/lib/types"
@@ -67,6 +69,7 @@ interface FeedInventoryItem {
   manufactureDate: string
   closedAt: string
   lastUsedDate: string
+  feedTypeId: number
 }
 
 const formatInventoryDate = (value?: string | null) => {
@@ -78,6 +81,7 @@ const formatInventoryDate = (value?: string | null) => {
 
 
 function getStockStatus(current: number, minimum: number, maximum: number) {
+  if (current < 0) return { status: "negative", color: "bg-red-100 text-red-800 border-red-200" }
   if (current <= minimum) return { status: "low", color: "bg-red-100 text-red-800 border-red-200" }
   if (current >= maximum * 0.8) return { status: "high", color: "bg-green-100 text-green-800 border-green-200" }
   return { status: "medium", color: "bg-yellow-100 text-yellow-800 border-yellow-200" }
@@ -88,6 +92,7 @@ function FeedInventoryCard({
   onEdit,
   onDelete,
   onClose,
+  onTransfer,
   farmId,
   token,
   inventories,
@@ -98,6 +103,7 @@ function FeedInventoryCard({
   onDelete: (id: number) => void
   onAdjust: (id: number) => void
   onClose: (id: number) => void
+  onTransfer: (id: number) => void
   farmId: number
   token: string
   inventories: FeedInventoryType[]
@@ -107,15 +113,17 @@ function FeedInventoryCard({
   const stockStatus = getStockStatus(item.availableQuantity, item.minimumStock, item.maximumStock)
   const totalValue = item.availableQuantity * item.costPerUnit
   const expiryStatus = getExpiryStatus(item.expiryDate)
+  const needsCostUpdate = item.costPerUnit <= 0
+  const isNegative = item.availableQuantity < 0
 
   return (
     <Card className={cn(
       "group hover:shadow-xl transition-all duration-300 border border-gray-200 overflow-hidden",
-      stockStatus.status === "low" && "border-red-200 bg-red-50/30",
+      (stockStatus.status === "low" || isNegative) && "border-red-200 bg-red-50/30",
       expiryStatus === "expired" && "border-red-300 bg-red-50/40"
     )}>
       <div className={`h-2 bg-gradient-to-r ${
-        stockStatus.status === "low" ? "from-red-500 to-red-600" :
+        isNegative || stockStatus.status === "low" ? "from-red-500 to-red-600" :
         stockStatus.status === "high" ? "from-green-500 to-green-600" :
         "from-yellow-500 to-yellow-600"
       }`}></div>
@@ -129,16 +137,26 @@ function FeedInventoryCard({
                 </div>
                 <div className="flex-1">
                   <CardTitle className="text-xl font-bold text-gray-900">{item.name}</CardTitle>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <Badge variant="outline" className="bg-blue-50">
                       {item.category}
                     </Badge>
                     <Badge className={cn("font-medium text-xs", stockStatus.color)}>
-                      {stockStatus.status.toUpperCase()}
+                      {isNegative ? "NEGATIVE" : stockStatus.status.toUpperCase()}
                     </Badge>
+                    {needsCostUpdate && (
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-xs">
+                        Update cost
+                      </Badge>
+                    )}
                     {item.status === "closed" && (
                       <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
                         CLOSED
+                      </Badge>
+                    )}
+                    {item.status === "depleted" && !isNegative && (
+                      <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
+                        DEPLETED
                       </Badge>
                     )}
                     {expiryStatus === "expired" && (
@@ -350,6 +368,25 @@ function FeedInventoryCard({
               </div>
             )}
 
+            {(isNegative || needsCostUpdate) && item.status !== "closed" && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-sm text-amber-800">
+                  {isNegative ? (
+                    <p>
+                      This batch is overdrawn by {Math.abs(item.availableQuantity)} {item.unit}. Transfer stock from
+                      another batch of the same feed type to compensate.
+                    </p>
+                  ) : null}
+                  {needsCostUpdate ? (
+                    <p className={isNegative ? "mt-1" : undefined}>
+                      Unit cost is {Naira}0 — update the cost so expenditures are recorded correctly.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
             {item.status === "closed" && (
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-1">
                 <p className="text-xs font-medium text-gray-800">Closed Inventory</p>
@@ -378,17 +415,31 @@ function FeedInventoryCard({
               />
             )}
 
-            <div className="flex items-center gap-2 pt-2 border-t">
+            <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
               <ActionGate anyOf={ACTIONS.feedInventory.update}>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => onEdit(item.id)}
+                  className={needsCostUpdate ? "border-amber-300 text-amber-800" : undefined}
                 >
                   <Edit className="h-3 w-3 mr-1" />
                   Update Cost
                 </Button>
               </ActionGate>
+              {item.status !== "closed" && (
+                <ActionGate anyOf={ACTIONS.feedInventory.update}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onTransfer(item.id)}
+                    className={isNegative ? "border-amber-300 text-amber-800" : undefined}
+                  >
+                    <ArrowLeftRight className="h-3 w-3 mr-1" />
+                    Transfer in
+                  </Button>
+                </ActionGate>
+              )}
               {item.status !== "closed" && item.availableQuantity > 0 && (
                 <ActionGate anyOf={ACTIONS.feedInventory.update}>
                   <Button
@@ -432,6 +483,7 @@ export default function FeedInventoryPage() {
   const [deleteTarget, setDeleteTarget] = useState<FeedInventoryItem | null>(null)
   const [closeTarget, setCloseTarget] = useState<FeedInventoryItem | null>(null)
   const [costTarget, setCostTarget] = useState<FeedInventoryItem | null>(null)
+  const [transferTarget, setTransferTarget] = useState<FeedInventoryItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const revalidator = useRevalidator()
   const {feedInventories} = useLoaderData() as { feedInventories: FeedInventoryType[] | null }
@@ -478,7 +530,7 @@ export default function FeedInventoryPage() {
       batchNumber: (item as any).batch_number ?? (item as any).batchNumber ?? '',
       lastRestocked: (item as any).last_restocked ?? (item as any).lastRestocked ?? new Date().toISOString(),
       location: (item as any).location ?? '',
-      notes: (item as any).notes ?? '',
+      notes: (item as any).notes ?? (item as any).close_notes ?? '',
       usageCount: Number((item as any).feed_usages_count ?? 0),
       canDelete: Boolean((item as any).can_delete),
       status: (item as any).status ?? 'available',
@@ -487,6 +539,9 @@ export default function FeedInventoryPage() {
       allocatedFlockLabel: (item as any).allocated_flock
         ? `${(item as any).allocated_flock.name ?? 'Flock'} (${(item as any).allocated_flock.batch_number ?? '—'})`
         : '',
+      feedTypeId: Number(
+        (item as any).poultry_feed_type_id ?? (item as any).feed_type?.id ?? (item as any).poultry_feed_type?.id ?? 0
+      ),
     }
   })
 
@@ -514,6 +569,13 @@ export default function FeedInventoryPage() {
     const item = normalizedItems.find((entry) => entry.id === id) ?? null
     if (item) {
       setCloseTarget(item)
+    }
+  }
+
+  const handleTransfer = (id: number) => {
+    const item = normalizedItems.find((entry) => entry.id === id) ?? null
+    if (item) {
+      setTransferTarget(item)
     }
   }
 
@@ -793,6 +855,7 @@ export default function FeedInventoryPage() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onClose={handleClose}
+                onTransfer={handleTransfer}
                 onAdjust={handleAdjust}
                 farmId={farmId}
                 token={token}
@@ -863,6 +926,28 @@ export default function FeedInventoryPage() {
         inventory={costTarget}
         onUpdated={() => {
           setCostTarget(null)
+          revalidator.revalidate()
+        }}
+      />
+
+      <TransferFeedInventoryModal
+        isOpen={Boolean(transferTarget)}
+        onClose={() => setTransferTarget(null)}
+        target={
+          transferTarget
+            ? {
+                id: transferTarget.id,
+                name: transferTarget.name,
+                batchNumber: transferTarget.batchNumber,
+                availableQuantity: transferTarget.availableQuantity,
+                feedTypeId: transferTarget.feedTypeId,
+                unit: transferTarget.unit,
+              }
+            : null
+        }
+        inventories={feedInventoriesData}
+        onTransferred={() => {
+          setTransferTarget(null)
           revalidator.revalidate()
         }}
       />

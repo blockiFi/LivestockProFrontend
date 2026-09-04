@@ -1,6 +1,6 @@
 import axios from "./axios"
 import type {    LoginData,  PaginatedRequestType,  RequestResponse } from "./interfaces"
-import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout } from "./types"
+import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, EggReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout } from "./types"
 import  { isAxiosError } from "axios"
 
 const flattenApiErrors = (error: unknown): string => {
@@ -504,6 +504,27 @@ export const createFarm = async (
     };
   };
 
+  const sanitizeEggReport = (r: any) => {
+    if (!r) return r;
+    const recorder = typeof r.recorded_by === 'object' && r.recorded_by !== null
+      ? r.recorded_by
+      : (r.recorded_by_user ?? r.recordedBy ?? null);
+
+    return {
+      ...r,
+      id: toNumber(r.id),
+      farm_id: toNumber(r.farm_id),
+      flock_id: toNumber(r.flock_id),
+      eggs_collected: toNumber(r.eggs_collected),
+      eggs_broken: toNumber(r.eggs_broken),
+      average_egg_weight: toNumber(r.average_egg_weight),
+      production_percentage: toNumber(r.production_percentage),
+      bird_count: toNumber(r.bird_count),
+      recorded_by: toNumber(recorder?.id ?? r.recorded_by),
+      recorded_by_name: recorder?.name ?? r.recorded_by_name ?? null,
+    };
+  };
+
   const sanitizeDailyRecord = (r: any) => {
     if (!r) return r;
     const additional = r.additional_data && typeof r.additional_data === 'object' ? r.additional_data : {};
@@ -602,17 +623,7 @@ export const createFarm = async (
         recorded_by: toNumber(r.recorded_by)
       })),
       weight_reports: sanitizeArray(record.weight_reports, sanitizeWeightReport),
-      egg_reports: sanitizeArray(record.egg_reports, (r: any) => ({
-        ...r,
-        id: toNumber(r.id),
-        farm_id: toNumber(r.farm_id),
-        flock_id: toNumber(r.flock_id),
-        eggs_collected: toNumber(r.eggs_collected),
-        average_egg_weight: toNumber(r.average_egg_weight),
-        production_percentage: toNumber(r.production_percentage),
-        bird_count: toNumber(r.bird_count),
-        recorded_by: toNumber(r.recorded_by)
-      })),
+      egg_reports: sanitizeArray(record.egg_reports, sanitizeEggReport),
       batch_schedules: record.batch_schedules ? {
         ...record.batch_schedules,
         id: toNumber(record.batch_schedules.id),
@@ -2075,15 +2086,146 @@ export const createFarm = async (
     }
   };
 
+  export type EggReportPayload = {
+    flock_id: number;
+    date: string;
+    eggs_collected: number;
+    eggs_broken?: number;
+    average_egg_weight?: number;
+    notes?: string;
+  };
+
+  export const createEggReport = async (
+    token: string,
+    farmId: number,
+    recordData: EggReportPayload
+  ): Promise<RequestResponse<EggReport>> => {
+    try {
+      const response = await axios.post(
+        `/api/farms/${farmId}/flock-egg-reports`,
+        recordData,
+        { headers: { "Authorization": `Bearer ${token}` } }
+      );
+
+      if (response.status === 200 || response.status === 201) {
+        return {
+          success: true,
+          data: sanitizeEggReport(response.data.data),
+        };
+      }
+
+      return {
+        success: false,
+        error: [`Error creating egg report! Status: ${response.status}`],
+      };
+    } catch (error: unknown) {
+      console.error("Error creating egg report:", error);
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to add egg report"],
+        };
+      }
+      return {
+        success: false,
+        error: ["An unexpected error occurred"],
+      };
+    }
+  };
+
+  export const updateEggReport = async (
+    token: string,
+    farmId: number,
+    reportId: number,
+    recordData: Partial<EggReportPayload>
+  ): Promise<RequestResponse<EggReport>> => {
+    try {
+      const response = await axios.put(
+        `/api/farms/${farmId}/flock-egg-reports/${reportId}`,
+        recordData,
+        { headers: { "Authorization": `Bearer ${token}` } }
+      );
+
+      if (response.status === 200) {
+        return {
+          success: true,
+          data: sanitizeEggReport(response.data.data),
+        };
+      }
+
+      return {
+        success: false,
+        error: [`Error updating egg report! Status: ${response.status}`],
+      };
+    } catch (error: unknown) {
+      console.error("Error updating egg report:", error);
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to update egg report"],
+        };
+      }
+      return {
+        success: false,
+        error: ["An unexpected error occurred"],
+      };
+    }
+  };
+
+  export const deleteEggReport = async (
+    token: string,
+    farmId: number,
+    reportId: number
+  ): Promise<RequestResponse<void>> => {
+    try {
+      const response = await axios.delete(
+        `/api/farms/${farmId}/flock-egg-reports/${reportId}`,
+        { headers: { "Authorization": `Bearer ${token}` } }
+      );
+
+      if (response.status === 200 || response.status === 204) {
+        return {
+          success: true,
+          data: undefined,
+        };
+      }
+
+      return {
+        success: false,
+        error: [`Error deleting egg report! Status: ${response.status}`],
+      };
+    } catch (error: unknown) {
+      console.error("Error deleting egg report:", error);
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to delete egg report"],
+        };
+      }
+      return {
+        success: false,
+        error: ["An unexpected error occurred"],
+      };
+    }
+  };
+
   export const createFeedUsageRecord = async (
     token: string,
     farmId: number,
     recordData: Omit<PoultryFeedUsageRecord, 'id' | 'created_at' | 'updated_at' | 'feed_inventory' | 'feed_type' | 'flock'>
   ): Promise<RequestResponse<PoultryFeedUsageRecord>> => {
     try {
+      const payload: Record<string, unknown> = { ...recordData }
+      if (!payload.poultry_feed_inventory_id) {
+        delete payload.poultry_feed_inventory_id
+      }
+      if (payload.unit_cost === undefined || payload.unit_cost === null || payload.unit_cost === "") {
+        payload.unit_cost = 0
+      }
+
       const response = await axios.post(
         `/api/farms/${farmId}/feed-usages`,
-        recordData,
+        payload,
         { headers: { "Authorization": `Bearer ${token}` } }
       );
       
@@ -3179,6 +3321,7 @@ export type ProductSaleFormPayload = {
   customer_phone?: string | null;
   payment_method?: string | null;
   payment_status?: 'pending' | 'paid' | 'partial';
+  amount_paid?: number;
   notes?: string | null;
 };
 
@@ -3190,6 +3333,7 @@ const mapSalesRecord = (data: any): SalesRecord => ({
   quantity: toNumber(data.quantity),
   unit_price: toNumber(data.unit_price),
   total_amount: toNumber(data.total_amount),
+  amount_paid: toNumber(data.amount_paid ?? 0),
 });
 
 export const getSalesRecords = async (
@@ -3843,6 +3987,239 @@ export const confirmScheduleImportDraft = async (
       return {
         success: false,
         error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to confirm import draft"],
+      };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Flock record bulk import (AI + Excel/CSV)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const downloadFlockRecordImportTemplate = async (
+  token: string,
+  farmId: number,
+  flockId: number
+): Promise<RequestResponse<Blob>> => {
+  try {
+    const response = await axios.get(
+      `/api/farms/${farmId}/flocks/${flockId}/record-imports/template`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: "blob",
+      }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data as Blob };
+    }
+    return { success: false, error: [`Error downloading template: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: [error.response?.data?.message || "Failed to download template"],
+      };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+};
+
+export const createFlockRecordImportDraft = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  file: File,
+  method: "file" | "ai"
+): Promise<
+  RequestResponse<{
+    draft: import("./types").FlockRecordImportDraft;
+    ai_available: boolean;
+    warnings: string[];
+  }>
+> => {
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("method", method);
+    const response = await axios.post(
+      `/api/farms/${farmId}/flocks/${flockId}/record-imports`,
+      form,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    if (response.status === 200 || response.status === 201) {
+      return { success: true, data: response.data.data };
+    }
+    return { success: false, error: [`Error creating import draft: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error:
+          error.response?.data?.errors ||
+          [error.response?.data?.message] ||
+          ["Failed to create import draft"],
+      };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+};
+
+export const getFlockRecordImportDraft = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  draftId: number
+): Promise<RequestResponse<import("./types").FlockRecordImportDraft>> => {
+  try {
+    const response = await axios.get(
+      `/api/farms/${farmId}/flocks/${flockId}/record-imports/${draftId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data };
+    }
+    return { success: false, error: [`Error loading import draft: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: [error.response?.data?.message || "Failed to load import draft"],
+      };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+};
+
+export const updateFlockRecordImportDraft = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  draftId: number,
+  payload: {
+    items: Array<{
+      id?: number;
+      record_type: string;
+      payload: Record<string, unknown>;
+      confidence?: number | null;
+    }>;
+    replace_all?: boolean;
+  }
+): Promise<RequestResponse<import("./types").FlockRecordImportDraft>> => {
+  try {
+    const response = await axios.put(
+      `/api/farms/${farmId}/flocks/${flockId}/record-imports/${draftId}`,
+      payload,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data };
+    }
+    return { success: false, error: [`Error updating import draft: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error:
+          error.response?.data?.errors ||
+          [error.response?.data?.message] ||
+          ["Failed to update import draft"],
+      };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+};
+
+export const extractFlockRecordImportDraft = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  draftId: number
+): Promise<
+  RequestResponse<{
+    draft: import("./types").FlockRecordImportDraft;
+    ai_available: boolean;
+    warnings: string[];
+  }>
+> => {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/flocks/${flockId}/record-imports/${draftId}/extract`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data };
+    }
+    return { success: false, error: [`Error extracting import draft: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: [error.response?.data?.message || "Failed to extract import draft"],
+      };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+};
+
+export const confirmFlockRecordImportDraft = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  draftId: number
+): Promise<
+  RequestResponse<{
+    draft: import("./types").FlockRecordImportDraft;
+    summary: import("./types").FlockRecordImportConfirmSummary;
+  }>
+> => {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/flocks/${flockId}/record-imports/${draftId}/confirm`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data };
+    }
+    return { success: false, error: [`Error confirming import draft: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: [error.response?.data?.message || "Failed to confirm import draft"],
+      };
+    }
+    return { success: false, error: ["An unexpected error occurred"] };
+  }
+};
+
+export const deleteFlockRecordImportDraft = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  draftId: number
+): Promise<RequestResponse<void>> => {
+  try {
+    const response = await axios.delete(
+      `/api/farms/${farmId}/flocks/${flockId}/record-imports/${draftId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (response.status === 200 || response.status === 204) {
+      return { success: true, data: undefined };
+    }
+    return { success: false, error: [`Error deleting import draft: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: [error.response?.data?.message || "Failed to delete import draft"],
       };
     }
     return { success: false, error: ["An unexpected error occurred"] };
@@ -5508,6 +5885,51 @@ export const closeFeedInventory = async (
       return {
         success: false,
         error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to close feed inventory"],
+      }
+    }
+    return { success: false, error: ["An unexpected error occurred"] }
+  }
+}
+
+export const transferFeedInventory = async (
+  token: string,
+  farmId: number,
+  targetInventoryId: number,
+  data: { from_inventory_id: number; quantity: number }
+): Promise<
+  RequestResponse<{
+    transferred_quantity: number
+    target: FeedInventoryType
+    source: FeedInventoryType
+  }>
+> => {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/feed-inventories/${targetInventoryId}/transfer`,
+      data,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+
+    if (response.status === 200) {
+      return {
+        success: true,
+        data: {
+          transferred_quantity: Number(response.data.data.transferred_quantity),
+          target: sanitizeFeedInventory(response.data.data.target),
+          source: sanitizeFeedInventory(response.data.data.source),
+        },
+      }
+    }
+
+    return { success: false, error: [`Error transferring feed inventory: ${response.status}`] }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error:
+          error.response?.data?.errors ||
+          [error.response?.data?.message] ||
+          ["Failed to transfer feed inventory"],
       }
     }
     return { success: false, error: ["An unexpected error occurred"] }

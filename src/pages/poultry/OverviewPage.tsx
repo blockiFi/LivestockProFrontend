@@ -9,7 +9,8 @@ import HealthPanel from "@/components/dashboard/HealthPanel"
 import FinancialPanel from "@/components/dashboard/FinancialPanel"
 import FlockLeaderboard from "@/components/dashboard/FlockLeaderboard"
 import DistributionPanel from "@/components/dashboard/DistributionPanel"
-import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton"
+import { DashboardPageSkeleton } from "@/components/general/skeletons"
+import { LoadingState } from "@/components/general/LoadingState"
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState"
 import type { DashboardDatePreset, Farm, FarmAlerts, FarmDashboard } from "@/lib/types"
 import { getFarmAlerts, getFarmDashboard } from "@/lib/request"
@@ -123,7 +124,7 @@ const OverviewPage = () => {
   if (!dashboard && loading) {
     return (
       <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
-        <DashboardSkeleton />
+        <DashboardPageSkeleton />
       </div>
     )
   }
@@ -168,7 +169,9 @@ const OverviewPage = () => {
         <div className="lg:col-span-2">
           <DistributionPanel distribution={dashboard.flock_distribution} />
         </div>
-        <AlertsPanel alerts={alerts} maxItems={6} loading={alertsLoading} />
+        <LoadingState variant="section" loading={alertsLoading} label="Refreshing alerts…">
+          <AlertsPanel alerts={alerts} maxItems={6} loading={false} />
+        </LoadingState>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-none">

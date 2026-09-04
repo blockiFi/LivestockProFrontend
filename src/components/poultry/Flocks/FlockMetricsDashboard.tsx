@@ -143,7 +143,7 @@ export default function FlockMetricsDashboard({
         key: "survival",
         title: "Survival Rate",
         value: formatPercent(kpis.survivalRate),
-        footer: `${kpis.birdsRemaining.toLocaleString()} birds remaining`,
+        footer: `${kpis.birdsRemaining.toLocaleString()} of ${kpis.initialBirds.toLocaleString()} birds`,
         icon: <Heart className="h-4 w-4" />,
         cardStyles: "border-emerald-200/80 bg-emerald-50/50",
         iconStyles: "bg-emerald-100 text-emerald-700",

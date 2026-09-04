@@ -20,7 +20,7 @@ import {
   splitFeedingScheduleItem,
 } from "@/lib/request";
 import FeedingRangeEditor, { type FeedingRangeDraft } from "@/components/poultry/schedules/FeedingRangeEditor";
-import { validateFeedingRanges } from "@/lib/feeding-range";
+import { DEFAULT_FEEDING_TIMES, normalizeFeedingTimesForUi, validateFeedingRanges } from "@/lib/feeding-range";
 
 type Props = {
   open: boolean;
@@ -95,6 +95,7 @@ export default function EditScheduleModal({
       end_day: it.end_day === undefined ? (it.feeding_day ?? it.start_day ?? 1) : it.end_day,
       open_ended: it.end_day === null || it.is_open_ended === true,
       age_days: it.start_day ?? it.feeding_day ?? 1,
+      feeding_times: normalizeFeedingTimesForUi(it.feeding_times),
     }));
     setItems(currentItems);
     if (isFeeding) {
@@ -118,12 +119,7 @@ export default function EditScheduleModal({
     end_day: it.open_ended ? null : it.end_day != null ? Number(it.end_day) : Number(it.start_day ?? 1),
     open_ended: Boolean(it.open_ended),
     quantity: it.quantity ?? 0,
-    feeding_times: Array.isArray(it.feeding_times) && it.feeding_times.length
-      ? it.feeding_times
-      : [
-          { time: "08:00", percentage: 50 },
-          { time: "16:00", percentage: 50 },
-        ],
+    feeding_times: normalizeFeedingTimesForUi(it.feeding_times),
   }));
 
   const switchFeedingMode = (mode: "daily" | "range") => {
@@ -186,10 +182,7 @@ export default function EditScheduleModal({
         end_day: day,
         open_ended: false,
         quantity: 40,
-        feeding_times: [
-          { time: "08:00", percentage: 50 },
-          { time: "17:00", percentage: 50 },
-        ],
+        feeding_times: DEFAULT_FEEDING_TIMES.map((t) => ({ ...t })),
       },
     ]);
   };
@@ -202,7 +195,7 @@ export default function EditScheduleModal({
     setItems((prev) =>
       prev.map((it, i) => {
         if (i !== itemIdx) return it;
-        const times = Array.isArray(it.feeding_times) ? [...it.feeding_times] : [];
+        const times = normalizeFeedingTimesForUi(it.feeding_times);
         times[timeIdx] = { ...(times[timeIdx] ?? { time: "08:00", percentage: 0 }), ...patch };
         return { ...it, feeding_times: times };
       })
@@ -223,21 +216,21 @@ export default function EditScheduleModal({
                 return {
                   id: it.id,
                   feed_type_id: Number(it.feed_type_id),
-                  feeding_times: it.feeding_times ?? [],
+                  feeding_times: normalizeFeedingTimesForUi(it.feeding_times),
                   quantity: Number(it.quantity) || 0,
                   start_day: day,
                   end_day: day,
                   open_ended: false,
                 };
               })
-            : feedingRanges.map((r) => ({
-                id: r.id,
-                feed_type_id: Number(r.feed_type_id),
-                feeding_times: r.feeding_times,
-                quantity: Number(r.quantity) || 0,
-                start_day: Number(r.start_day) || 1,
-                end_day: r.open_ended ? null : Number(r.end_day ?? r.start_day),
-                open_ended: Boolean(r.open_ended),
+            : items.map((it) => ({
+                id: it.id,
+                feed_type_id: Number(it.feed_type_id),
+                feeding_times: normalizeFeedingTimesForUi(it.feeding_times),
+                quantity: Number(it.quantity) || 0,
+                start_day: Number(it.start_day) || 1,
+                end_day: it.open_ended ? null : Number(it.end_day ?? it.start_day),
+                open_ended: Boolean(it.open_ended),
               }));
 
         const normalized = payloadItems.map((r, i) => ({
@@ -375,7 +368,7 @@ export default function EditScheduleModal({
                         end_day: r.open_ended ? null : r.end_day,
                         open_ended: Boolean(r.open_ended),
                         quantity: r.quantity,
-                        feeding_times: r.feeding_times,
+                        feeding_times: normalizeFeedingTimesForUi(r.feeding_times),
                         feeding_day: r.start_day,
                         age_days: r.start_day,
                       }))
@@ -459,7 +452,7 @@ export default function EditScheduleModal({
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Feeding times</Label>
-                        {(it.feeding_times || []).map((ft: any, ti: number) => (
+                        {(normalizeFeedingTimesForUi(it.feeding_times)).map((ft, ti) => (
                           <div key={ti} className="flex gap-2 items-center">
                             <Input
                               type="time"
@@ -478,19 +471,18 @@ export default function EditScheduleModal({
                               }
                             />
                             <span className="text-xs text-slate-500">%</span>
-                            {(it.feeding_times || []).length > 1 && (
+                            {normalizeFeedingTimesForUi(it.feeding_times).length > 1 && (
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 px-2"
-                                onClick={() =>
+                                onClick={() => {
+                                  const times = normalizeFeedingTimesForUi(it.feeding_times)
                                   updateDailyItem(idx, {
-                                    feeding_times: (it.feeding_times || []).filter(
-                                      (_: any, i: number) => i !== ti
-                                    ),
+                                    feeding_times: times.filter((_, i) => i !== ti),
                                   })
-                                }
+                                }}
                               >
                                 <X className="h-3.5 w-3.5 text-red-500" />
                               </Button>
@@ -502,14 +494,12 @@ export default function EditScheduleModal({
                           variant="outline"
                           size="sm"
                           className="h-8"
-                          onClick={() =>
+                          onClick={() => {
+                            const times = normalizeFeedingTimesForUi(it.feeding_times)
                             updateDailyItem(idx, {
-                              feeding_times: [
-                                ...(it.feeding_times || []),
-                                { time: "12:00", percentage: 0 },
-                              ],
+                              feeding_times: [...times, { time: "12:00", percentage: 0 }],
                             })
-                          }
+                          }}
                         >
                           <Plus className="h-3.5 w-3.5 mr-1" />
                           Add time

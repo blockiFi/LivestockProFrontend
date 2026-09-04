@@ -38,7 +38,7 @@ import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import { toast } from "react-toastify"
 import { createFeedingBatchItem } from "@/lib/request"
-import { formatFeedingDayRange, resolveRangeBounds } from "@/lib/feeding-range"
+import { formatFeedingDayRange, normalizeFeedingTimesForUi, resolveRangeBounds } from "@/lib/feeding-range"
 
 interface ImplementFeedingScheduleModalProps {
   open: boolean
@@ -72,7 +72,7 @@ const ImplementFeedingScheduleModal = ({
   })
 
   const [feedingTimes, setFeedingTimes] = useState<FeedingTimeEntry[]>(
-    scheduleItem.feeding_times || [{ time: "08:00", percentage: 100 }]
+    normalizeFeedingTimesForUi(scheduleItem.feeding_times, [{ time: "08:00", percentage: 100 }])
   )
 
   const { start_day, end_day } = useMemo(
@@ -98,7 +98,9 @@ const ImplementFeedingScheduleModal = ({
       status: "completed",
       notes: "",
     })
-    setFeedingTimes(scheduleItem.feeding_times || [{ time: "08:00", percentage: 100 }])
+    setFeedingTimes(
+      normalizeFeedingTimesForUi(scheduleItem.feeding_times, [{ time: "08:00", percentage: 100 }])
+    )
 
     const today = startOfDay(new Date())
     let defaultDate = today
@@ -155,19 +157,22 @@ const ImplementFeedingScheduleModal = ({
   }
 
   const addFeedingTime = () => {
-    setFeedingTimes([...feedingTimes, { time: "12:00", percentage: 0 }])
+    setFeedingTimes((prev) => [...prev, { time: "12:00", percentage: 0 }])
   }
 
   const removeFeedingTime = (index: number) => {
-    if (feedingTimes.length > 1) {
-      setFeedingTimes(feedingTimes.filter((_, i) => i !== index))
-    }
+    setFeedingTimes((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
   }
 
   const updateFeedingTime = (index: number, field: keyof FeedingTimeEntry, value: string | number) => {
-    const updated = [...feedingTimes]
-    updated[index] = { ...updated[index], [field]: value }
-    setFeedingTimes(updated)
+    setFeedingTimes((prev) => {
+      const updated = [...prev]
+      updated[index] = {
+        ...updated[index],
+        [field]: field === "percentage" ? Number(value) || 0 : String(value),
+      }
+      return updated
+    })
   }
 
   const totalDailyQuantityPerBird = Number(formData.actual_quantity || 0)

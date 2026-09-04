@@ -531,15 +531,16 @@ export type EggReport = {
   farm_id: number;
   flock_id: number;
   eggs_collected: number;
-  average_egg_weight: string;      // can be number if numeric only
-  production_percentage: string;   // can be number
+  eggs_broken?: number;
+  average_egg_weight: number;
+  production_percentage: number;
   bird_count: number;
   recorded_by: number;
+  recorded_by_name?: string | null;
   notes: string;
-  date: string;                    // e.g., "2025-06-27"
-  created_at: string;              // ISO timestamp
-  updated_at: string;     
-
+  date: string;
+  created_at: string;
+  updated_at: string;
 }
 export type Schedule = {
   id: number;
@@ -1364,6 +1365,29 @@ export interface Invoice {
   paymentInstructions?: string
 }
 
+export interface PaymentStatusBucket {
+  count: number
+  amount: number
+}
+
+export interface CustomerPaymentAnalysis {
+  buckets: {
+    paid: PaymentStatusBucket
+    pending: PaymentStatusBucket
+    partial: PaymentStatusBucket
+    overdue: PaymentStatusBucket
+  }
+  total_amount: number
+  collected?: number
+  outstanding: number
+  collection_rate: number
+  by_source: {
+    product_sales: Record<string, PaymentStatusBucket>
+    flock_sales: Record<string, PaymentStatusBucket>
+    invoices: Record<string, PaymentStatusBucket>
+  }
+}
+
 export interface CustomerSummary {
   product_sale_count: number
   flock_sale_count: number
@@ -1373,6 +1397,7 @@ export interface CustomerSummary {
   invoice_total: number
   total_revenue: number
   last_purchase_at: string | null
+  payment_analysis?: CustomerPaymentAnalysis
 }
 
 export interface Customer {
@@ -1400,6 +1425,9 @@ export interface CustomerHistoryItem {
   date: string | null
   description: string
   amount: number
+  amount_paid?: number
+  balance_due?: number
+  payment_status?: string
   meta?: Record<string, unknown>
 }
 
@@ -1466,6 +1494,50 @@ export type ScheduleImportDraft = {
   items?: ScheduleImportItemDraft[];
   created_at?: string;
   updated_at?: string;
+};
+
+export type FlockRecordImportType =
+  | "daily"
+  | "mortality"
+  | "eggs"
+  | "feed_usage"
+  | "expenditure"
+  | "flock_sale"
+  | "product_sale";
+
+export type FlockRecordImportItemDraft = {
+  id?: number;
+  record_type: FlockRecordImportType | string;
+  row_index: number;
+  payload: Record<string, unknown>;
+  confidence?: number | null;
+  validation_errors?: string[] | null;
+  status: "pending" | "valid" | "invalid" | "committed" | "skipped" | string;
+  created_resource_type?: string | null;
+  created_resource_id?: number | null;
+};
+
+export type FlockRecordImportDraft = {
+  id: number;
+  farm_id: number;
+  flock_id: number;
+  created_by: number;
+  source_method: "ai" | "file";
+  source_type: "xlsx" | "csv" | "pdf" | "image" | string;
+  source_path?: string | null;
+  original_filename?: string | null;
+  status: "draft" | "confirmed" | "failed" | string;
+  items?: FlockRecordImportItemDraft[];
+  llm_provider?: string | null;
+  llm_model?: string | null;
+};
+
+export type FlockRecordImportConfirmSummary = {
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  by_type: Record<string, { succeeded: number; failed: number; skipped: number }>;
+  failures: Array<{ item_id: number; record_type: string; error: string }>;
 };
 
 // ── Farm Task Management ───────────────────────────────────────────────────

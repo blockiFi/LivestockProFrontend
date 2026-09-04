@@ -28,7 +28,7 @@ export default function PreferencesSettingsPage() {
 
   const initialForm = useMemo(
     () => ({
-      theme: userSettings?.theme ?? "system",
+      theme: "light" as const,
       locale: userSettings?.locale ?? "en",
       timezone: userSettings?.timezone ?? "UTC",
       date_format: userSettings?.date_format ?? "Y-m-d",
@@ -51,9 +51,9 @@ export default function PreferencesSettingsPage() {
       return
     }
 
-    setTheme(response.data.theme)
+    setTheme("light")
     commit({
-      theme: response.data.theme,
+      theme: "light",
       locale: response.data.locale,
       timezone: response.data.timezone,
       date_format: response.data.date_format,
@@ -69,23 +69,10 @@ export default function PreferencesSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Preferences</CardTitle>
-          <CardDescription>Personalize theme, locale, dates, and your in-app alerts.</CardDescription>
+          <CardDescription>Personalize locale, dates, and your in-app alerts.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Theme</Label>
-              <Select value={form.theme} onValueChange={(value) => setForm((prev) => ({ ...prev, theme: value as UserSettings["theme"] }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select theme" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="system">System</SelectItem>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="dark">Dark</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2">
               <Label>Locale</Label>
               <Select value={form.locale} onValueChange={(value) => setForm((prev) => ({ ...prev, locale: value }))}>

@@ -34,7 +34,7 @@ const FlockOverview = ({ flock }: { flock: DetailedFlockRecord }) => {
       </CardHeader>
 
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <img src={chicken} className="h-5 w-5 text-blue-600" />
@@ -46,12 +46,21 @@ const FlockOverview = ({ flock }: { flock: DetailedFlockRecord }) => {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-                <img src={chicken} className="h-5 w-5 text-blue-600" />
-
+            <div className="p-2 bg-indigo-100 rounded-lg">
+                <img src={chicken} className="h-5 w-5 text-indigo-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Quantity</p>
+              <p className="text-sm text-gray-500">Initial Birds</p>
+              <p className="font-semibold">{flock.quantity.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+                <img src={chicken} className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Current Birds</p>
               <p className="font-semibold">{flock.actual_quantity.toLocaleString()}</p>
             </div>
           </div>

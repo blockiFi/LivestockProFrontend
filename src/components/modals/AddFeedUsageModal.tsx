@@ -59,64 +59,65 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
-    
-    if (!formData.poultry_feed_inventory_id) {
-      newErrors.poultry_feed_inventory_id = "Please select a feed inventory"
-    }
-    
+
     if (!formData.poultry_feed_type_id) {
       newErrors.poultry_feed_type_id = "Please select a feed type"
     }
-    
+
     if (!formData.quantity || parseFloat(formData.quantity) <= 0) {
       newErrors.quantity = "Please enter a valid quantity"
     }
-    
-    if (!formData.unit_cost || parseFloat(formData.unit_cost) <= 0) {
-      newErrors.unit_cost = "Please enter a valid unit cost"
+
+    if (formData.unit_cost === "" || parseFloat(formData.unit_cost) < 0) {
+      newErrors.unit_cost = "Please enter a valid unit cost (0 allowed for overdraft)"
     }
-    
+
     if (!formData.usage_date) {
       newErrors.usage_date = "Please select a usage date"
     }
-    
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
 
     setIsSubmitting(true)
-    
+
     try {
       const recordData = {
         ...formData,
+        poultry_feed_inventory_id: formData.poultry_feed_inventory_id || (undefined as unknown as number),
         quantity: parseFloat(formData.quantity),
-        unit_cost: parseFloat(formData.unit_cost),
+        unit_cost: parseFloat(formData.unit_cost || "0"),
       }
-      
+
       await onSubmit(recordData)
-      onClose() // Close modal on successful submission
+      onClose()
     } catch (error) {
       console.error("Error submitting feed usage record:", error)
-      // Error will be handled by parent component and shown via toast
     } finally {
       setIsSubmitting(false)
     }
   }
 
   // Filter available feed inventories by selected feed type
-  const availableFeedInventories = safeFeedInventories.filter(inventory => 
-    !formData.poultry_feed_type_id || inventory.poultry_feed_type_id === formData.poultry_feed_type_id
+  const availableFeedInventories = safeFeedInventories.filter(
+    (inventory) =>
+      (!formData.poultry_feed_type_id || inventory.poultry_feed_type_id === formData.poultry_feed_type_id) &&
+      inventory.status !== "closed"
   )
 
+  const hasUsableStock = availableFeedInventories.some((inv) => Number(inv.quantity) > 0)
+  const willAutoCreate = Boolean(formData.poultry_feed_type_id) && !formData.poultry_feed_inventory_id && !hasUsableStock
+
   // Get selected feed inventory for cost suggestion
-  const selectedFeedInventory = safeFeedInventories.find(inv => inv.id === formData.poultry_feed_inventory_id)
+  const selectedFeedInventory = safeFeedInventories.find((inv) => inv.id === formData.poultry_feed_inventory_id)
 
   const selectedFeedType = safeFeedTypes.find((ft) => ft.id === formData.poultry_feed_type_id)
 
@@ -218,26 +219,40 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
               <div className="space-y-1">
                 <Label className="text-xs text-gray-600 flex items-center gap-1.5">
                   <Package className="h-3.5 w-3.5 text-lime-400" />
-                  Feed Inventory *
+                  Feed Inventory (optional)
                 </Label>
                 <Select
-                  value={formData.poultry_feed_inventory_id.toString()}
+                  value={formData.poultry_feed_inventory_id ? formData.poultry_feed_inventory_id.toString() : "auto"}
                   onValueChange={(value) => {
-                    setFormData(prev => ({ ...prev, poultry_feed_inventory_id: parseInt(value) }))
-                    setErrors(prev => ({ ...prev, poultry_feed_inventory_id: '' }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      poultry_feed_inventory_id: value === "auto" ? 0 : parseInt(value),
+                      unit_cost: value === "auto" ? prev.unit_cost || "0" : prev.unit_cost,
+                    }))
+                    setErrors((prev) => ({ ...prev, poultry_feed_inventory_id: "" }))
                   }}
                   disabled={!formData.poultry_feed_type_id}
                 >
                   <SelectTrigger className={cn("h-9 text-sm", errors.poultry_feed_inventory_id && "border-red-500")}>
-                    <SelectValue placeholder="Select feed inventory">
-                      {selectedFeedInventory && (
+                    <SelectValue placeholder="Auto-select or create stock">
+                      {selectedFeedInventory ? (
                         <span className="font-medium">
                           Batch: {selectedFeedInventory.batch_number} - {selectedFeedInventory.manufacturer}
                         </span>
+                      ) : (
+                        <span className="text-muted-foreground">Auto (create if needed)</span>
                       )}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="auto">
+                      <div>
+                        <div className="font-medium">Auto-select / create batch</div>
+                        <div className="text-sm text-gray-500">
+                          Uses available stock, or creates a zero-cost overdraft batch
+                        </div>
+                      </div>
+                    </SelectItem>
                     {availableFeedInventories.map((inventory) => (
                       <SelectItem key={inventory.id} value={inventory.id.toString()}>
                         <div>
@@ -245,18 +260,22 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
                             Batch: {inventory.batch_number} - {inventory.manufacturer}
                           </div>
                           <div className="text-sm text-gray-500">
-                            Available: {inventory.quantity} kg | {Naira}{formatCurrency(Number(inventory.unit_cost))}/kg
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            Expires: {new Date(inventory.expiry_date).toLocaleDateString()}
+                            Available: {inventory.quantity} kg | {Naira}
+                            {formatCurrency(Number(inventory.unit_cost))}/kg
                           </div>
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.poultry_feed_inventory_id && (
-                  <p className="text-xs text-red-600">{errors.poultry_feed_inventory_id}</p>
+                {willAutoCreate && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      No stock for this feed type — a zero-cost inventory batch will be created. Update the unit cost
+                      afterward on the Feed Inventories page.
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -340,7 +359,7 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs text-gray-600">Unit Cost ({Naira}) *</Label>
+                <Label className="text-xs text-gray-600">Unit Cost ({Naira})</Label>
                 <Input
                   id="unit-cost"
                   type="number"

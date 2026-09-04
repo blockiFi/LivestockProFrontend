@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   Lock,
   Pencil,
+  Upload,
 } from "lucide-react"
 import { Link, useLoaderData } from "react-router-dom"
 import type { DetailedFlockRecord, FeedInventoryType, FeedType, FlockProfitLoss, PoultryDailyReport, PoultryFeedUsageRecord } from "@/lib/types"
@@ -45,7 +46,7 @@ import BatchScheduleView from "@/components/poultry/Flocks/batchSchedule/BatchSc
 import AddDailyRecordModal from "@/components/modals/AddDailyRecordModal"
 import AddFlockModal from "@/components/modals/AddFlockModal"
 import type { FlockFormData } from "@/components/modals/AddFlockModal"
-import { createDailyRecord, createDailyRecordsBatch, updateDailyRecord, deleteDailyRecord, createMortalityRecord, deleteMortalityRecord, createWeightReport, deleteWeightReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, createMedicationRecord, deleteMedicationRecord, getFlock, createFlockExpenditure, updateFlockExpenditure, deleteFlockExpenditure, getFlockExpenditures, createFlockSale, updateFlockSale, deleteFlockSale, getFlockProfitLoss, updateFlock } from "@/lib/request"
+import { createDailyRecord, createDailyRecordsBatch, updateDailyRecord, deleteDailyRecord, createMortalityRecord, deleteMortalityRecord, createWeightReport, deleteWeightReport, createEggReport, updateEggReport, deleteEggReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, createMedicationRecord, deleteMedicationRecord, getFlock, createFlockExpenditure, updateFlockExpenditure, deleteFlockExpenditure, getFlockExpenditures, createFlockSale, updateFlockSale, deleteFlockSale, getFlockProfitLoss, updateFlock } from "@/lib/request"
 import type { BatchSubmitResult } from "@/components/modals/AddDailyRecordModal"
 import type { DailyRecordFormData } from "@/components/modals/dailyRecordForm"
 import { useSelector } from "react-redux"
@@ -53,6 +54,7 @@ import type { RootState } from "@/store"
 import { toast } from "react-toastify"
 import TodayActivities from "@/components/poultry/Flocks/TodayActivities"
 import TransferFlockModal from "@/components/modals/TransferFlockModal"
+import BulkFlockRecordImportSheet from "@/components/poultry/Flocks/bulkImport/BulkFlockRecordImportSheet"
 import { getFlockAllocations, getFlockTransfers } from "@/lib/request"
 import type { FlockAllocationRow, FlockTransferRecord } from "@/lib/request"
 import { ActionGate } from "@/components/general/ActionGate"
@@ -78,6 +80,7 @@ const FlockPage = () => {
     const [flockProfitLoss, setFlockProfitLoss] = useState<FlockProfitLoss | null>(null);
     const [isEditFlockModalOpen, setIsEditFlockModalOpen] = useState(false);
     const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
+    const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
     
     const token = useSelector((state: RootState) => state.authentication.token);
     const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id);
@@ -507,6 +510,104 @@ const FlockPage = () => {
         }
     };
 
+    const handleCreateEggReport = async (recordData: any) => {
+        if (!farmId || !token) return;
+
+        try {
+            const response = await createEggReport(token, farmId, recordData);
+            if (response.success) {
+                setFlock(prevFlock => ({
+                    ...prevFlock,
+                    egg_reports: [...prevFlock.egg_reports, response.data!],
+                }));
+            } else {
+                let errorMessage = "Unknown error occurred";
+
+                if (response.error && Array.isArray(response.error) && response.error.length > 0) {
+                    errorMessage = response.error.join(", ");
+                } else if (response.error) {
+                    errorMessage = Array.isArray(response.error) ? response.error.join(", ") : response.error;
+                }
+
+                toast.error(errorMessage);
+                throw new Error(errorMessage);
+            }
+        } catch (error) {
+            console.error("Error creating egg report:", error);
+            if (error instanceof Error && error.message !== "Unknown error occurred") {
+                throw error;
+            }
+            toast.error("An error occurred while creating the egg report. Please try again.");
+            throw new Error("Network or unexpected error occurred");
+        }
+    };
+
+    const handleUpdateEggReport = async (recordId: number, recordData: any) => {
+        if (!farmId || !token) return;
+
+        try {
+            const response = await updateEggReport(token, farmId, recordId, recordData);
+            if (response.success) {
+                setFlock(prevFlock => ({
+                    ...prevFlock,
+                    egg_reports: prevFlock.egg_reports.map(report =>
+                        report.id === recordId ? response.data! : report
+                    ),
+                }));
+            } else {
+                let errorMessage = "Unknown error occurred";
+
+                if (response.error && Array.isArray(response.error) && response.error.length > 0) {
+                    errorMessage = response.error.join(", ");
+                } else if (response.error) {
+                    errorMessage = Array.isArray(response.error) ? response.error.join(", ") : response.error;
+                }
+
+                toast.error(errorMessage);
+                throw new Error(errorMessage);
+            }
+        } catch (error) {
+            console.error("Error updating egg report:", error);
+            if (error instanceof Error && error.message !== "Unknown error occurred") {
+                throw error;
+            }
+            toast.error("An error occurred while updating the egg report. Please try again.");
+            throw new Error("Network or unexpected error occurred");
+        }
+    };
+
+    const handleDeleteEggReport = async (recordId: number) => {
+        if (!farmId || !token) return;
+
+        try {
+            const response = await deleteEggReport(token, farmId, recordId);
+            if (response.success) {
+                setFlock(prevFlock => ({
+                    ...prevFlock,
+                    egg_reports: prevFlock.egg_reports.filter(report => report.id !== recordId),
+                }));
+            } else {
+                let errorMessage = "Unknown error occurred";
+
+                if (response.error && Array.isArray(response.error) && response.error.length > 0) {
+                    errorMessage = response.error.join(", ");
+                } else if (response.error) {
+                    errorMessage = Array.isArray(response.error) ? response.error.join(", ") : response.error;
+                }
+
+                toast.error(errorMessage);
+                throw new Error(errorMessage);
+            }
+        } catch (error) {
+            console.error("Error deleting egg report:", error);
+            if (error instanceof Error && error.message !== "Unknown error occurred") {
+                throw error;
+            }
+            toast.error("An error occurred while deleting the egg report. Please try again.");
+            throw new Error("Network or unexpected error occurred");
+        }
+    };
+
     const handleCreateFeedUsageRecord = async (recordData: any) => {
         if (!farmId || !token) return;
         
@@ -770,6 +871,7 @@ const FlockPage = () => {
     };
 
     const totalMortality = flock.mortality_reports?.reduce((sum, r) => sum + (r.mortality_count || 0), 0) ?? 0;
+    const mortalityPct = flock.quantity > 0 ? (totalMortality / flock.quantity) * 100 : 0;
     const totalEggs = flock.egg_reports?.reduce((sum, r) => sum + (r.eggs_collected || 0), 0) ?? 0;
 
     const handleUpdateFlock = async (flockData: FlockFormData) => {
@@ -866,6 +968,18 @@ const FlockPage = () => {
                   <Activity className="h-4 w-4 mr-2" />
                   Metrics
                 </Button>
+                <ActionGate anyOf={ACTIONS.records.create}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-300 disabled:opacity-50"
+                    onClick={() => setIsBulkImportOpen(true)}
+                    disabled={!isBatchActive}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Bulk Upload
+                  </Button>
+                </ActionGate>
                 <ActionGate anyOf={ACTIONS.records.create}>
                   <Button
                     size="sm"
@@ -1042,7 +1156,21 @@ const FlockPage = () => {
             </Collapsible>
 
             {/* Stat strip */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              <Card className="p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-indigo-600 font-medium mb-1">Initial Birds</p>
+                    <p className="text-2xl font-bold text-indigo-900">
+                      {flock.quantity.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-indigo-500 flex items-center justify-center">
+                    <Activity className="h-5 w-5 text-white" />
+                  </div>
+                </div>
+              </Card>
+
               <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1064,6 +1192,7 @@ const FlockPage = () => {
                     <p className="text-2xl font-bold text-red-900">
                       {totalMortality.toLocaleString()}
                     </p>
+                    <p className="text-xs text-red-600 mt-0.5">{mortalityPct.toFixed(2)}%</p>
                   </div>
                   <div className="w-10 h-10 rounded-lg bg-red-500 flex items-center justify-center">
                     <Heart className="h-5 w-5 text-white" />
@@ -1268,7 +1397,13 @@ const FlockPage = () => {
                     </TabsContent>
 
                     <TabsContent value="eggs" className="mt-6">
-                      <EggRecordPage reports={flock.egg_reports} flockName={flock.name} />
+                      <EggRecordPage
+                        reports={flock.egg_reports}
+                        flock={flock}
+                        onAddRecord={isBatchActive && canCreateRecords ? handleCreateEggReport : undefined}
+                        onUpdateRecord={isBatchActive && canCreateRecords ? handleUpdateEggReport : undefined}
+                        onDeleteRecord={isBatchActive && canDeleteRecords ? handleDeleteEggReport : undefined}
+                      />
                     </TabsContent>
 
                     <TabsContent value="feed" className="mt-6">
@@ -1515,6 +1650,18 @@ const FlockPage = () => {
               onSuccess={() => {
                 refreshAllocations()
                 refreshTransfers()
+                refreshFlock()
+              }}
+            />
+          )}
+
+          {farmId && (
+            <BulkFlockRecordImportSheet
+              isOpen={isBulkImportOpen}
+              onClose={() => setIsBulkImportOpen(false)}
+              farmId={farmId}
+              flockId={flock.id}
+              onConfirmed={() => {
                 refreshFlock()
               }}
             />

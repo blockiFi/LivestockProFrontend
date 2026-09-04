@@ -26,6 +26,7 @@ import ImportScheduleFromDoc from "@/components/modals/ImportScheduleFromDoc"
 import { AiGate } from "@/components/general/AiGate"
 import { AlertDialog } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
+import { normalizeFeedingTimesForUi } from "@/lib/feeding-range"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
 
@@ -248,7 +249,7 @@ const ScheduleManagementPage = () => {
               : Number(item.end_day ?? item.start_day ?? item.age_days ?? item.feeding_day ?? startDay)
             return {
               feed_type_id: item.feed_type_id ?? item.feedTypeId ?? item.feed_type?.id,
-              feeding_times: item.feeding_times ?? [],
+              feeding_times: normalizeFeedingTimesForUi(item.feeding_times),
               quantity: Number(item.quantity ?? 0),
               feeding_day: startDay,
               start_day: startDay,

@@ -17,6 +17,7 @@ import { printInvoice } from "@/lib/print-invoice"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
 import { deleteInvoice, getInvoices, mapApiInvoiceToUi, updateInvoice } from "@/lib/crmRequest"
+import { CardGridSkeleton } from "@/components/general/skeletons"
 
 const statusToApi = (status: Invoice["status"]) => status.toLowerCase() as "pending" | "paid" | "overdue"
 
@@ -180,9 +181,7 @@ export function InvoicesPage() {
 
       <div className="space-y-3">
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Loading invoices...</p>
-          </div>
+          <CardGridSkeleton count={5} columns={1} />
         ) : filteredInvoices.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground">No invoices found</p>

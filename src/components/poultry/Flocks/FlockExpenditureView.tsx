@@ -82,7 +82,7 @@ const FlockExpenditureView = ({
 
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | "auto" | "manual">("all");
-  const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("this_month");
   const [customDateFrom, setCustomDateFrom] = useState("");
   const [customDateTo, setCustomDateTo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -401,6 +401,7 @@ const FlockExpenditureView = ({
               >
                 <option value="all">All time</option>
                 <option value="this_month">This month</option>
+                <option value="last_7">Last 7 days</option>
                 <option value="last_30">Last 30 days</option>
                 <option value="last_90">Last 90 days</option>
                 <option value="custom">Custom range</option>

@@ -4,10 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
+import { isDateInRange } from "@/lib/dateRange";
 import { AlertTriangle, Edit, Plus, ShoppingBag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
 import { CustomerNameLink } from "@/components/crm/CustomerNameLink";
+import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRangeFilter";
+import { useRecordsDateRange } from "@/hooks/useRecordsDateRange";
 
 const SALE_EXPORT_COLUMNS: ExportColumn<FlockSale>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
@@ -35,6 +38,17 @@ const FlockSalesView = ({
   onUpdateSale,
   onDeleteSale,
 }: FlockSalesViewProps) => {
+  const {
+    preset,
+    setPreset,
+    customFrom,
+    setCustomFrom,
+    customTo,
+    setCustomTo,
+    dateFrom,
+    dateTo,
+    rangeLabel,
+  } = useRecordsDateRange();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<FlockSale | null>(null);
   const [deletingSale, setDeletingSale] = useState<FlockSale | null>(null);
@@ -42,7 +56,23 @@ const FlockSalesView = ({
 
   const sales = Array.isArray(flock.flock_sales) ? flock.flock_sales : [];
 
+  const filteredSales = useMemo(
+    () => sales.filter((sale) => isDateInRange(sale.date, dateFrom, dateTo)),
+    [sales, dateFrom, dateTo]
+  );
+
   const totals = useMemo(() => {
+    return filteredSales.reduce(
+      (acc, sale) => {
+        acc.birds += sale.quantity || 0;
+        acc.revenue += sale.total_amount || 0;
+        return acc;
+      },
+      { birds: 0, revenue: 0 }
+    );
+  }, [filteredSales]);
+
+  const allTimeTotals = useMemo(() => {
     return sales.reduce(
       (acc, sale) => {
         acc.birds += sale.quantity || 0;
@@ -58,8 +88,8 @@ const FlockSalesView = ({
     return expenditures.reduce((sum, item) => sum + (item.amount || 0), 0);
   }, [flock.flock_expenditures]);
 
-  const netProfit = profitLoss?.net_profit ?? totals.revenue - expenditureTotal;
-  const totalRevenue = profitLoss?.total_revenue ?? totals.revenue;
+  const netProfit = profitLoss?.net_profit ?? allTimeTotals.revenue - expenditureTotal;
+  const totalRevenue = profitLoss?.total_revenue ?? allTimeTotals.revenue;
   const totalCost = profitLoss?.total_cost ?? expenditureTotal;
 
   const handleAdd = async (payload: FlockSaleFormPayload) => {
@@ -116,7 +146,7 @@ const FlockSalesView = ({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportDataButton
-            rows={sales}
+            rows={filteredSales}
             columns={SALE_EXPORT_COLUMNS}
             filename={buildExportFilename(flock.name, "live-bird-sales")}
           />
@@ -129,6 +159,15 @@ const FlockSalesView = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <RecordsDateRangeFilter
+          preset={preset}
+          onPresetChange={setPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+          rangeLabel={rangeLabel}
+        />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <SummaryTile label="Revenue" amount={totalRevenue} tone="primary" />
           <SummaryTile label="Expenditure" amount={totalCost} />
@@ -145,6 +184,11 @@ const FlockSalesView = ({
             <AlertTriangle className="h-4 w-4 text-amber-500" />
             <span>No sales recorded yet. Record a live-bird sale to track revenue and deplete flock count.</span>
           </div>
+        ) : filteredSales.length === 0 ? (
+          <div className="flex items-center gap-3 text-sm text-gray-500 bg-gray-50 border rounded-md px-4 py-3">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <span>No sales in {rangeLabel}. Try a wider date range.</span>
+          </div>
         ) : (
           <div className="border rounded-md overflow-hidden">
             <Table>
@@ -160,7 +204,7 @@ const FlockSalesView = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.map((sale) => (
+                {filteredSales.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell>{formatDate(sale.date)}</TableCell>
                     <TableCell className="text-right font-medium">{sale.quantity}</TableCell>

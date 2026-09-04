@@ -72,6 +72,7 @@
 }
 
 :root {
+  color-scheme: light;
   --sidebar-background: 0 0% 100%; /* pure white */
   --sidebar-foreground: 240 5% 20%; /* dark gray for contrast */
   --sidebar-primary: 0 0% 10%; /* near-black for primary text/buttons */

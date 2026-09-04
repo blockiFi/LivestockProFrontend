@@ -16,12 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { AlertTriangle, Calendar, Loader2, Package, Wheat } from "lucide-react"
+import { AlertTriangle, Calendar, Package, Wheat } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import { toast } from "react-toastify"
 import { getFeedInventories, getMissedFeedingDays, implementMissedFeedingDays } from "@/lib/request"
+import { LoadingState } from "@/components/general/LoadingState"
 import type { FeedInventoryRequirement, FeedInventoryType, MissedFeedingDaysPreview } from "@/lib/types"
 
 const flattenApiErrors = (error: unknown): string => {
@@ -221,10 +222,7 @@ const BulkImplementFeedingModal = ({
         </DialogHeader>
 
         {loading ? (
-          <div className="flex items-center justify-center py-10 text-slate-500">
-            <Loader2 className="h-6 w-6 animate-spin mr-2" />
-            Loading missed days...
-          </div>
+          <LoadingState variant="centered" label="Loading missed days…" />
         ) : (
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
@@ -255,7 +253,7 @@ const BulkImplementFeedingModal = ({
                   <Package className="h-4 w-4 mt-0.5 shrink-0" />
                   <p>
                     {selectionRequired.length > 0
-                      ? "No usable stock was found for the feed type(s) below (depleted or empty batches are skipped). Select which inventory batch to deduct for each."
+                      ? "No usable stock was found for some feed type(s). You can pick a batch, or leave it blank — a zero-cost overdraft batch will be created automatically (update cost afterward)."
                       : "Optional: choose a preferred inventory batch. If not selected, the oldest usable stock will be used automatically."}
                   </p>
                 </div>
@@ -340,7 +338,7 @@ const BulkImplementFeedingModal = ({
             disabled={loading || submitting || !canSubmit}
             className="bg-orange-600 hover:bg-orange-700"
           >
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {submitting && <LoadingState variant="button" loading label="Implementing…" />}
             {submitting ? "Implementing..." : `Implement ${preview?.count ?? 0} day(s)`}
           </Button>
         </DialogFooter>

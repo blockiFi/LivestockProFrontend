@@ -10,7 +10,50 @@ export type ActivityDateRangePreset =
   | "custom"
 
 /** Presets shared with expenditure views (subset of activity presets). */
-export type ExpenditureDateRangePreset = "all" | "this_month" | "last_30" | "last_90" | "custom"
+export type ExpenditureDateRangePreset = "all" | "this_month" | "last_30" | "last_90" | "last_7" | "custom"
+
+/** Presets for flock records tabs (daily, eggs, meds, vax, sales, expenditure). */
+export type RecordsDateRangePreset = "this_month" | "last_30" | "last_7" | "all" | "custom"
+
+export function resolveRecordsDateRange(
+  preset: RecordsDateRangePreset,
+  customFrom: string,
+  customTo: string
+): { dateFrom: string; dateTo: string } {
+  if (preset === "all") {
+    return { dateFrom: "", dateTo: "" }
+  }
+
+  if (preset === "last_7") {
+    return resolveActivityDateRange("last_7", customFrom, customTo)
+  }
+
+  if (preset === "this_month" || preset === "last_30") {
+    return resolveExpenditureDateRange(preset, customFrom, customTo)
+  }
+
+  return { dateFrom: customFrom, dateTo: customTo }
+}
+
+export function isDateInRange(
+  dateValue: string | null | undefined,
+  dateFrom?: string,
+  dateTo?: string
+): boolean {
+  if (!dateValue) return !dateFrom && !dateTo
+  const key = dateValue.slice(0, 10)
+  if (dateFrom && key < dateFrom.slice(0, 10)) return false
+  if (dateTo && key > dateTo.slice(0, 10)) return false
+  return true
+}
+
+export const RECORDS_DATE_PRESET_OPTIONS: { value: RecordsDateRangePreset; label: string }[] = [
+  { value: "this_month", label: "This month" },
+  { value: "last_7", label: "Last 7 days" },
+  { value: "last_30", label: "Last 30 days" },
+  { value: "all", label: "All time" },
+  { value: "custom", label: "Custom range" },
+]
 
 export function toLocalIsoDate(d: Date): string {
   const y = d.getFullYear()
@@ -101,6 +144,12 @@ export function resolveExpenditureDateRange(
   if (preset === "last_30") {
     const start = new Date(today)
     start.setDate(start.getDate() - 30)
+    return { dateFrom: toIso(start), dateTo: toIso(today) }
+  }
+
+  if (preset === "last_7") {
+    const start = new Date(today)
+    start.setDate(start.getDate() - 6)
     return { dateFrom: toIso(start), dateTo: toIso(today) }
   }
 

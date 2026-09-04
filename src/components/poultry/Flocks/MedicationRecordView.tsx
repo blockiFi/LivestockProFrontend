@@ -1,5 +1,5 @@
 import type { PoultryMedicationRecord, Medication, MedicationInventory, AdministrationMethod } from "@/lib/types"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -7,13 +7,14 @@ import { AlertTriangle, Eye, Factory, Package2, Pill, Plus, Trash2 } from "lucid
 import { ExportDataButton } from "@/components/general/ExportDataButton"
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import { formatDate, Naira } from "@/lib/utils"
+import { isDateInRange } from "@/lib/dateRange"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import chicken from "@/assets/chicken.png"
 import AddMedicationRecordModal from "@/components/modals/AddMedicationRecordModal"
+import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRangeFilter"
+import { useRecordsDateRange } from "@/hooks/useRecordsDateRange"
 interface MedicationRecordFormData {
   farm_id: number
   flock_id: number
@@ -66,27 +67,38 @@ const MedicationRecordView = ({
   onAddMedicationRecord,
   onDeleteMedicationRecord
 }: MedicationRecordViewProps) => {
-  const [dateFilter, setDateFilter] = useState("")
+  const {
+    preset,
+    setPreset,
+    customFrom,
+    setCustomFrom,
+    customTo,
+    setCustomTo,
+    dateFrom,
+    dateTo,
+    rangeLabel,
+  } = useRecordsDateRange()
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [recordToDelete, setRecordToDelete] = useState<PoultryMedicationRecord | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const rowsPerPage = 10;
+  const [page, setPage] = useState(1)
+  const rowsPerPage = 10
 
+  const filteredRecords = useMemo(
+    () => records.filter((record) => isDateInRange(record.date, dateFrom, dateTo)),
+    [records, dateFrom, dateTo]
+  )
 
-  const filteredRecords = useMemo(() => {
-    if (!dateFilter) return records
-    return records.filter((record) => record.date.includes(dateFilter))
-  }, [records, dateFilter])
+  useEffect(() => {
+    setPage(1)
+  }, [records, dateFrom, dateTo])
 
-  // Paginate filtered records
-  const paginatedRecords = filteredRecords.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+  const paginatedRecords = filteredRecords.slice((page - 1) * rowsPerPage, page * rowsPerPage)
 
-  const totalMedications = records.length
-  const totalCost = records.reduce((sum, record) => sum + (Number(record.cost) || 0), 0)
-  const uniqueMedications = new Set(records.map((r) => r.medication?.name).filter(Boolean)).size
+  const totalMedications = filteredRecords.length
+  const totalCost = filteredRecords.reduce((sum, record) => sum + (Number(record.cost) || 0), 0)
+  const uniqueMedications = new Set(filteredRecords.map((r) => r.medication?.name).filter(Boolean)).size
 
   const handleAddMedicationRecord = async (recordData: MedicationRecordFormData) => {
     if (onAddMedicationRecord) {
@@ -168,18 +180,20 @@ const MedicationRecordView = ({
         </Card>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <Label htmlFor="medication-date-filter">Filter by Date</Label>
-          <Input
-            id="medication-date-filter"
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="max-w-xs"
-          />
-        </div>
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <RecordsDateRangeFilter
+          preset={preset}
+          onPresetChange={setPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+          rangeLabel={rangeLabel}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">
+            Showing {filteredRecords.length} of {records.length}
+          </span>
           {onAddMedicationRecord && (
             <Button 
               size="sm"

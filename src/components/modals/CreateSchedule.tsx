@@ -16,7 +16,7 @@ import type { PoultryType, Medication, vaccine, FeedType } from "@/lib/types"
 import { AlertDialog } from "@/components/ui/alert-dialog"
 import { Naira } from "@/lib/utils"
 import FeedingRangeEditor, { type FeedingRangeDraft } from "@/components/poultry/schedules/FeedingRangeEditor"
-import { formatFeedingDayRange, validateFeedingRanges } from "@/lib/feeding-range"
+import { DEFAULT_FEEDING_TIMES, formatFeedingDayRange, normalizeFeedingTimesForUi, validateFeedingRanges } from "@/lib/feeding-range"
 const scheduleTypeIcons = {
     medication: <Pill className="h-5 w-5" />,
     vaccination: <Shield className="h-5 w-5" />,
@@ -274,8 +274,20 @@ const CreateSchedule  =({
               end_day: day,
               open_ended: false,
               feeding_day: day,
+              feeding_times: normalizeFeedingTimesForUi(item.feeding_times),
             }
           }),
+        })
+        return
+      }
+
+      if (formData.schedule_type === "feeding" && feedingEntryMode === "range") {
+        onSubmit({
+          ...formData,
+          items: formData.items.map((item: any) => ({
+            ...item,
+            feeding_times: normalizeFeedingTimesForUi(item.feeding_times),
+          })),
         })
         return
       }
@@ -405,6 +417,28 @@ const CreateSchedule  =({
       return errors
     }
 
+    const updateCurrentFeedingTime = (
+      timeIdx: number,
+      patch: Partial<{ time: string; percentage: number }>
+    ) => {
+      setCurrentItem((prev) => {
+        const times = normalizeFeedingTimesForUi(prev.feeding_times)
+        const next = [...times]
+        next[timeIdx] = {
+          ...(next[timeIdx] ?? { time: "08:00", percentage: 0 }),
+          ...patch,
+        }
+        return { ...prev, feeding_times: next }
+      })
+    }
+
+    const removeCurrentFeedingTime = (timeIdx: number) => {
+      setCurrentItem((prev) => {
+        const times = normalizeFeedingTimesForUi(prev.feeding_times)
+        return { ...prev, feeding_times: times.filter((_, i) => i !== timeIdx) }
+      })
+    }
+  
     const addItem = () => {
       const validationErrors = validateScheduleItem()
       
@@ -432,9 +466,16 @@ const CreateSchedule  =({
                 end_day: day,
                 open_ended: false,
                 name: currentItem.name?.trim() || `Day ${day}`,
+                feeding_times: normalizeFeedingTimesForUi(currentItem.feeding_times),
               }
             }
-            return { ...currentItem }
+            return {
+              ...currentItem,
+              feeding_times:
+                prev.schedule_type === "feeding"
+                  ? normalizeFeedingTimesForUi(currentItem.feeding_times)
+                  : currentItem.feeding_times,
+            }
           }),
         }))
         setEditingItemIndex(null)
@@ -451,6 +492,12 @@ const CreateSchedule  =({
               end_day: day,
               open_ended: false,
               name: currentItem.name?.trim() || `Day ${day}`,
+              feeding_times: normalizeFeedingTimesForUi(currentItem.feeding_times),
+            }
+          } else if (prev.schedule_type === "feeding") {
+            nextItem = {
+              ...currentItem,
+              feeding_times: normalizeFeedingTimesForUi(currentItem.feeding_times),
             }
           }
           return {
@@ -465,7 +512,11 @@ const CreateSchedule  =({
     }
   
     const editItem = (index: number) => {
-      setCurrentItem({ ...formData.items[index] })
+      const item = formData.items[index]
+      setCurrentItem({
+        ...item,
+        feeding_times: normalizeFeedingTimesForUi(item.feeding_times),
+      })
       setEditingItemIndex(index)
       setIsAddingItem(true)
     }
@@ -696,12 +747,7 @@ const CreateSchedule  =({
                         : Number(item.start_day ?? item.age_days ?? 1),
                     open_ended: Boolean(item.open_ended),
                     quantity: item.quantity ?? 40,
-                    feeding_times: item.feeding_times?.length
-                      ? item.feeding_times
-                      : [
-                          { time: "08:00", percentage: 50 },
-                          { time: "17:00", percentage: 50 },
-                        ],
+                    feeding_times: normalizeFeedingTimesForUi(item.feeding_times),
                   }))}
                   feedTypes={feedTypes}
                   onChange={(ranges: FeedingRangeDraft[]) => {
@@ -719,7 +765,7 @@ const CreateSchedule  =({
                         description: "",
                         quantity: String(r.quantity ?? 0),
                         feed_type_id: r.feed_type_id ?? undefined,
-                        feeding_times: r.feeding_times,
+                        feeding_times: normalizeFeedingTimesForUi(r.feeding_times),
                       })),
                     }))
                   }}
@@ -744,10 +790,7 @@ const CreateSchedule  =({
                       if (formData.schedule_type === "feeding") {
                         setCurrentItem((prev) => ({
                           ...prev,
-                          feeding_times: [
-                            { time: "08:00", percentage: 50 },
-                            { time: "17:00", percentage: 50 },
-                          ],
+                          feeding_times: DEFAULT_FEEDING_TIMES.map((t) => ({ ...t })),
                           quantity: "40",
                         }))
                       }
@@ -973,16 +1016,12 @@ const CreateSchedule  =({
                         <>
                           <div  className="flex flex-col gap-2">
                             <Label htmlFor="feeding-frequency">Feeding Times & Percentages</Label>
-                            {(currentItem.feeding_times || []).map((feeding: { time: string; percentage: number }, idx: number) => (
+                            {(normalizeFeedingTimesForUi(currentItem.feeding_times)).map((feeding, idx) => (
                               <div key={idx} className="flex items-center gap-2 mb-2">
                                 <Input
                                   type="time"
                                   value={feeding.time}
-                                  onChange={e => {
-                                    const updated = [...(currentItem.feeding_times || [])]
-                                    updated[idx] = { ...updated[idx], time: e.target.value }
-                                    setCurrentItem(prev => ({ ...prev, feeding_times: updated }))
-                                  }}
+                                  onChange={(e) => updateCurrentFeedingTime(idx, { time: e.target.value })}
                                   className="w-28"
                                 />
                                 <Input
@@ -990,11 +1029,11 @@ const CreateSchedule  =({
                                   min="0"
                                   max="100"
                                   value={feeding.percentage}
-                                  onChange={e => {
-                                    const updated = [...(currentItem.feeding_times || [])]
-                                    updated[idx] = { ...updated[idx], percentage: Number(e.target.value) }
-                                    setCurrentItem(prev => ({ ...prev, feeding_times: updated }))
-                                  }}
+                                  onChange={(e) =>
+                                    updateCurrentFeedingTime(idx, {
+                                      percentage: Number(e.target.value) || 0,
+                                    })
+                                  }
                                   className="w-20"
                                 />
                                 <span className="ml-1">%</span>
@@ -1002,11 +1041,7 @@ const CreateSchedule  =({
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => {
-                                    const updated = [...(currentItem.feeding_times || [])]
-                                    updated.splice(idx, 1)
-                                    setCurrentItem(prev => ({ ...prev, feeding_times: updated }))
-                                  }}
+                                  onClick={() => removeCurrentFeedingTime(idx)}
                                   className="text-red-600 hover:text-red-700"
                                 >
                                   <X className="h-4 w-4" />
