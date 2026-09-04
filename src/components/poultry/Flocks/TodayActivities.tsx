@@ -17,8 +17,8 @@ const TodayActivities = ({ flock }: TodayActivitiesProps) => {
     (now.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24)
   );
   const currentAge = flock.arrival_age_days + daysSinceArrival;
-  // Feeding day is placement-based: Day 1 = arrival date
-  const currentFeedingDay = daysSinceArrival + 1;
+  // Match feeding templates by bird age (same as med/vac schedule days).
+  const currentFeedingDay = Math.max(1, currentAge);
 
   const handleToggle = () => {
     setIsExpanded(!isExpanded);

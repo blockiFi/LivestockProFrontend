@@ -32,6 +32,8 @@ interface FeedingScheduleViewProps {
   flockQuantity: number
   currentFeedingDay: number
   arrivalDate: string
+  /** Bird age at arrival; used to map schedule days ↔ calendar dates. */
+  arrivalAgeDays?: number
   onRefresh?: () => void
   readOnly?: boolean
   onChangeSchedule?: () => void
@@ -63,6 +65,7 @@ const FeedingScheduleView = ({
   flockQuantity,
   currentFeedingDay,
   arrivalDate,
+  arrivalAgeDays = 1,
   onRefresh,
   readOnly = false,
   onChangeSchedule,
@@ -105,9 +108,10 @@ const FeedingScheduleView = ({
         executedItems,
         currentFeedingDay,
         arrivalDate,
+        arrivalAgeDays,
         flockQuantity,
       }),
-    [allScheduleItems, executedItems, currentFeedingDay, arrivalDate, flockQuantity]
+    [allScheduleItems, executedItems, currentFeedingDay, arrivalDate, arrivalAgeDays, flockQuantity]
   )
 
   const missedCount = missedPreview.length
@@ -247,7 +251,7 @@ const FeedingScheduleView = ({
           )}
           {activeRange && (
             <div className="mt-3 text-sm text-slate-600">
-              Today is placement day <span className="font-semibold">{currentFeedingDay}</span> — active rate{" "}
+              Today is schedule day <span className="font-semibold">{currentFeedingDay}</span> — active rate{" "}
               <span className="font-semibold">{Number(activeRange.quantity)} g/bird</span> (
               {formatFeedingDayRange(
                 resolveRangeBounds(activeRange).start_day,
@@ -274,7 +278,8 @@ const FeedingScheduleView = ({
               currentFeedingDay,
               allScheduleItems,
               executedItems,
-              arrivalDate
+              arrivalDate,
+              arrivalAgeDays
             )
             const coversToday = coversFeedingDay(scheduleItem, currentFeedingDay)
             const isUpcoming = start_day > currentFeedingDay

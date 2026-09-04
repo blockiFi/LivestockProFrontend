@@ -108,7 +108,8 @@ const FlockPage = () => {
       flock.status === "active"
     );
     const isBatchActive = isFlockActive(flock.status);
-    const currentFeedingDay = daysSinceArrival + 1;
+    // Same bird-age day used by med/vac and feed-age helpers (not placement-only).
+    const currentFeedingDay = Math.max(1, currentAge);
 
     const openMetrics = () => {
       setIsMetricsModalOpen(true);
@@ -1581,6 +1582,7 @@ const FlockPage = () => {
                   currentAge={currentAge}
                   currentFeedingDay={currentFeedingDay}
                   arrivalDate={flock.arrival_date}
+                  arrivalAgeDays={flock.arrival_age_days}
                   onRefresh={refreshFlock}
                   onBatchClosed={refreshFlock}
                   onBack={() => setView("metrics")}

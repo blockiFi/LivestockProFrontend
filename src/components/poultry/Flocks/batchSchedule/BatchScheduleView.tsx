@@ -42,6 +42,7 @@ const BatchScheduleView = ({
   currentAge,
   currentFeedingDay,
   arrivalDate,
+  arrivalAgeDays,
   onRefresh,
   onBack,
   onBatchClosed,
@@ -58,6 +59,7 @@ const BatchScheduleView = ({
   currentAge: number
   currentFeedingDay: number
   arrivalDate: string
+  arrivalAgeDays?: number
   onRefresh?: () => void
   onBack?: () => void
   onBatchClosed?: () => void
@@ -117,6 +119,7 @@ const BatchScheduleView = ({
               executedItems: activeFeeding.items || [],
               currentFeedingDay,
               arrivalDate,
+              arrivalAgeDays: arrivalAgeDays ?? 1,
               flockQuantity,
             }).length
           : 0;
@@ -128,7 +131,7 @@ const BatchScheduleView = ({
           : 0;
         const totalOverdueSchedules = overdueFeedingSchedules + overdueMedicationSchedules + overdueVaccinationSchedules;
         return { totalSchedules  , totalActiveSchedules , totalCompletedSchedules, totalOverdueSchedules };
-    } , [activeFeeding , medicationSchedule , vaccinationSchedule, currentFeedingDay, arrivalDate, flockQuantity])
+    } , [activeFeeding , medicationSchedule , vaccinationSchedule, currentFeedingDay, arrivalDate, arrivalAgeDays, flockQuantity])
 
 
     // Simulate loading schedules
@@ -320,6 +323,7 @@ const BatchScheduleView = ({
                       flockQuantity={flockQuantity}
                       currentFeedingDay={currentFeedingDay}
                       arrivalDate={arrivalDate}
+                      arrivalAgeDays={arrivalAgeDays ?? 1}
                       onRefresh={onRefresh}
                       readOnly={!isActiveBatch}
                       onChangeSchedule={

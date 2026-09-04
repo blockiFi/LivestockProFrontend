@@ -281,6 +281,7 @@ export function resolveForMissedBackfillDay<T extends FeedingRangeLike & { id: n
 
 /**
  * Client-side mirror of FeedingMissedScheduleService::collectMissedDays.
+ * Resolves template ranges by bird age (arrival_age_days + days since arrival).
  */
 export function listMissedFeedingDays(params: {
   scheduleItems: Array<FeedingRangeLike & {
@@ -291,12 +292,25 @@ export function listMissedFeedingDays(params: {
     feed_type?: { id?: number; name?: string }
   }>
   executedItems: Array<{ feeding_date: string }>
+  /** Bird age (schedule day) today. */
   currentFeedingDay: number
   arrivalDate: string
+  /** Age in days at arrival; defaults to 1 when omitted. */
+  arrivalAgeDays?: number
   flockQuantity: number
 }): MissedFeedingDay[] {
-  const { scheduleItems, executedItems, currentFeedingDay, arrivalDate, flockQuantity } = params
-  if (currentFeedingDay <= 1) return []
+  const {
+    scheduleItems,
+    executedItems,
+    currentFeedingDay,
+    arrivalDate,
+    flockQuantity,
+    arrivalAgeDays = 1,
+  } = params
+
+  const arrivalAge = Math.max(0, Number(arrivalAgeDays) || 0)
+  const daysSinceArrival = Math.max(0, currentFeedingDay - arrivalAge)
+  if (daysSinceArrival <= 0) return []
 
   const recordedDates = new Set(
     executedItems.map((item) => item.feeding_date.slice(0, 10))
@@ -304,16 +318,17 @@ export function listMissedFeedingDays(params: {
   const arrival = parseISO(arrivalDate)
   const missed: MissedFeedingDay[] = []
 
-  for (let day = 1; day < currentFeedingDay; day++) {
-    const scheduleItem = resolveForMissedBackfillDay(scheduleItems, day)
+  for (let daysSince = 0; daysSince < daysSinceArrival; daysSince++) {
+    const feedingDay = Math.max(1, arrivalAge + daysSince)
+    const scheduleItem = resolveForMissedBackfillDay(scheduleItems, feedingDay)
     if (!scheduleItem) continue
 
-    const feedingDate = format(addDays(arrival, day - 1), "yyyy-MM-dd")
+    const feedingDate = format(addDays(arrival, daysSince), "yyyy-MM-dd")
     if (recordedDates.has(feedingDate)) continue
 
     const perBirdGrams = Number(scheduleItem.quantity || 0)
     missed.push({
-      feeding_day: day,
+      feeding_day: feedingDay,
       feeding_date: feedingDate,
       feeding_schedule_item_id: scheduleItem.id,
       feed_type_id: scheduleItem.feed_type_id ?? scheduleItem.feed_type?.id ?? 0,
@@ -358,7 +373,8 @@ export function countMissedDaysInRange(
   currentFeedingDay: number,
   scheduleItems: Array<FeedingRangeLike & { id: number }>,
   executedItems: Array<{ feeding_date: string }>,
-  arrivalDate: string
+  arrivalDate: string,
+  arrivalAgeDays: number = 1
 ): number {
   if (currentFeedingDay <= startDay) return 0
 
@@ -366,6 +382,7 @@ export function countMissedDaysInRange(
     executedItems.map((item) => item.feeding_date.slice(0, 10))
   )
   const arrival = parseISO(arrivalDate)
+  const arrivalAge = Math.max(0, Number(arrivalAgeDays) || 0)
   const effectiveEnd = Math.min(
     endDay ?? currentFeedingDay - 1,
     currentFeedingDay - 1
@@ -376,7 +393,10 @@ export function countMissedDaysInRange(
     const covering = resolveForMissedBackfillDay(scheduleItems, day)
     if (!covering || covering.id !== scheduleItemId) continue
 
-    const feedingDate = format(addDays(arrival, day - 1), "yyyy-MM-dd")
+    const daysSince = day - arrivalAge
+    if (daysSince < 0) continue
+
+    const feedingDate = format(addDays(arrival, daysSince), "yyyy-MM-dd")
     if (!recordedDates.has(feedingDate)) missed++
   }
 
