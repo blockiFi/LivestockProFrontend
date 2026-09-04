@@ -121,7 +121,29 @@ const AddFlockSaleModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onPointerDownOutside={(e) => {
+          const target = e.target as HTMLElement | null
+          if (
+            target?.closest(
+              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
+            )
+          ) {
+            e.preventDefault()
+          }
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement | null
+          if (
+            target?.closest(
+              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
+            )
+          ) {
+            e.preventDefault()
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Live Bird Sale" : "Record Live Bird Sale"}</DialogTitle>
         </DialogHeader>

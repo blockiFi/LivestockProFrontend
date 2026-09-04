@@ -104,7 +104,22 @@ export default function CustomerFormSheet({ open, onOpenChange, customer, onSave
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg p-6 sm:p-8">
+      <SheetContent
+        className="w-full overflow-y-auto sm:max-w-lg p-6 sm:p-8"
+        onPointerDownOutside={(e) => {
+          const target = e.target as HTMLElement | null
+          if (target?.closest('[data-slot="select-content"], [data-radix-select-content]')) {
+            e.preventDefault()
+          }
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement | null
+          if (target?.closest('[data-slot="select-content"], [data-radix-select-content]')) {
+            e.preventDefault()
+          }
+        }}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader className="p-0 pr-8">
           <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
@@ -154,7 +169,11 @@ export default function CustomerFormSheet({ open, onOpenChange, customer, onSave
               <SelectTrigger>
                 <SelectValue placeholder="Select country" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent
+                className="z-[300]"
+                position="popper"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
                 {countries.map((country) => (
                   <SelectItem key={country.id} value={String(country.id)}>
                     {country.name}

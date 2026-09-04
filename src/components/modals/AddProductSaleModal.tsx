@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { SalesRecord } from "@/lib/types";
-import type { ProductSaleFormPayload } from "@/lib/request";
+import { getEggStock, type EggStockSummary, type ProductSaleFormPayload } from "@/lib/request";
 import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker";
 
 export type { ProductSaleFormPayload };
@@ -26,9 +28,16 @@ interface AddProductSaleModalProps {
   lockFlock?: boolean;
 }
 
-const toDateInputValue = (value?: string | null) => {
-  if (!value) return new Date().toISOString().split("T")[0];
-  return value.includes("T") ? value.split("T")[0] : value;
+/** Local calendar date (YYYY-MM-DD) — avoid UTC shift from toISOString(). */
+const localDateInputValue = (value?: string | null) => {
+  if (value) {
+    return value.includes("T") ? value.split("T")[0] : value.slice(0, 10);
+  }
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 };
 
 const defaultFormData = (flockId?: number | null) => ({
@@ -36,7 +45,7 @@ const defaultFormData = (flockId?: number | null) => ({
   flock_id: flockId ? String(flockId) : "",
   quantity: "",
   unit_price: "",
-  date: new Date().toISOString().split("T")[0],
+  date: localDateInputValue(),
   customer: {
     customer_id: null,
     customer_name: "",
@@ -55,9 +64,13 @@ const AddProductSaleModal = ({
   defaultFlockId = null,
   lockFlock = false,
 }: AddProductSaleModalProps) => {
+  const token = useSelector((s: RootState) => s.authentication.token);
+  const farmId = useSelector((s: RootState) => s.authentication.activeFarm?.id);
   const [formData, setFormData] = useState(defaultFormData(defaultFlockId));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [eggStock, setEggStock] = useState<EggStockSummary | null>(null);
+  const [eggStockLoading, setEggStockLoading] = useState(false);
 
   const quantityNum = Number(formData.quantity) || 0;
   const unitPriceNum = Number(formData.unit_price) || 0;
@@ -73,7 +86,7 @@ const AddProductSaleModal = ({
         flock_id: editing.flock_id ? String(editing.flock_id) : "",
         quantity: String(editing.quantity ?? ""),
         unit_price: String(editing.unit_price ?? ""),
-        date: toDateInputValue(editing.date),
+        date: localDateInputValue(editing.date),
         customer: {
           customer_id: editing.customer_id ?? null,
           customer_name: editing.customer_name || editing.customer?.name || "",
@@ -89,7 +102,31 @@ const AddProductSaleModal = ({
 
     setErrors({});
     setIsSubmitting(false);
+    setEggStock(null);
   }, [isOpen, editing, defaultFlockId]);
+
+  useEffect(() => {
+    if (!isOpen || formData.type !== "egg" || !token || !farmId || !formData.flock_id || !formData.date) {
+      setEggStock(null);
+      return;
+    }
+
+    let cancelled = false;
+    setEggStockLoading(true);
+    void getEggStock(token, farmId, {
+      flock_id: Number(formData.flock_id),
+      date: formData.date,
+      exclude_record_id: editing?.id,
+    }).then((res) => {
+      if (cancelled) return;
+      setEggStock(res.success && res.data ? res.data : null);
+      setEggStockLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, formData.type, formData.flock_id, formData.date, token, farmId, editing?.id]);
 
   const validate = () => {
     const next: Record<string, string> = {};
@@ -97,7 +134,10 @@ const AddProductSaleModal = ({
     if (requiresFlock && !formData.flock_id) next.flock_id = "Flock is required for egg and meat sales";
     if (!formData.quantity || quantityNum <= 0) next.quantity = "Quantity must be greater than 0";
     if (formData.unit_price === "" || unitPriceNum < 0) next.unit_price = "Unit price is required";
-    if (!formData.date) next.date = "Date is required";
+    if (!formData.date) next.date = "Sale date is required";
+    if (formData.type === "egg" && eggStock && quantityNum > eggStock.available) {
+      next.quantity = `Only ${eggStock.available.toLocaleString()} eggs available as of ${eggStock.as_of}`;
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -127,7 +167,29 @@ const AddProductSaleModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onPointerDownOutside={(e) => {
+          const target = e.target as HTMLElement | null;
+          if (
+            target?.closest(
+              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
+            )
+          ) {
+            e.preventDefault();
+          }
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement | null;
+          if (
+            target?.closest(
+              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
+            )
+          ) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{editing ? "Edit product sale" : "Record product sale"}</DialogTitle>
         </DialogHeader>
@@ -168,9 +230,44 @@ const AddProductSaleModal = ({
             </div>
           )}
 
+          <div className="space-y-1.5">
+            <Label htmlFor="date">Sale date</Label>
+            <Input
+              id="date"
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+            />
+            {errors.date && <p className="text-xs text-rose-600">{errors.date}</p>}
+            {formData.type === "egg" && (
+              <p className="text-xs text-slate-500">
+                Available stock is calculated from eggs collected on or before this date.
+              </p>
+            )}
+          </div>
+
+          {formData.type === "egg" && formData.flock_id ? (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              {eggStockLoading ? (
+                <span>Checking available egg stock…</span>
+              ) : eggStock ? (
+                <>
+                  <span className="font-semibold">{eggStock.available.toLocaleString()}</span> eggs available
+                  as of {eggStock.as_of}
+                  <span className="mt-0.5 block text-xs text-emerald-800/80">
+                    {eggStock.produced.toLocaleString()} collected − {eggStock.sold.toLocaleString()} sold −{" "}
+                    {eggStock.broken.toLocaleString()} broken
+                  </span>
+                </>
+              ) : (
+                <span className="text-amber-800">Could not load egg stock for this flock/date.</span>
+              )}
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="quantity">Quantity</Label>
+              <Label htmlFor="quantity">Quantity (eggs)</Label>
               <Input
                 id="quantity"
                 type="number"
@@ -196,18 +293,10 @@ const AddProductSaleModal = ({
           </div>
 
           <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            Total: <span className="font-semibold">{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="date">Sale date</Label>
-            <Input
-              id="date"
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
-            />
-            {errors.date && <p className="text-xs text-rose-600">{errors.date}</p>}
+            Total:{" "}
+            <span className="font-semibold">
+              {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </span>
           </div>
 
           <CustomerPicker

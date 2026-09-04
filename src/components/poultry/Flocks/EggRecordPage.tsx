@@ -40,6 +40,7 @@ import {
   getProductionBadgeLevel,
   sortEggReportsByDate,
   sumBrokenEggs,
+  sumCollectedEggs,
 } from "@/lib/eggMetrics"
 
 const EGG_EXPORT_COLUMNS: ExportColumn<EggReport>[] = [
@@ -168,12 +169,12 @@ const EggRecordPage = ({
     [brokenSource, dateFrom, dateTo]
   )
 
-  /** Current stock uses lifetime collected vs sold vs broken (not the date filter). */
+  /** Current stock uses lifetime collected vs sold vs broken (same rules as backend). */
   const eggStock = useMemo(() => {
-    const collected = reports.reduce((sum, r) => sum + Number(r.eggs_collected || 0), 0)
+    const collected = sumCollectedEggs(reports, dailyRecords)
     const broken = sumBrokenEggs(brokenSource)
     return computeEggStock(collected, eggsSold, broken)
-  }, [reports, eggsSold, brokenSource])
+  }, [reports, dailyRecords, eggsSold, brokenSource])
 
   const trendTitle = useMemo(() => {
     if (dateFrom && dateTo) {
@@ -299,6 +300,9 @@ const EggRecordPage = ({
               <p className="text-xs text-gray-500 mt-0.5">
                 {eggStock.collected.toLocaleString()} collected · {eggStock.sold.toLocaleString()} sold ·{" "}
                 {eggStock.broken.toLocaleString()} broken
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Lifetime stock (as of today). Sale checks use the sale date.
               </p>
             </div>
           </div>

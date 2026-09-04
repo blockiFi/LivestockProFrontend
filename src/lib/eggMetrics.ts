@@ -137,6 +137,36 @@ export function computeEggStock(
   }
 }
 
+/**
+ * Match backend stock math:
+ * egg reports + daily eggs only on dates that have no egg report.
+ */
+export function sumCollectedEggs(
+  eggReports: Array<{ date?: string; eggs_collected?: number | null }>,
+  dailyRecords: Array<{
+    date?: string
+    eggs_collected?: number | null
+    egg_production_count?: number | null
+  }> = []
+): number {
+  const reportDates = new Set(
+    eggReports.map((r) => (r.date ? toDateKey(r.date) : "")).filter(Boolean)
+  )
+  let produced = eggReports.reduce(
+    (sum, r) => sum + Math.max(0, Number(r.eggs_collected || 0)),
+    0
+  )
+  for (const daily of dailyRecords) {
+    const key = daily.date ? toDateKey(daily.date) : ""
+    if (!key || reportDates.has(key)) continue
+    produced += Math.max(
+      0,
+      Number(daily.egg_production_count ?? daily.eggs_collected ?? 0)
+    )
+  }
+  return produced
+}
+
 export function sumBrokenEggs(
   records: Array<{ date?: string; eggs_broken?: number | null }>,
   dateFrom?: string,

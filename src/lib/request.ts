@@ -3367,6 +3367,54 @@ export const getSalesRecords = async (
   }
 };
 
+export type EggStockSummary = {
+  produced: number;
+  broken: number;
+  sold: number;
+  available: number;
+  as_of: string;
+};
+
+export const getEggStock = async (
+  token: string,
+  farmId: number,
+  params: { flock_id: number; date?: string; exclude_record_id?: number }
+): Promise<RequestResponse<EggStockSummary>> => {
+  try {
+    const search = new URLSearchParams();
+    search.set('flock_id', String(params.flock_id));
+    if (params.date) search.set('date', params.date);
+    if (params.exclude_record_id != null) {
+      search.set('exclude_record_id', String(params.exclude_record_id));
+    }
+    const response = await axios.get(`/api/farms/${farmId}/sales-records/egg-stock?${search}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.status === 200 && response.data?.data) {
+      const d = response.data.data;
+      return {
+        success: true,
+        data: {
+          produced: toNumber(d.produced),
+          broken: toNumber(d.broken),
+          sold: toNumber(d.sold),
+          available: toNumber(d.available),
+          as_of: String(d.as_of ?? params.date ?? ''),
+        },
+      };
+    }
+    return { success: false, error: [`Error fetching egg stock: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to fetch egg stock'],
+      };
+    }
+    return { success: false, error: ['Failed to fetch egg stock'] };
+  }
+};
+
 export const createSalesRecord = async (
   token: string,
   farmId: number,

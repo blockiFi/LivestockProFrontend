@@ -79,23 +79,39 @@ export default function CustomerPicker({ value, onChange, disabled }: Props) {
     setOpen(false)
   }
 
+  const openCreateSheet = () => {
+    // Close the picker first so Sheet is not nested under a modal Popover + Dialog.
+    setOpen(false)
+    // Defer so Popover unmounts before Sheet opens (avoids focus-trap deadlocks).
+    window.setTimeout(() => setCreateOpen(true), 0)
+  }
+
   return (
     <div className="space-y-3">
       <div className="space-y-2">
         <Label>Customer</Label>
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover modal open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="w-full justify-start" disabled={disabled}>
               <UserRound className="mr-2 h-4 w-4" />
               {selectedLabel}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-3" align="start">
+          <PopoverContent
+            className="z-[200] w-80 p-3"
+            align="start"
+            side="bottom"
+            sideOffset={6}
+            collisionPadding={16}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
             <div className="space-y-3">
               <Input
                 placeholder="Search customers..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
               />
               <div className="max-h-48 space-y-1 overflow-y-auto">
                 {loading ? (
@@ -108,7 +124,11 @@ export default function CustomerPicker({ value, onChange, disabled }: Props) {
                       key={customer.id}
                       type="button"
                       className="flex w-full flex-col rounded-md px-2 py-2 text-left hover:bg-slate-100"
-                      onClick={() => selectCustomer(customer)}
+                      // pointerdown + preventDefault avoids Dialog/Popover focus steal eating the click
+                      onPointerDown={(e) => {
+                        e.preventDefault()
+                        selectCustomer(customer)
+                      }}
                     >
                       <span className="text-sm font-medium">{customer.name}</span>
                       <span className="text-xs text-muted-foreground">
@@ -118,7 +138,16 @@ export default function CustomerPicker({ value, onChange, disabled }: Props) {
                   ))
                 )}
               </div>
-              <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => setCreateOpen(true)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                onPointerDown={(e) => {
+                  e.preventDefault()
+                  openCreateSheet()
+                }}
+              >
                 <Plus className="h-4 w-4" />
                 Quick add customer
               </Button>
@@ -128,13 +157,24 @@ export default function CustomerPicker({ value, onChange, disabled }: Props) {
                   placeholder="Walk-in name"
                   value={walkInName}
                   onChange={(e) => setWalkInName(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
                 />
                 <Input
                   placeholder="Walk-in phone"
                   value={walkInPhone}
                   onChange={(e) => setWalkInPhone(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
                 />
-                <Button variant="secondary" size="sm" className="w-full" onClick={applyWalkIn}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  onPointerDown={(e) => {
+                    e.preventDefault()
+                    applyWalkIn()
+                  }}
+                >
                   Use walk-in customer
                 </Button>
               </div>
