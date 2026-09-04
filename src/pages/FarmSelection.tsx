@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Fish,
   Layers,
+  Loader2,
   MapPin,
   PiggyBank,
   Plus,
@@ -26,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import TopBar from "@/components/navigation/TopBar";
+import { PageLoader } from "@/components/general/PageLoader";
 import { toast } from "react-toastify";
 function FarmSelection() {
   const navigate = useNavigate();
@@ -33,6 +35,7 @@ function FarmSelection() {
   const CurrentUser = useSelector((state: RootState) => state.authentication.user);
   const [farms, setFarms] = useState<Farm[] | null>(CurrentUser?.farms ?? null);
   const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [openingFarmId, setOpeningFarmId] = useState<number | null>(null);
 
   useEffect(() => {
     const loadFarms = async (_token: string): Promise<FarmRequestData> => {
@@ -64,9 +67,31 @@ function FarmSelection() {
   };
 
   const handleFarmSelect = async (farmID: number) => {
-    selectFarm(farmID);
-    await LoadFarmPermissions(true);
-    navigate(`/dashboard`);
+    if (openingFarmId != null) return;
+    setOpeningFarmId(farmID);
+    try {
+      selectFarm(farmID);
+      await LoadFarmPermissions(true);
+      navigate(`/dashboard`);
+    } catch (error) {
+      console.error("Failed to open farm:", error);
+      toast.error("Could not open farm. Please try again.");
+      setOpeningFarmId(null);
+    }
+  };
+
+  const handleQuickNavigate = async (farmId: number, path: string) => {
+    if (openingFarmId != null) return;
+    setOpeningFarmId(farmId);
+    try {
+      selectFarm(farmId);
+      await LoadFarmPermissions(true);
+      navigate(path);
+    } catch (error) {
+      console.error("Failed to open farm:", error);
+      toast.error("Could not open farm. Please try again.");
+      setOpeningFarmId(null);
+    }
   };
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -202,14 +227,18 @@ function FarmSelection() {
   };
 
   const farmsCount = filteredFarms?.length ?? 0;
-
-  const handleQuickNavigate = (farmId: number, path: string) => {
-    selectFarm(farmId);
-    navigate(path);
-  };
+  const openingFarmName = openingFarmId != null
+    ? farms?.find((farm) => farm.id === openingFarmId)?.name
+    : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-slate-50 text-gray-900">
+    <div className="relative min-h-screen bg-gradient-to-br from-emerald-50 via-white to-slate-50 text-gray-900">
+      {openingFarmId != null && (
+        <PageLoader
+          label={openingFarmName ? `Opening ${openingFarmName}…` : "Opening farm…"}
+          className="fixed inset-0 z-50"
+        />
+      )}
       {/* Header */}
       <TopBar />
 
@@ -444,8 +473,10 @@ function FarmSelection() {
               farm={farm}
               getTypeIcon={getTypeIcon}
               getStatusColor={getStatusColor}
-              onSelect={() => handleFarmSelect(farm.id)}
-              onQuickNavigate={(path) => handleQuickNavigate(farm.id, path)}
+              isOpening={openingFarmId === farm.id}
+              disabled={openingFarmId != null}
+              onSelect={() => void handleFarmSelect(farm.id)}
+              onQuickNavigate={(path) => void handleQuickNavigate(farm.id, path)}
             />
           ))}
         </div>
@@ -477,6 +508,8 @@ type FarmCardProps = {
   farm: Farm;
   getTypeIcon: (type: string) => ReactElement;
   getStatusColor: (status: number) => string;
+  isOpening?: boolean;
+  disabled?: boolean;
   onSelect: () => void;
   onQuickNavigate: (path: string) => void;
 };
@@ -485,6 +518,8 @@ const FarmCard = ({
   farm,
   getTypeIcon,
   getStatusColor,
+  isOpening = false,
+  disabled = false,
   onSelect,
   onQuickNavigate,
 }: FarmCardProps) => {
@@ -492,8 +527,15 @@ const FarmCard = ({
 
   return (
     <Card
-      className="h-full cursor-pointer overflow-hidden border-gray-200 bg-white/90 text-gray-900 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-400/70 hover:shadow-md"
-      onClick={onSelect}
+      className={`h-full overflow-hidden border-gray-200 bg-white/90 text-gray-900 shadow-sm transition ${
+        disabled
+          ? "cursor-wait opacity-70"
+          : "cursor-pointer hover:-translate-y-0.5 hover:border-emerald-400/70 hover:shadow-md"
+      } ${isOpening ? "border-emerald-400 ring-2 ring-emerald-200" : ""}`}
+      onClick={() => {
+        if (!disabled) onSelect();
+      }}
+      aria-busy={isOpening}
     >
       {/* Gradient top accent */}
       <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-sky-400 to-indigo-400" />
@@ -502,7 +544,7 @@ const FarmCard = ({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-500">
-              {getTypeIcon(typeValue)}
+              {isOpening ? <Loader2 className="h-5 w-5 animate-spin" /> : getTypeIcon(typeValue)}
             </div>
             <div className="min-w-0">
               <CardTitle className="text-base font-semibold text-gray-900 truncate">
@@ -522,7 +564,7 @@ const FarmCard = ({
               farm.status as number,
             )}`}
           >
-            {farm.status === 1 ? "active" : "inactive"}
+            {isOpening ? "opening…" : farm.status === 1 ? "active" : "inactive"}
           </Badge>
         </div>
       </CardHeader>
@@ -572,10 +614,11 @@ const FarmCard = ({
           <Button
             variant="outline"
             size="sm"
+            disabled={disabled}
             className="h-8 gap-1 rounded-full border-gray-200 bg-white text-[11px] text-gray-800 hover:border-emerald-400 hover:text-emerald-600"
             onClick={(e) => {
               e.stopPropagation();
-              onQuickNavigate("/dashboard");
+              if (!disabled) onQuickNavigate("/dashboard");
             }}
           >
             Dashboard
@@ -584,10 +627,11 @@ const FarmCard = ({
           <Button
             variant="outline"
             size="sm"
+            disabled={disabled}
             className="h-8 gap-1 rounded-full border-gray-200 bg-white text-[11px] text-gray-800 hover:border-emerald-400 hover:text-emerald-600"
             onClick={(e) => {
               e.stopPropagation();
-              onQuickNavigate("/dashboard/poultry/flock-management");
+              if (!disabled) onQuickNavigate("/dashboard/poultry/flock-management");
             }}
           >
             Flocks
@@ -595,10 +639,11 @@ const FarmCard = ({
           <Button
             variant="outline"
             size="sm"
+            disabled={disabled}
             className="h-8 gap-1 rounded-full border-gray-200 bg-white text-[11px] text-gray-800 hover:border-emerald-400 hover:text-emerald-600"
             onClick={(e) => {
               e.stopPropagation();
-              onQuickNavigate("/dashboard/poultry/inventory/feeds");
+              if (!disabled) onQuickNavigate("/dashboard/poultry/inventory/feeds");
             }}
           >
             Inventory
