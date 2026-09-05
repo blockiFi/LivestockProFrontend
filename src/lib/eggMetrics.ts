@@ -22,8 +22,27 @@ export type DayOverDayDelta = {
   productionPctDelta: number | null
 }
 
-function toDateKey(value: string): string {
-  return value.slice(0, 10)
+/**
+ * Normalize record dates to Y-m-d for stock matching.
+ * ISO UTC timestamps like 2026-09-04T23:00:00.000Z (midnight Africa/Lagos on Sep 5)
+ * must use the local calendar day — not the UTC date prefix — or egg reports and
+ * daily rows for the same day won't match and eggs get double-counted.
+ */
+export function toDateKey(value: string): string {
+  const trimmed = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed
+  }
+
+  const parsed = new Date(trimmed)
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear()
+    const m = String(parsed.getMonth() + 1).padStart(2, "0")
+    const d = String(parsed.getDate()).padStart(2, "0")
+    return `${y}-${m}-${d}`
+  }
+
+  return trimmed.slice(0, 10)
 }
 
 function formatLabel(dateKey: string): string {
@@ -135,6 +154,43 @@ export function computeEggStock(
     broken,
     available: Math.max(0, collected - sold - broken),
   }
+}
+
+/** Standard crate size used across egg stock displays. */
+export const EGGS_PER_CRATE = 30
+
+export function splitEggsIntoCrates(eggs: number): {
+  crates: number
+  remainder: number
+  eggs: number
+} {
+  const total = Math.max(0, Math.floor(Number(eggs) || 0))
+  return {
+    crates: Math.floor(total / EGGS_PER_CRATE),
+    remainder: total % EGGS_PER_CRATE,
+    eggs: total,
+  }
+}
+
+/**
+ * e.g. 900 → "30 crates (900 eggs)"
+ *      75  → "2 crates + 15 eggs (75 eggs)"
+ *      12  → "12 eggs"
+ */
+export function formatEggsWithCrates(eggs: number): string {
+  const { crates, remainder, eggs: total } = splitEggsIntoCrates(eggs)
+  const eggLabel = `${total.toLocaleString()} egg${total === 1 ? "" : "s"}`
+
+  if (crates === 0) {
+    return eggLabel
+  }
+
+  const crateLabel = `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}`
+  if (remainder === 0) {
+    return `${crateLabel} (${eggLabel})`
+  }
+
+  return `${crateLabel} + ${remainder} egg${remainder === 1 ? "" : "s"} (${eggLabel})`
 }
 
 /**

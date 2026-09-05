@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import type { EggReport, FlockRecord, DetailedFlockRecord } from "@/lib/types"
-import { getSalesRecords, type EggReportPayload } from "@/lib/request"
+import { getEggStock, type EggReportPayload, type EggStockSummary } from "@/lib/request"
 import {
   Egg,
   Eye,
@@ -34,13 +34,14 @@ import { toast } from "react-toastify"
 import {
   buildEggTrendSeries,
   computeEggKpis,
-  computeEggStock,
+  EGGS_PER_CRATE,
   filterEggReportsByDateRange,
+  formatEggsWithCrates,
   getDayOverDayDelta,
   getProductionBadgeLevel,
   sortEggReportsByDate,
   sumBrokenEggs,
-  sumCollectedEggs,
+  toDateKey,
 } from "@/lib/eggMetrics"
 
 const EGG_EXPORT_COLUMNS: ExportColumn<EggReport>[] = [
@@ -93,27 +94,44 @@ const EggRecordPage = ({
   const [editingReport, setEditingReport] = useState<EggReport | undefined>()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [recordToDelete, setRecordToDelete] = useState<number | null>(null)
-  const [eggsSold, setEggsSold] = useState(0)
+  const [eggStock, setEggStock] = useState<EggStockSummary | null>(null)
+  const [eggStockLoading, setEggStockLoading] = useState(false)
   const stockCardRef = useRef<HTMLDivElement | null>(null)
   const reportsPerPage = 10
 
   const flockId = flock?.id
 
-  const loadEggSales = useCallback(async () => {
+  const localToday = () => {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, "0")
+    const d = String(now.getDate()).padStart(2, "0")
+    return `${y}-${m}-${d}`
+  }
+
+  /** Same backend stock endpoint as the product sale modal — single source of truth. */
+  const loadEggStock = useCallback(async () => {
     if (!token || !farmId || !flockId) {
-      setEggsSold(0)
+      setEggStock(null)
       return
     }
-    const res = await getSalesRecords(token, farmId, { flock_id: flockId, type: "egg" })
-    if (res.success && res.data) {
-      const sold = res.data.reduce((sum, row) => sum + Number(row.quantity || 0), 0)
-      setEggsSold(sold)
+    setEggStockLoading(true)
+    try {
+      const res = await getEggStock(token, farmId, {
+        flock_id: flockId,
+        date: localToday(),
+      })
+      if (res.success && res.data) {
+        setEggStock(res.data)
+      }
+    } finally {
+      setEggStockLoading(false)
     }
   }, [token, farmId, flockId])
 
   useEffect(() => {
-    void loadEggSales()
-  }, [loadEggSales, reports])
+    void loadEggStock()
+  }, [loadEggStock, reports])
 
   // Refetch when Eggs tab becomes visible again (e.g. after recording a sale)
   useEffect(() => {
@@ -122,14 +140,14 @@ const EggRecordPage = ({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          void loadEggSales()
+          void loadEggStock()
         }
       },
       { threshold: 0.1 }
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [loadEggSales])
+  }, [loadEggStock])
 
   const filteredReports = useMemo(
     () => filterEggReportsByDateRange(reports, dateFrom || undefined, dateTo || undefined),
@@ -153,9 +171,11 @@ const EggRecordPage = ({
 
   /** Egg-report broken + daily broken only for dates without an egg report (legacy). */
   const brokenSource = useMemo(() => {
-    const reportDates = new Set(reports.map((r) => r.date?.slice(0, 10)).filter(Boolean))
+    const reportDates = new Set(
+      reports.map((r) => (r.date ? toDateKey(r.date) : "")).filter(Boolean)
+    )
     const dailyOnly = dailyRecords.filter((d) => {
-      const key = d.date?.slice(0, 10)
+      const key = d.date ? toDateKey(d.date) : ""
       return key && !reportDates.has(key)
     })
     return [
@@ -168,13 +188,6 @@ const EggRecordPage = ({
     () => sumBrokenEggs(brokenSource, dateFrom || undefined, dateTo || undefined),
     [brokenSource, dateFrom, dateTo]
   )
-
-  /** Current stock uses lifetime collected vs sold vs broken (same rules as backend). */
-  const eggStock = useMemo(() => {
-    const collected = sumCollectedEggs(reports, dailyRecords)
-    const broken = sumBrokenEggs(brokenSource)
-    return computeEggStock(collected, eggsSold, broken)
-  }, [reports, dailyRecords, eggsSold, brokenSource])
 
   const trendTitle = useMemo(() => {
     if (dateFrom && dateTo) {
@@ -289,20 +302,40 @@ const EggRecordPage = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
-        <Card ref={stockCardRef} className="p-4 border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white">
-          <div className="flex items-center gap-3">
+        <Card ref={stockCardRef} className="p-4 border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white md:col-span-2 xl:col-span-2">
+          <div className="flex items-start gap-3">
             <div className="p-2 bg-emerald-100 rounded-lg">
               <Package className="h-5 w-5 text-emerald-700" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-500">Available Stock</p>
-              <p className="text-2xl font-bold text-emerald-700">{eggStock.available.toLocaleString()}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {eggStock.collected.toLocaleString()} collected · {eggStock.sold.toLocaleString()} sold ·{" "}
-                {eggStock.broken.toLocaleString()} broken
+              <p className="text-2xl font-bold text-emerald-700 leading-tight">
+                {eggStockLoading && !eggStock
+                  ? "…"
+                  : formatEggsWithCrates(eggStock?.available ?? 0)}
               </p>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Lifetime stock (as of today). Sale checks use the sale date.
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Sold</p>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {formatEggsWithCrates(eggStock?.sold ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Broken</p>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {formatEggsWithCrates(eggStock?.broken ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Collected</p>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {formatEggsWithCrates(eggStock?.produced ?? 0)}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-2">
+                1 crate = {EGGS_PER_CRATE} eggs · as of {eggStock?.as_of ?? localToday()}
               </p>
             </div>
           </div>

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import type { SalesRecord } from "@/lib/types";
 import { getEggStock, type EggStockSummary, type ProductSaleFormPayload } from "@/lib/request";
+import { EGGS_PER_CRATE, formatEggsWithCrates } from "@/lib/eggMetrics";
 import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker";
 
 export type { ProductSaleFormPayload };
@@ -136,7 +137,7 @@ const AddProductSaleModal = ({
     if (formData.unit_price === "" || unitPriceNum < 0) next.unit_price = "Unit price is required";
     if (!formData.date) next.date = "Sale date is required";
     if (formData.type === "egg" && eggStock && quantityNum > eggStock.available) {
-      next.quantity = `Only ${eggStock.available.toLocaleString()} eggs available as of ${eggStock.as_of}`;
+      next.quantity = `Only ${formatEggsWithCrates(eggStock.available)} available as of ${eggStock.as_of}`;
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -252,11 +253,14 @@ const AddProductSaleModal = ({
                 <span>Checking available egg stock…</span>
               ) : eggStock ? (
                 <>
-                  <span className="font-semibold">{eggStock.available.toLocaleString()}</span> eggs available
-                  as of {eggStock.as_of}
+                  <span className="font-semibold">{formatEggsWithCrates(eggStock.available)}</span>{" "}
+                  available as of {eggStock.as_of}
                   <span className="mt-0.5 block text-xs text-emerald-800/80">
-                    {eggStock.produced.toLocaleString()} collected − {eggStock.sold.toLocaleString()} sold −{" "}
-                    {eggStock.broken.toLocaleString()} broken
+                    Sold {formatEggsWithCrates(eggStock.sold)} · Broken {formatEggsWithCrates(eggStock.broken)} ·
+                    Collected {formatEggsWithCrates(eggStock.produced)}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-emerald-800/60">
+                    1 crate = {EGGS_PER_CRATE} eggs
                   </span>
                 </>
               ) : (
