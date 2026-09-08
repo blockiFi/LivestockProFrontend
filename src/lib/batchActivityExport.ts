@@ -1,5 +1,6 @@
 import type { ExportColumn } from "@/lib/exportData"
 import type { BatchActivityRow } from "@/lib/request"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { formatExportDate } from "@/lib/exportData"
 
 export const ACTIVITY_EXPORT_COLUMNS: ExportColumn<BatchActivityRow>[] = [
@@ -9,9 +10,13 @@ export const ACTIVITY_EXPORT_COLUMNS: ExportColumn<BatchActivityRow>[] = [
   { header: "Description", value: (row) => row.description },
   {
     header: "Quantity",
-    value: (row) => (row.quantity != null ? row.quantity : ""),
+    value: (row) => {
+      if (row.quantity == null) return ""
+      if (row.category === "egg_production") return formatEggsWithCrates(row.quantity)
+      return row.quantity
+    },
   },
-  { header: "Unit", value: (row) => row.unit ?? "" },
+  { header: "Unit", value: (row) => (row.category === "egg_production" ? "crates/eggs" : row.unit ?? "") },
   { header: "Performed By", value: (row) => row.performed_by ?? "" },
   { header: "Status", value: (row) => row.status },
 ]

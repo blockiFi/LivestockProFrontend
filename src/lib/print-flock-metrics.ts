@@ -1,3 +1,4 @@
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import type { DetailedFlockRecord, FlockAiInsights, FlockProfitLoss } from "@/lib/types"
 import { buildFlockMetrics } from "@/lib/flockMetrics"
 import { formatCurrency } from "@/lib/utils"
@@ -28,13 +29,21 @@ function listItems(items: string[]): string {
   return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
 }
 
-function trendTable(title: string, headers: [string, string], rows: { label: string; value: number }[], valueSuffix = ""): string {
+function trendTable(
+  title: string,
+  headers: [string, string],
+  rows: { label: string; value: number }[],
+  valueSuffix = "",
+  formatValue?: (value: number) => string
+): string {
   if (rows.length === 0) return ""
   const body = rows
-    .map(
-      (row) =>
-        `<tr><td>${escapeHtml(row.label)}</td><td class="right">${escapeHtml(`${row.value.toLocaleString()}${valueSuffix}`)}</td></tr>`
-    )
+    .map((row) => {
+      const formatted = formatValue
+        ? formatValue(row.value)
+        : `${row.value.toLocaleString()}${valueSuffix}`
+      return `<tr><td>${escapeHtml(row.label)}</td><td class="right">${escapeHtml(formatted)}</td></tr>`
+    })
     .join("")
   return `
     <section class="section">
@@ -65,7 +74,7 @@ export function buildFlockMetricsPrintHtml(input: FlockMetricsPrintInput): strin
     ...(kpis.fcr != null ? [["FCR", kpis.fcr.toFixed(2)]] : []),
     ...(kpis.averageDailyGain != null ? [["Avg Daily Gain", `${kpis.averageDailyGain.toFixed(0)} g/day`]] : []),
     ...(kpis.latestWeightGrams != null ? [["Latest Weight", `${kpis.latestWeightGrams.toFixed(0)} g`]] : []),
-    ...(kpis.totalEggs > 0 ? [["Total Eggs", kpis.totalEggs.toLocaleString()]] : []),
+    ...(kpis.totalEggs > 0 ? [["Total Eggs", formatEggsWithCrates(kpis.totalEggs)]] : []),
     ...(kpis.henDayProduction != null ? [["Hen-day Production", `${kpis.henDayProduction.toFixed(1)}%`]] : []),
     ["Total Revenue", `${naira}${formatCurrency(kpis.totalRevenue)}`],
     ["Total Cost", `${naira}${formatCurrency(kpis.totalCost)}`],
@@ -192,7 +201,7 @@ export function buildFlockMetricsPrintHtml(input: FlockMetricsPrintInput): strin
 
       ${trendTable("Mortality Trend", ["Date", "Birds"], trends.mortality)}
       ${trendTable("Weight Trend", ["Date", "Grams"], trends.weight, " g")}
-      ${trendTable("Egg Production", ["Date", "Eggs"], trends.eggs)}
+      ${trendTable("Egg Production", ["Date", "Eggs"], trends.eggs, "", formatEggsWithCrates)}
       ${trendTable("Feed Consumption", ["Date", "Kg"], trends.feed, " kg")}
 
       ${

@@ -267,7 +267,7 @@ export const pricingTiers = [
 export const dashboardPreviewKpis = [
   { label: "Active birds", value: "12,480", sub: "6 active flocks", color: "text-emerald-400" },
   { label: "Feed consumed", value: "2,840 kg", sub: "Last 30 days", color: "text-sky-400" },
-  { label: "Eggs collected", value: "8,920", sub: "This week", color: "text-amber-400" },
+  { label: "Eggs collected", value: "297 crates + 10 eggs (8,920 eggs)", sub: "This week", color: "text-amber-400" },
   { label: "Mortality rate", value: "1.8%", sub: "Within target", color: "text-rose-400" },
   { label: "Revenue", value: "₦4.2M", sub: "Lifetime", color: "text-emerald-400" },
   { label: "Net profit", value: "₦1.1M", sub: "26% margin", color: "text-emerald-300" },

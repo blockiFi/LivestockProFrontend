@@ -9,6 +9,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import type { BatchActivityRow } from "@/lib/request"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { formatDate, cn } from "@/lib/utils"
 import {
   getCategoryMeta,
@@ -127,10 +128,14 @@ function ActivityCard({ row }: { row: BatchActivityRow }) {
 
         {!isFeed && row.quantity != null && (
           <div className="inline-flex items-baseline gap-1 rounded-lg bg-slate-50 px-2.5 py-1.5">
-            <span className="text-lg font-bold tabular-nums text-slate-900">
-              {row.quantity.toLocaleString()}
+            <span className="text-sm font-bold tabular-nums text-slate-900 leading-snug">
+              {row.category === "egg_production"
+                ? formatEggsWithCrates(row.quantity)
+                : row.quantity.toLocaleString()}
             </span>
-            {row.unit && <span className="text-xs text-muted-foreground">{row.unit}</span>}
+            {row.unit && row.category !== "egg_production" && (
+              <span className="text-xs text-muted-foreground">{row.unit}</span>
+            )}
           </div>
         )}
 

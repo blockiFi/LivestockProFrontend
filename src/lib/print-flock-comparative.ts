@@ -1,4 +1,5 @@
 import type { FlockComparativeReport } from "@/lib/types"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { formatCurrency } from "@/lib/utils"
 
 export type FlockComparativePrintInput = {
@@ -41,7 +42,8 @@ function formatMetricValue(key: string, value: number | null): string {
   if (key.includes("profit") || key.includes("cost") || key.includes("revenue")) {
     return `₦${formatCurrency(value)}`
   }
-  if (key.includes("weight") || key.includes("eggs")) return value.toLocaleString()
+  if (key === "total_eggs" || key.endsWith("_eggs")) return formatEggsWithCrates(value)
+  if (key.includes("weight")) return value.toLocaleString()
   return value.toFixed(2)
 }
 

@@ -3,6 +3,7 @@ import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import type { DetailedFlockRecord, FlockAiInsights, FlockProfitLoss } from "@/lib/types"
 import { buildFlockMetrics } from "@/lib/flockMetrics"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { getFlockMetricsAiInsights } from "@/lib/request"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -196,11 +197,11 @@ export default function FlockMetricsDashboard({
       cards.push({
         key: "eggs",
         title: "Total Eggs",
-        value: kpis.totalEggs.toLocaleString(),
+        value: formatEggsWithCrates(kpis.totalEggs),
         footer:
           kpis.henDayProduction != null
             ? `${kpis.henDayProduction.toFixed(1)}% hen-day`
-            : `${kpis.avgDailyEggs.toFixed(0)} avg / day`,
+            : `${formatEggsWithCrates(Math.round(kpis.avgDailyEggs))} avg / day`,
         icon: <Egg className="h-4 w-4" />,
         cardStyles: "border-violet-200/80 bg-violet-50/50",
         iconStyles: "bg-violet-100 text-violet-700",
@@ -244,7 +245,19 @@ export default function FlockMetricsDashboard({
         <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
         <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
         <YAxis tick={{ fontSize: 11 }} width={40} />
-        <ChartTooltip content={<ChartTooltipContent />} />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              formatter={(value) => {
+                const n = Number(value) || 0
+                if (unit === "Eggs") return formatEggsWithCrates(n)
+                if (unit === "Kg") return `${n.toLocaleString()} kg`
+                if (unit === "Grams") return `${n.toLocaleString()} g`
+                return `${n.toLocaleString()} ${unit.toLowerCase()}`
+              }}
+            />
+          }
+        />
         <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={{ r: 3 }} />
       </LineChart>
     </ChartContainer>

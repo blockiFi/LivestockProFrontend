@@ -30,6 +30,7 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import StatisticsCard from "@/components/general/StatisticsCard"
 import { exportFlockComparativePdf, printFlockComparativeReport } from "@/lib/print-flock-comparative"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { cn, formatCurrency, Naira } from "@/lib/utils"
 import {
   AlertTriangle,
@@ -69,6 +70,7 @@ function formatMetricValue(key: string, value: number | null): string {
   if (key === "feed_conversion_ratio") return value.toFixed(2)
   if (key === "net_profit" || key === "cost_per_bird") return `${Naira}${formatCurrency(value)}`
   if (key === "latest_weight_g") return `${value.toFixed(0)} g`
+  if (key === "total_eggs") return formatEggsWithCrates(value)
   return value.toFixed(2)
 }
 

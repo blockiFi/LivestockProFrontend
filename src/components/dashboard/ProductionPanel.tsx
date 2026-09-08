@@ -5,6 +5,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import type { DashboardSeriesPoint } from "@/lib/types"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import {
   Area,
   AreaChart,
@@ -50,7 +51,18 @@ const ProductionPanel = ({ series }: Props) => {
               />
               <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    formatter={(value, name) => {
+                      if (name === "eggs") {
+                        return formatEggsWithCrates(Number(value) || 0)
+                      }
+                      return `${Number(value).toLocaleString()} kg`
+                    }}
+                  />
+                }
+              />
               <Area
                 yAxisId="left"
                 type="monotone"

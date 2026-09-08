@@ -45,7 +45,7 @@ const KpiCard = ({
             {title}
           </p>
           <div className="mt-1 flex items-baseline gap-1">
-            <h2 className="truncate text-2xl font-semibold text-slate-900">{value}</h2>
+            <h2 className="text-lg font-semibold leading-snug text-slate-900 break-words sm:text-xl">{value}</h2>
             {unit ? <span className="text-xs text-slate-500">{unit}</span> : null}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">

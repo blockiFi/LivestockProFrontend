@@ -25,6 +25,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import StatisticsCard from "@/components/general/StatisticsCard";
+import { formatEggsWithCrates } from "@/lib/eggMetrics";
 import { formatCurrency, Naira } from "@/lib/utils";
 import type { FarmSalesProfitLoss, SalesRecord } from "@/lib/types";
 import {
@@ -63,7 +64,10 @@ const PRODUCT_SALE_COLUMNS: ExportColumn<SalesRecord>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
   { header: "Type", value: (row) => row.type },
   { header: "Flock", value: (row) => row.flock?.name ?? "" },
-  { header: "Qty", value: (row) => row.quantity },
+  {
+    header: "Qty",
+    value: (row) => (row.type === "egg" ? formatEggsWithCrates(row.quantity) : row.quantity),
+  },
   { header: "Total", value: (row) => row.total_amount ?? 0 },
   { header: "Customer", value: (row) => row.customer_name || row.customer?.name || "" },
 ]
@@ -577,7 +581,11 @@ const SalesProfitLossPage = () => {
                           "Farm-level"
                         )}
                       </TableCell>
-                      <TableCell className="text-right">{Number(row.quantity).toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        {row.type === "egg"
+                          ? formatEggsWithCrates(row.quantity)
+                          : Number(row.quantity).toLocaleString()}
+                      </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(row.total_amount)}</TableCell>
                       <TableCell>
                         <CustomerNameLink

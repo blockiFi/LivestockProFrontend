@@ -1,5 +1,6 @@
 import KpiCard from "./KpiCard"
 import type { DashboardKpis, DashboardSeriesPoint } from "@/lib/types"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { formatCount, formatMoney, safeRatio } from "@/lib/utils"
 import { Bird, DollarSign, Egg, Scale, Skull, TrendingUp } from "lucide-react"
 
@@ -42,7 +43,7 @@ const KpiGrid = ({ kpis, previous, series }: Props) => {
       />
       <KpiCard
         title="Eggs collected"
-        value={formatCount(kpis.eggs)}
+        value={formatEggsWithCrates(kpis.eggs)}
         icon={<Egg className="h-4 w-4" />}
         iconStyles="bg-amber-50 text-amber-600"
         sparkline={eggSpark}

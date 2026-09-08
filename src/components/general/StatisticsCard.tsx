@@ -21,7 +21,7 @@ const StatisticsCard = ({ cardStyles , title , value, footerIcon, footer , icon 
       <div className="flex justify-between items-start">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <h2 className="text-3xl font-bold text-foreground mt-1">{value}</h2>
+          <h2 className="text-xl font-bold text-foreground mt-1 leading-snug break-words sm:text-2xl">{value}</h2>
           <p className="text-xs text-muted-foreground mt-1">
             <span className="flex items-center">
               {footerIcon ?? footerIcon}

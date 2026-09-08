@@ -27,6 +27,7 @@ import {
 import { Link, useLoaderData } from "react-router-dom"
 import type { DetailedFlockRecord, FeedInventoryType, FeedType, FlockProfitLoss, PoultryDailyReport, PoultryFeedUsageRecord } from "@/lib/types"
 import { getDaysInFlock, formatDate, isFlockActive, cn } from "@/lib/utils"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { toLocalIsoDate } from "@/lib/dateRange"
 import { flockAgeDaysOnDate, formatBirdAgeWeeksAndDays } from "@/lib/feed-age"
 import FlockOverview from "@/components/poultry/Flocks/FlockOverview"
@@ -1251,9 +1252,9 @@ const FlockPage = () => {
                     <p className="text-xs text-emerald-600 font-medium mb-1">
                       {flock.poultry_type.name.toLowerCase().includes("layer") ? "Total Eggs" : "Records"}
                     </p>
-                    <p className="text-2xl font-bold text-emerald-900">
+                    <p className="text-xl font-bold text-emerald-900 leading-tight">
                       {flock.poultry_type.name.toLowerCase().includes("layer")
-                        ? totalEggs.toLocaleString()
+                        ? formatEggsWithCrates(totalEggs)
                         : flock.daily_records?.length ?? 0}
                     </p>
                   </div>

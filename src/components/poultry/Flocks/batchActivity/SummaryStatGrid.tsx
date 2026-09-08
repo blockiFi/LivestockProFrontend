@@ -16,6 +16,7 @@ import {
 
 import type { BatchActivitySummary } from "@/lib/request"
 import { SUMMARY_LABELS } from "@/lib/batchActivityExport"
+import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -73,8 +74,12 @@ export default function SummaryStatGrid({ summary }: Props) {
                 <p className="text-[11px] font-medium text-slate-500 leading-tight line-clamp-2">
                   {label}
                 </p>
-                <p className="mt-1.5 text-xl font-bold tabular-nums text-slate-900">
-                  {typeof value === "number" ? value.toLocaleString() : String(value)}
+                <p className="mt-1.5 text-sm font-bold tabular-nums text-slate-900 leading-snug">
+                  {key === "egg_total" && typeof value === "number"
+                    ? formatEggsWithCrates(value)
+                    : typeof value === "number"
+                      ? value.toLocaleString()
+                      : String(value)}
                 </p>
               </div>
               <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>

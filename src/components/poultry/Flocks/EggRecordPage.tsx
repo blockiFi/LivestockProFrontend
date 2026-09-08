@@ -373,7 +373,7 @@ const EggRecordPage = ({
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Collected</p>
-              <p className="text-2xl font-bold text-amber-600">{kpis.totalEggs.toLocaleString()}</p>
+              <p className="text-lg font-bold text-amber-600 leading-tight">{formatEggsWithCrates(kpis.totalEggs)}</p>
               {(dateFrom || dateTo) && (
                 <p className="text-xs text-gray-400 mt-0.5">In selected range</p>
               )}
@@ -387,7 +387,7 @@ const EggRecordPage = ({
             </div>
             <div>
               <p className="text-sm text-gray-500">Broken Eggs</p>
-              <p className="text-2xl font-bold text-rose-600">{brokenInRange.toLocaleString()}</p>
+              <p className="text-lg font-bold text-rose-600 leading-tight">{formatEggsWithCrates(brokenInRange)}</p>
               {(dateFrom || dateTo) && (
                 <p className="text-xs text-gray-400 mt-0.5">In selected range</p>
               )}
@@ -401,7 +401,8 @@ const EggRecordPage = ({
             </div>
             <div>
               <p className="text-sm text-gray-500">Avg Daily Production</p>
-              <p className="text-2xl font-bold text-emerald-600">{kpis.avgDailyEggs.toFixed(0)}</p>
+              <p className="text-lg font-bold text-emerald-600 leading-tight">{formatEggsWithCrates(Math.round(kpis.avgDailyEggs))}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">avg / day</p>
             </div>
           </div>
         </Card>
@@ -444,7 +445,18 @@ const EggRecordPage = ({
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
               <YAxis yAxisId="left" tick={{ fontSize: 11 }} width={44} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} width={44} domain={[0, 100]} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    formatter={(value, name) => {
+                      if (String(name).toLowerCase().includes("egg")) {
+                        return formatEggsWithCrates(Number(value) || 0)
+                      }
+                      return `${Number(value).toFixed(1)}%`
+                    }}
+                  />
+                }
+              />
               <Line yAxisId="left" type="monotone" dataKey="eggs" stroke="#d97706" strokeWidth={2} dot={{ r: 2 }} name="Eggs" />
               <Line yAxisId="right" type="monotone" dataKey="productionPct" stroke="#059669" strokeWidth={2} dot={{ r: 2 }} name="Production %" />
             </LineChart>
