@@ -3594,6 +3594,10 @@ export type ProductSaleFormPayload = {
   customer_phone?: string | null;
   payment_method?: string | null;
   payment_status?: 'pending' | 'paid' | 'partial';
+  payment_mode?: 'cash' | 'bank_transfer' | 'pos' | 'other' | 'pending' | 'customer_account' | 'account_and_other';
+  account_amount?: number;
+  other_amount?: number;
+  other_payment_method?: 'cash' | 'bank_transfer' | 'pos' | 'other';
   amount_paid?: number;
   notes?: string | null;
 };

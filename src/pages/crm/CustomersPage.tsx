@@ -24,8 +24,8 @@ import {
 } from "lucide-react"
 
 import type { RootState } from "@/store"
-import type { Customer } from "@/lib/types"
-import { deleteCustomer, getCustomers } from "@/lib/crmRequest"
+import type { Customer, CustomerAccountFarmSummary } from "@/lib/types"
+import { deleteCustomer, getCustomerAccountSummary, getCustomers } from "@/lib/crmRequest"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -170,6 +170,7 @@ export default function CustomersPage() {
   const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
 
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [walletSummary, setWalletSummary] = useState<CustomerAccountFarmSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -189,17 +190,23 @@ export default function CustomersPage() {
   const loadCustomers = useCallback(async () => {
     if (!token || !farmId) return
     setLoading(true)
-    const res = await getCustomers(token, farmId, {
-      search: debouncedSearch || undefined,
-      active:
-        statusFilter === "all" || statusFilter === "outstanding"
-          ? undefined
-          : statusFilter === "active",
-    })
+    const [res, walletRes] = await Promise.all([
+      getCustomers(token, farmId, {
+        search: debouncedSearch || undefined,
+        active:
+          statusFilter === "all" || statusFilter === "outstanding"
+            ? undefined
+            : statusFilter === "active",
+      }),
+      getCustomerAccountSummary(token, farmId),
+    ])
     if (res.success && res.data) {
       setCustomers(res.data)
     } else {
       toast.error(res.error?.join(", ") || "Failed to load customers")
+    }
+    if (walletRes.success && walletRes.data) {
+      setWalletSummary(walletRes.data)
     }
     setLoading(false)
   }, [token, farmId, debouncedSearch, statusFilter])
@@ -335,6 +342,43 @@ export default function CustomersPage() {
             iconBg="bg-amber-50 text-amber-600"
           />
         </div>
+
+        {walletSummary ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              title="Prepaid balances"
+              value={formatCurrency(walletSummary.total_balances)}
+              subtitle={`${walletSummary.customers_with_balance} customers with balance`}
+              icon={Wallet}
+              accent="bg-emerald-500"
+              iconBg="bg-emerald-50 text-emerald-600"
+            />
+            <StatCard
+              title="Total deposits"
+              value={formatCurrency(walletSummary.total_deposits)}
+              subtitle="Account top-ups"
+              icon={TrendingUp}
+              accent="bg-teal-500"
+              iconBg="bg-teal-50 text-teal-600"
+            />
+            <StatCard
+              title="Account payments"
+              value={formatCurrency(walletSummary.total_account_payments)}
+              subtitle="Spent from prepaid accounts"
+              icon={Clock}
+              accent="bg-sky-500"
+              iconBg="bg-sky-50 text-sky-600"
+            />
+            <StatCard
+              title="Low balance"
+              value={String(walletSummary.low_balance_customers)}
+              subtitle={`Refunds ${formatCurrency(walletSummary.total_refunds)}`}
+              icon={AlertCircle}
+              accent="bg-rose-500"
+              iconBg="bg-rose-50 text-rose-600"
+            />
+          </div>
+        ) : null}
 
         {/* Toolbar */}
         <Card className="border-slate-200/80 shadow-sm">

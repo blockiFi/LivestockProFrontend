@@ -5,7 +5,7 @@ import { CreditCard, Loader2, Wallet } from "lucide-react"
 
 import type { RootState } from "@/store"
 import type { CustomerHistoryItem } from "@/lib/types"
-import { recordCustomerPayment } from "@/lib/crmRequest"
+import { getCustomerAccount, recordCustomerPayment } from "@/lib/crmRequest"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -58,42 +58,88 @@ export default function RecordPaymentModal({
   const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
 
   const [amount, setAmount] = useState("")
-  const [paymentMethod, setPaymentMethod] = useState("")
+  const [paymentMode, setPaymentMode] = useState("cash")
+  const [accountAmount, setAccountAmount] = useState("")
+  const [otherAmount, setOtherAmount] = useState("")
+  const [otherMethod, setOtherMethod] = useState("cash")
   const [notes, setNotes] = useState("")
   const [saving, setSaving] = useState(false)
+  const [accountBalance, setAccountBalance] = useState(0)
 
   const balance = item ? resolveBalance(item) : 0
   const paid = item ? resolvePaid(item) : 0
   const total = item ? Number(item.amount) : 0
   const canRecord = item && (item.type === "product" || item.type === "invoice") && balance > 0
+  const isProduct = item?.type === "product"
 
   useEffect(() => {
     if (!open || !item) return
     setAmount(balance > 0 ? String(balance) : "")
-    setPaymentMethod(String(item.meta?.payment_method ?? ""))
+    setPaymentMode("cash")
+    setAccountAmount("")
+    setOtherAmount("")
+    setOtherMethod("cash")
     setNotes("")
   }, [open, item, balance])
 
+  useEffect(() => {
+    if (!open || !token || !farmId || !isProduct) return
+    void getCustomerAccount(token, farmId, customerId).then((res) => {
+      if (res.success && res.data) {
+        setAccountBalance(Number(res.data.account.balance))
+      }
+    })
+  }, [open, token, farmId, customerId, isProduct])
+
   const handleSubmit = async () => {
     if (!token || !farmId || !item || !canRecord) return
-    const paymentAmount = Number(amount)
-    if (!paymentAmount || paymentAmount <= 0) {
-      toast.error("Enter a valid payment amount")
-      return
+
+    const payload: Parameters<typeof recordCustomerPayment>[3] = {
+      type: item.type as "product" | "invoice",
+      id: item.id,
+      notes: notes || undefined,
     }
-    if (paymentAmount > balance + 0.01) {
-      toast.error(`Amount cannot exceed balance due (${formatCurrency(balance)})`)
-      return
+
+    if (isProduct && paymentMode === "customer_account") {
+      const debit = Number(amount)
+      if (!debit || debit <= 0) {
+        toast.error("Enter a valid account payment amount")
+        return
+      }
+      if (debit > accountBalance + 0.01) {
+        toast.error(`Insufficient account balance (${formatCurrency(accountBalance)})`)
+        return
+      }
+      payload.payment_mode = "customer_account"
+      payload.amount = debit
+    } else if (isProduct && paymentMode === "account_and_other") {
+      const acct = Number(accountAmount)
+      const other = Number(otherAmount)
+      if (acct <= 0) {
+        toast.error("Enter account amount")
+        return
+      }
+      payload.payment_mode = "account_and_other"
+      payload.account_amount = acct
+      payload.other_amount = other
+      payload.other_payment_method = otherMethod as "cash" | "bank_transfer" | "pos" | "other"
+      payload.amount = acct + other
+    } else {
+      const paymentAmount = Number(amount)
+      if (!paymentAmount || paymentAmount <= 0) {
+        toast.error("Enter a valid payment amount")
+        return
+      }
+      if (paymentAmount > balance + 0.01) {
+        toast.error(`Amount cannot exceed balance due (${formatCurrency(balance)})`)
+        return
+      }
+      payload.amount = paymentAmount
+      payload.payment_method = paymentMode
     }
 
     setSaving(true)
-    const res = await recordCustomerPayment(token, farmId, customerId, {
-      type: item.type as "product" | "invoice",
-      id: item.id,
-      amount: paymentAmount,
-      payment_method: paymentMethod || undefined,
-      notes: notes || undefined,
-    })
+    const res = await recordCustomerPayment(token, farmId, customerId, payload)
     setSaving(false)
 
     if (!res.success || !res.data) {
@@ -120,111 +166,105 @@ export default function RecordPaymentModal({
             <Wallet className="h-5 w-5 text-indigo-600" />
             Record payment
           </DialogTitle>
-          <DialogDescription>{item.description}</DialogDescription>
+          <DialogDescription>
+            {item.description} · Due {formatCurrency(balance)} (paid {formatCurrency(paid)} of{" "}
+            {formatCurrency(total)})
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-500">Status</span>
-            <PaymentStatusBadge status={item.payment_status} />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <span>Status</span>
+            <PaymentStatusBadge status={String(item.payment_status ?? item.meta?.status ?? "pending")} />
           </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Total</p>
-              <p className="font-semibold text-slate-900 tabular-nums">{formatCurrency(total)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Paid</p>
-              <p className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(paid)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Balance</p>
-              <p className="font-semibold text-amber-700 tabular-nums">{formatCurrency(balance)}</p>
-            </div>
-          </div>
-        </div>
 
-        {!canRecord ? (
-          <p className="text-sm text-slate-500">This transaction is already fully paid.</p>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="payment-amount">Payment amount</Label>
+          <div className="space-y-1.5">
+            <Label>Payment method</Label>
+            <Select value={paymentMode} onValueChange={setPaymentMode}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                <SelectItem value="pos">POS</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+                {isProduct ? (
+                  <>
+                    <SelectItem value="customer_account">
+                      Customer Account ({formatCurrency(accountBalance)})
+                    </SelectItem>
+                    <SelectItem value="account_and_other">Account + Other</SelectItem>
+                  </>
+                ) : null}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {paymentMode === "account_and_other" && isProduct ? (
+            <>
+              <div className="space-y-1.5">
+                <Label>Account amount</Label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={accountAmount}
+                  onChange={(e) => setAccountAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Other amount</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={otherAmount}
+                  onChange={(e) => setOtherAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Other method</Label>
+                <Select value={otherMethod} onValueChange={setOtherMethod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="pos">POS</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Amount</Label>
               <Input
-                id="payment-amount"
                 type="number"
-                min={0.01}
-                step={0.01}
-                max={balance}
+                min="0.01"
+                step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="h-10"
-              />
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setAmount(String(balance))}
-                >
-                  Pay full balance
-                </Button>
-                {balance > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setAmount(String(Math.round((balance / 2) * 100) / 100))}
-                  >
-                    Pay half
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Payment method</Label>
-              <Select value={paymentMethod || "none"} onValueChange={(v) => setPaymentMethod(v === "none" ? "" : v)}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Select method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Not specified</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="bank_transfer">Bank transfer</SelectItem>
-                  <SelectItem value="mobile_money">Mobile money</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                  <SelectItem value="pos">POS / Card</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="payment-notes">Note (optional)</Label>
-              <Textarea
-                id="payment-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                placeholder="e.g. First installment"
-                className="resize-none"
               />
             </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
-        )}
+        </div>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          {canRecord && (
-            <Button type="button" onClick={() => void handleSubmit()} disabled={saving} className="gap-2">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-              {saving ? "Recording..." : "Record payment"}
-            </Button>
-          )}
+          <Button type="button" onClick={() => void handleSubmit()} disabled={saving || !canRecord}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+            Record payment
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

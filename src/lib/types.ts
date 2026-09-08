@@ -1459,8 +1459,58 @@ export interface Customer {
   country_id: number
   country?: { id: number; name: string; iso_code?: string | null }
   summary?: CustomerSummary
+  account?: CustomerAccount | null
   created_at?: string
   updated_at?: string
+}
+
+export interface CustomerAccount {
+  id: number
+  farm_id: number
+  customer_id: number
+  balance: number | string
+  currency?: string | null
+  status: "active" | "frozen" | string
+  low_balance_threshold?: number | string | null
+  total_credited: number | string
+  total_debited: number | string
+  last_top_up_at?: string | null
+  last_payment_at?: string | null
+}
+
+export type CustomerAccountTxnType =
+  | "top_up"
+  | "sale_payment"
+  | "adjustment"
+  | "refund"
+  | "reversal"
+
+export interface CustomerAccountTransaction {
+  id: number
+  uuid: string
+  type: CustomerAccountTxnType | string
+  direction: "credit" | "debit"
+  amount: number | string
+  balance_before: number | string
+  balance_after: number | string
+  payment_method?: string | null
+  reference?: string | null
+  description?: string | null
+  notes?: string | null
+  sales_record_id?: number | null
+  occurred_at?: string | null
+  created_at?: string
+  created_by?: { id: number; name: string } | null
+  sales_record?: { id: number; type?: string; total_amount?: number | string } | null
+}
+
+export interface CustomerAccountFarmSummary {
+  total_balances: number
+  total_deposits: number
+  total_account_payments: number
+  total_refunds: number
+  customers_with_balance: number
+  low_balance_customers: number
 }
 
 export interface CustomerHistoryItem {

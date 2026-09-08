@@ -70,6 +70,7 @@ export const ROUTE_PERMISSION_RULES: RoutePermissionRule[] = [
   { pattern: /^\/dashboard\/equipment/, anyOf: viewEquipment },
 
   // CRM
+  { pattern: /^\/dashboard\/crm\/customers\/[^/]+\/account/, anyOf: [...viewCustomers, "view customer accounts"] },
   { pattern: /^\/dashboard\/crm\/customers/, anyOf: viewCustomers },
 
   // Invoices

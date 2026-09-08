@@ -3,6 +3,9 @@ import axios, { isAxiosError } from "axios"
 import type {
   ApiInvoice,
   Customer,
+  CustomerAccount,
+  CustomerAccountFarmSummary,
+  CustomerAccountTransaction,
   CustomerHistoryItem,
   CustomerSummary,
   FarmSettings,
@@ -104,7 +107,15 @@ export async function getCustomer(
   token: string,
   farmId: number,
   customerId: number
-): Promise<RequestResponse<{ customer: Customer; summary: CustomerSummary }>> {
+): Promise<
+  RequestResponse<{
+    customer: Customer
+    summary: CustomerSummary
+    account?: CustomerAccount
+    recent_account_transactions?: CustomerAccountTransaction[]
+    is_low_balance?: boolean
+  }>
+> {
   try {
     const response = await axios.get(`/api/farms/${farmId}/customers/${customerId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -215,11 +226,15 @@ export async function recordCustomerPayment(
   payload: {
     type: "product" | "invoice"
     id: number
-    amount: number
+    amount?: number
     payment_method?: string
+    payment_mode?: string
+    account_amount?: number
+    other_amount?: number
+    other_payment_method?: string
     notes?: string
   }
-): Promise<RequestResponse<{ payment: { type: string; id: number; amount_paid: number; balance_due: number; payment_status: string }; summary: CustomerSummary }>> {
+): Promise<RequestResponse<{ payment: { type: string; id: number; amount_paid: number; balance_due: number; payment_status: string }; summary: CustomerSummary; account?: CustomerAccount }>> {
   try {
     const response = await axios.post(`/api/farms/${farmId}/customers/${customerId}/payments`, payload, {
       headers: { Authorization: `Bearer ${token}` },
@@ -227,12 +242,190 @@ export async function recordCustomerPayment(
     return { success: true, data: response.data.data }
   } catch (error: unknown) {
     if (isAxiosError(error)) {
+      const errors = error.response?.data?.errors
+      const message =
+        typeof errors === "object" && errors && "message" in errors
+          ? String((errors as { message?: string }).message)
+          : error.response?.data?.message
       return {
         success: false,
-        error: error.response?.data?.errors || [error.response?.data?.message || "Failed to record payment"],
+        error: Array.isArray(errors)
+          ? errors
+          : [message || "Failed to record payment"],
+        data: errors && !Array.isArray(errors) ? (errors as never) : undefined,
       }
     }
     return { success: false, error: ["Failed to record payment"] }
+  }
+}
+
+function accountError(error: unknown, fallback: string): RequestResponse<never> {
+  if (isAxiosError(error)) {
+    const errors = error.response?.data?.errors
+    const message = error.response?.data?.message || fallback
+    if (Array.isArray(errors)) {
+      return { success: false, error: errors }
+    }
+    if (errors && typeof errors === "object" && "message" in errors) {
+      return { success: false, error: [String((errors as { message: string }).message)], data: errors as never }
+    }
+    return { success: false, error: [message] }
+  }
+  return { success: false, error: [fallback] }
+}
+
+export async function getCustomerAccountSummary(
+  token: string,
+  farmId: number
+): Promise<RequestResponse<CustomerAccountFarmSummary>> {
+  try {
+    const response = await axios.get(`/api/farms/${farmId}/customer-accounts/summary`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    return accountError(error, "Failed to fetch account summary")
+  }
+}
+
+export async function getCustomerAccount(
+  token: string,
+  farmId: number,
+  customerId: number
+): Promise<
+  RequestResponse<{
+    account: CustomerAccount
+    recent_transactions: CustomerAccountTransaction[]
+    is_low_balance: boolean
+  }>
+> {
+  try {
+    const response = await axios.get(`/api/farms/${farmId}/customers/${customerId}/account`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    return accountError(error, "Failed to fetch customer account")
+  }
+}
+
+export async function topUpCustomerAccount(
+  token: string,
+  farmId: number,
+  customerId: number,
+  payload: {
+    amount: number
+    payment_method: string
+    reference?: string
+    description?: string
+    notes?: string
+    occurred_at?: string
+  }
+): Promise<
+  RequestResponse<{
+    previous_balance: number
+    top_up: number
+    new_balance: number
+    account: CustomerAccount
+    transaction: CustomerAccountTransaction
+  }>
+> {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/customers/${customerId}/account/top-ups`,
+      payload,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    return accountError(error, "Failed to top up account")
+  }
+}
+
+export async function adjustCustomerAccount(
+  token: string,
+  farmId: number,
+  customerId: number,
+  payload: {
+    amount: number
+    direction: "credit" | "debit"
+    reason: string
+    reference?: string
+    notes?: string
+  }
+): Promise<RequestResponse<{ account: CustomerAccount; transaction: CustomerAccountTransaction }>> {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/customers/${customerId}/account/adjustments`,
+      payload,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    return accountError(error, "Failed to adjust account")
+  }
+}
+
+export async function getCustomerAccountStatement(
+  token: string,
+  farmId: number,
+  customerId: number,
+  params?: Record<string, string | number | undefined>
+): Promise<
+  RequestResponse<{
+    account: CustomerAccount
+    opening_balance: number | null
+    transactions: CustomerAccountTransaction[]
+    meta: { current_page: number; last_page: number; per_page: number; total: number }
+  }>
+> {
+  try {
+    const response = await axios.get(`/api/farms/${farmId}/customers/${customerId}/account/statement`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
+    })
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    return accountError(error, "Failed to fetch statement")
+  }
+}
+
+export async function refundCustomerAccountSale(
+  token: string,
+  farmId: number,
+  customerId: number,
+  payload: { sales_record_id: number; amount?: number; notes?: string }
+): Promise<RequestResponse<{ account: CustomerAccount; transaction: CustomerAccountTransaction }>> {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/customers/${customerId}/account/refunds`,
+      payload,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    return accountError(error, "Failed to refund account payment")
+  }
+}
+
+export async function exportCustomerAccountStatement(
+  token: string,
+  farmId: number,
+  customerId: number,
+  params?: Record<string, string | number | undefined>
+): Promise<Blob | null> {
+  try {
+    const response = await axios.get(
+      `/api/farms/${farmId}/customers/${customerId}/account/statement/export`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+        responseType: "blob",
+      }
+    )
+    return response.data as Blob
+  } catch {
+    return null
   }
 }
 
