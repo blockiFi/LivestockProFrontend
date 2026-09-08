@@ -35,14 +35,19 @@ export function relativeTime(iso?: string | null): string {
   return date.toLocaleDateString()
 }
 
+const ANNOUNCEMENT_TYPES = new Set([
+  "platform_broadcast",
+  "system_announcement",
+])
+
 export function isPlatformBroadcast(
   notification: Pick<AppNotification, "type">
 ): boolean {
-  return notification.type === "platform_broadcast"
+  return ANNOUNCEMENT_TYPES.has(notification.type ?? "")
 }
 
 export function categoryLabel(category?: string, type?: string): string {
-  if (type === "platform_broadcast") return "Announcement"
+  if (type && ANNOUNCEMENT_TYPES.has(type)) return "Announcement"
   switch (category) {
     case "tasks":
       return "Task"

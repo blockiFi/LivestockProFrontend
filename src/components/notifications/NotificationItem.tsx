@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -24,22 +23,14 @@ export default function NotificationItem({
   onOpen,
   onDismiss,
 }: Props) {
-  const navigate = useNavigate()
   const Icon = notificationIcon(notification)
   const unread = !notification.is_read && !notification.read_at
   const broadcast = isPlatformBroadcast(notification)
 
-  const handleOpen = () => {
-    onOpen?.(notification)
-    if (notification.action_url) {
-      navigate(notification.action_url)
-    }
-  }
-
   return (
     <button
       type="button"
-      onClick={handleOpen}
+      onClick={() => onOpen?.(notification)}
       className={cn(
         "w-full text-left rounded-xl border p-3 transition-colors",
         broadcast
@@ -83,6 +74,7 @@ export default function NotificationItem({
           {notification.body && (!compact || broadcast) && (
             <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{notification.body}</p>
           )}
+          <p className="mt-1 text-[11px] font-medium text-sky-600">View details</p>
           {onDismiss && (
             <div className="mt-2">
               <Button

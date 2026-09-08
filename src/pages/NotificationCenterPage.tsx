@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useSelector } from "react-redux"
 import { toast } from "react-toastify"
 import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import NotificationDetailSheet from "@/components/notifications/NotificationDetailSheet"
 import NotificationItem from "@/components/notifications/NotificationItem"
 import { isPlatformBroadcast } from "@/lib/notificationHelpers"
 import {
@@ -29,10 +31,15 @@ const TABS = [
 export default function NotificationCenterPage() {
   const token = useSelector((state: RootState) => state.authentication.token)
   const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tab, setTab] = useState<string>("all")
   const [search, setSearch] = useState("")
   const [items, setItems] = useState<AppNotification[]>([])
   const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<AppNotification | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+
+  const openId = searchParams.get("open")
 
   const query = useMemo(() => {
     const params: Parameters<typeof getNotifications>[1] = {
@@ -40,7 +47,7 @@ export default function NotificationCenterPage() {
       limit: 80,
     }
     if (tab === "unread") params.unread_only = true
-    else if (tab === "announcements") params.type = "platform_broadcast"
+    else if (tab === "announcements") params.category = "system"
     else if (tab === "system" || tab === "farm_operations") params.category = undefined
     else if (tab !== "all") params.category = tab
     if (search.trim()) params.search = search.trim()
@@ -72,22 +79,44 @@ export default function NotificationCenterPage() {
     void refresh()
   }, [refresh])
 
-  const handleOpen = async (notification: AppNotification) => {
-    if (!token) return
-    if (!notification.is_read && !notification.read_at) {
-      await markNotificationRead(token, notification.id)
-      setItems((current) =>
-        current.map((row) =>
-          row.id === notification.id ? { ...row, read_at: new Date().toISOString(), is_read: true } : row
+  const openNotification = useCallback(
+    async (notification: AppNotification) => {
+      if (!token) return
+      setSelected(notification)
+      setDetailOpen(true)
+      if (!notification.is_read && !notification.read_at) {
+        await markNotificationRead(token, notification.id)
+        const updated = { ...notification, read_at: new Date().toISOString(), is_read: true }
+        setSelected(updated)
+        setItems((current) =>
+          current.map((row) => (row.id === notification.id ? updated : row))
         )
-      )
-    }
-  }
+      }
+    },
+    [token]
+  )
+
+  useEffect(() => {
+    if (!openId || items.length === 0) return
+    const id = Number(openId)
+    if (!Number.isFinite(id)) return
+    const match = items.find((row) => row.id === id)
+    if (!match) return
+
+    const next = new URLSearchParams(searchParams)
+    next.delete("open")
+    setSearchParams(next, { replace: true })
+    void openNotification(match)
+  }, [openId, items, openNotification, searchParams, setSearchParams])
 
   const handleDismiss = async (notification: AppNotification) => {
     if (!token) return
     await dismissNotification(token, notification.id)
     setItems((current) => current.filter((row) => row.id !== notification.id))
+    if (selected?.id === notification.id) {
+      setDetailOpen(false)
+      setSelected(null)
+    }
   }
 
   const handleMarkAll = async () => {
@@ -144,7 +173,7 @@ export default function NotificationCenterPage() {
           <NotificationItem
             key={notification.id}
             notification={notification}
-            onOpen={handleOpen}
+            onOpen={openNotification}
             onDismiss={handleDismiss}
           />
         ))}
@@ -152,6 +181,16 @@ export default function NotificationCenterPage() {
           <p className="py-16 text-center text-sm text-slate-500">No notifications in this view.</p>
         )}
       </div>
+
+      <NotificationDetailSheet
+        notification={selected}
+        open={detailOpen}
+        onOpenChange={(next) => {
+          setDetailOpen(next)
+          if (!next) setSelected(null)
+        }}
+        onDismiss={handleDismiss}
+      />
     </div>
   )
 }

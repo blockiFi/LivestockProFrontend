@@ -5,6 +5,7 @@ import { Bell } from "lucide-react"
 import { toast } from "react-toastify"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import NotificationDetailSheet from "@/components/notifications/NotificationDetailSheet"
 import NotificationItem from "@/components/notifications/NotificationItem"
 import { isPlatformBroadcast } from "@/lib/notificationHelpers"
 import {
@@ -42,6 +43,8 @@ export default function NotificationBell() {
   const [unread, setUnread] = useState(0)
   const [items, setItems] = useState<AppNotification[]>([])
   const [settings, setSettings] = useState<UserNotificationSettings | null>(null)
+  const [selected, setSelected] = useState<AppNotification | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
   const previousUnread = useRef<number | null>(null)
   const seenBroadcastIds = useRef<Set<number>>(new Set())
 
@@ -90,7 +93,9 @@ export default function NotificationBell() {
         seenBroadcastIds.current.add(broadcast.id)
         toast.info(broadcast.title, {
           autoClose: 8000,
-          onClick: () => navigate("/dashboard/notifications"),
+          onClick: () => {
+            navigate(`/dashboard/notifications?open=${broadcast.id}`)
+          },
         })
       }
     }
@@ -111,11 +116,25 @@ export default function NotificationBell() {
 
   const handleOpen = async (notification: AppNotification) => {
     if (!token) return
+    setOpen(false)
+    setSelected(notification)
+    setDetailOpen(true)
     if (!notification.is_read && !notification.read_at) {
       await markNotificationRead(token, notification.id)
+      setItems((current) =>
+        current.map((row) =>
+          row.id === notification.id
+            ? { ...row, read_at: new Date().toISOString(), is_read: true }
+            : row
+        )
+      )
+      setSelected((current) =>
+        current?.id === notification.id
+          ? { ...current, read_at: new Date().toISOString(), is_read: true }
+          : current
+      )
+      setUnread((count) => Math.max(0, count - 1))
     }
-    setOpen(false)
-    await refresh()
   }
 
   const handleMarkAll = async () => {
@@ -127,57 +146,68 @@ export default function NotificationBell() {
   const badge = unread > 99 ? "99+" : String(unread)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="icon" className="relative" aria-label="Notifications">
-          <Bell className="h-4 w-4" />
-          {unread > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-white">
-              {badge}
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(24rem,calc(100vw-1.5rem))] p-0">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold">Notifications</p>
-            <p className="text-xs text-muted-foreground">
-              {unread > 0 ? `${unread} unread` : "You're all caught up"}
-            </p>
-          </div>
-          {unread > 0 && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={handleMarkAll}>
-              Mark all read
-            </Button>
-          )}
-        </div>
-        <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3">
-          {items.map((notification) => (
-            <NotificationItem
-              key={notification.id}
-              notification={notification}
-              compact
-              onOpen={handleOpen}
-            />
-          ))}
-          {items.length === 0 && (
-            <p className="py-8 text-center text-sm text-slate-500">No notifications yet.</p>
-          )}
-        </div>
-        <div className="border-t p-2">
-          <Button
-            variant="ghost"
-            className="w-full text-sm"
-            onClick={() => {
-              setOpen(false)
-              navigate("/dashboard/notifications")
-            }}
-          >
-            View all notifications
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="icon" className="relative" aria-label="Notifications">
+            <Bell className="h-4 w-4" />
+            {unread > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-white">
+                {badge}
+              </span>
+            )}
           </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-[min(24rem,calc(100vw-1.5rem))] p-0">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold">Notifications</p>
+              <p className="text-xs text-muted-foreground">
+                {unread > 0 ? `${unread} unread` : "You're all caught up"}
+              </p>
+            </div>
+            {unread > 0 && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={handleMarkAll}>
+                Mark all read
+              </Button>
+            )}
+          </div>
+          <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3">
+            {items.map((notification) => (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                compact
+                onOpen={handleOpen}
+              />
+            ))}
+            {items.length === 0 && (
+              <p className="py-8 text-center text-sm text-slate-500">No notifications yet.</p>
+            )}
+          </div>
+          <div className="border-t p-2">
+            <Button
+              variant="ghost"
+              className="w-full text-sm"
+              onClick={() => {
+                setOpen(false)
+                navigate("/dashboard/notifications")
+              }}
+            >
+              View all notifications
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <NotificationDetailSheet
+        notification={selected}
+        open={detailOpen}
+        onOpenChange={(next) => {
+          setDetailOpen(next)
+          if (!next) setSelected(null)
+        }}
+      />
+    </>
   )
 }
