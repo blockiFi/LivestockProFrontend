@@ -123,7 +123,7 @@ const RECORD_GUIDES: RecordGuide[] = [
     notes: [
       "record_type must be product_sale (singular). product_sales is also accepted as an alias.",
       "type must be egg, meat, or manure (this is product kind — not the same as record_type).",
-      "For egg sales, quantity is deducted from available egg stock for this flock.",
+      "Egg sales in bulk import are not blocked by as-of-date stock checks (manual sales still validate stock).",
     ],
     example: "record_type=product_sale, date=2026-09-03, type=egg, quantity=30, unit_price=250",
   },

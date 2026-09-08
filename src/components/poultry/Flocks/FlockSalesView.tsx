@@ -1,10 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store";
 import type { DetailedFlockRecord, FlockProfitLoss, FlockSale } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 import { isDateInRange } from "@/lib/dateRange";
+import { getFlockProfitLoss } from "@/lib/request";
 import { AlertTriangle, Edit, Plus, ShoppingBag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
@@ -38,6 +41,8 @@ const FlockSalesView = ({
   onUpdateSale,
   onDeleteSale,
 }: FlockSalesViewProps) => {
+  const token = useSelector((s: RootState) => s.authentication.token);
+  const farmId = useSelector((s: RootState) => s.authentication.activeFarm?.id);
   const {
     preset,
     setPreset,
@@ -53,8 +58,18 @@ const FlockSalesView = ({
   const [editingSale, setEditingSale] = useState<FlockSale | null>(null);
   const [deletingSale, setDeletingSale] = useState<FlockSale | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [rangeProfitLoss, setRangeProfitLoss] = useState<FlockProfitLoss | null>(profitLoss);
 
   const sales = Array.isArray(flock.flock_sales) ? flock.flock_sales : [];
+  const expenditures = Array.isArray(flock.flock_expenditures) ? flock.flock_expenditures : [];
+  const salesRevision = useMemo(
+    () => sales.map((s) => `${s.id}:${s.date}:${s.quantity}:${s.total_amount}`).join("|"),
+    [sales]
+  );
+  const expenditureRevision = useMemo(
+    () => expenditures.map((e) => `${e.id}:${e.date}:${e.amount}`).join("|"),
+    [expenditures]
+  );
 
   const filteredSales = useMemo(
     () => sales.filter((sale) => isDateInRange(sale.date, dateFrom, dateTo)),
@@ -72,25 +87,44 @@ const FlockSalesView = ({
     );
   }, [filteredSales]);
 
-  const allTimeTotals = useMemo(() => {
-    return sales.reduce(
-      (acc, sale) => {
-        acc.birds += sale.quantity || 0;
-        acc.revenue += sale.total_amount || 0;
-        return acc;
-      },
-      { birds: 0, revenue: 0 }
-    );
-  }, [sales]);
+  const expenditureInRange = useMemo(() => {
+    return expenditures
+      .filter((item) => isDateInRange(item.date, dateFrom, dateTo))
+      .reduce((sum, item) => sum + (item.amount || 0), 0);
+  }, [expenditures, dateFrom, dateTo]);
 
-  const expenditureTotal = useMemo(() => {
-    const expenditures = Array.isArray(flock.flock_expenditures) ? flock.flock_expenditures : [];
-    return expenditures.reduce((sum, item) => sum + (item.amount || 0), 0);
-  }, [flock.flock_expenditures]);
+  // Refetch P&L whenever the date filter (or underlying sales/costs) changes.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!token || !farmId || !flock.id) {
+        setRangeProfitLoss(profitLoss);
+        return;
+      }
+      const response = await getFlockProfitLoss(
+        token,
+        farmId,
+        flock.id,
+        dateFrom || undefined,
+        dateTo || undefined
+      );
+      if (cancelled) return;
+      if (response.success && response.data) {
+        setRangeProfitLoss(response.data);
+      } else {
+        setRangeProfitLoss(null);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, farmId, flock.id, dateFrom, dateTo, salesRevision, expenditureRevision, profitLoss]);
 
-  const netProfit = profitLoss?.net_profit ?? allTimeTotals.revenue - expenditureTotal;
-  const totalRevenue = profitLoss?.total_revenue ?? allTimeTotals.revenue;
-  const totalCost = profitLoss?.total_cost ?? expenditureTotal;
+  const totalRevenue = rangeProfitLoss?.total_revenue ?? totals.revenue;
+  const totalCost = rangeProfitLoss?.total_cost ?? expenditureInRange;
+  const netProfit = rangeProfitLoss?.net_profit ?? totalRevenue - totalCost;
+  const birdsSold = rangeProfitLoss?.birds_sold ?? totals.birds;
 
   const handleAdd = async (payload: FlockSaleFormPayload) => {
     if (!onAddSale) return;
@@ -176,7 +210,7 @@ const FlockSalesView = ({
             amount={netProfit}
             tone={netProfit >= 0 ? "positive" : "negative"}
           />
-          <SummaryTile label="Birds sold" amount={totals.birds} isCount />
+          <SummaryTile label="Birds sold" amount={birdsSold} isCount />
         </div>
 
         {sales.length === 0 ? (

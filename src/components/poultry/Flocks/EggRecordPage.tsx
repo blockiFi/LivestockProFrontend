@@ -43,6 +43,7 @@ import {
   sumBrokenEggs,
   toDateKey,
 } from "@/lib/eggMetrics"
+import { getBirdCountOnDate } from "@/lib/flock-birds"
 
 const EGG_EXPORT_COLUMNS: ExportColumn<EggReport>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
@@ -154,20 +155,45 @@ const EggRecordPage = ({
     [reports, dateFrom, dateTo]
   )
 
-  const sortedReports = useMemo(
-    () => sortEggReportsByDate(filteredReports, "desc"),
-    [filteredReports]
-  )
-
-  const kpis = useMemo(() => computeEggKpis(filteredReports), [filteredReports])
-  const trendData = useMemo(() => buildEggTrendSeries(filteredReports), [filteredReports])
-
   const dailyRecords = useMemo(() => {
     if (flock && "daily_records" in flock && Array.isArray(flock.daily_records)) {
       return flock.daily_records
     }
     return []
   }, [flock])
+
+  const mortalityReports = useMemo(() => {
+    if (flock && "mortality_reports" in flock && Array.isArray(flock.mortality_reports)) {
+      return flock.mortality_reports
+    }
+    return []
+  }, [flock])
+
+  /** Recompute bird count / production % so the table is correct even if stored bird_count was initial quantity. */
+  const displayFilteredReports = useMemo(() => {
+    const initialQuantity = flock?.quantity || 0
+    return filteredReports.map((report) => {
+      const birdCountOnDate = getBirdCountOnDate(initialQuantity, report.date, {
+        mortalityReports,
+        dailyRecords,
+      })
+      const productionPercentage =
+        birdCountOnDate > 0 ? (Number(report.eggs_collected || 0) / birdCountOnDate) * 100 : 0
+      return {
+        ...report,
+        bird_count: birdCountOnDate,
+        production_percentage: productionPercentage,
+      }
+    })
+  }, [dailyRecords, filteredReports, flock?.quantity, mortalityReports])
+
+  const sortedReports = useMemo(
+    () => sortEggReportsByDate(displayFilteredReports, "desc"),
+    [displayFilteredReports]
+  )
+
+  const kpis = useMemo(() => computeEggKpis(displayFilteredReports), [displayFilteredReports])
+  const trendData = useMemo(() => buildEggTrendSeries(displayFilteredReports), [displayFilteredReports])
 
   /** Egg-report broken + daily broken only for dates without an egg report (legacy). */
   const brokenSource = useMemo(() => {
