@@ -1010,6 +1010,50 @@ export type FlockMetricsAiResponse = {
   ai_available: boolean;
 };
 
+export type BatchChatPendingAction = {
+  id: string;
+  tool_call_id?: string;
+  tool: string;
+  arguments?: Record<string, unknown>;
+  summary: string;
+  expires_at?: string;
+};
+
+export type BatchChatMessage = {
+  id: number;
+  role: "user" | "assistant" | "tool" | "system";
+  content: string | null;
+  pending_actions?: BatchChatPendingAction[] | null;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+};
+
+export type BatchChatSessionSummary = {
+  id: number;
+  title: string | null;
+  status: "active" | "archived" | string;
+  last_message_at?: string | null;
+  has_memory_summary?: boolean;
+  preview?: string | null;
+  created_at?: string | null;
+};
+
+export type BatchChatMemory = {
+  id: number;
+  kind: string;
+  content: string;
+  created_at?: string | null;
+};
+
+export type BatchChatTurnResponse = {
+  session: BatchChatSessionSummary;
+  messages: BatchChatMessage[];
+  assistant_message: BatchChatMessage;
+  pending_actions: BatchChatPendingAction[];
+  refresh?: string[];
+  tool_result?: { ok?: boolean; message?: string } | null;
+};
+
 export type FlockComparativeMetrics = {
   mortality_rate_percent: number;
   survival_rate_percent: number;

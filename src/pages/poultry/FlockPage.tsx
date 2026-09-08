@@ -21,6 +21,7 @@ import {
   Lock,
   Pencil,
   Upload,
+  Sparkles,
 } from "lucide-react"
 import { Link, useLoaderData } from "react-router-dom"
 import type { DetailedFlockRecord, FeedInventoryType, FeedType, FlockProfitLoss, PoultryDailyReport, PoultryFeedUsageRecord } from "@/lib/types"
@@ -42,6 +43,8 @@ import { NotificationSystem } from "@/components/poultry/Flocks/Notification"
 import FlockMetricsModal from "@/components/modals/FlockMetricsModal"
 import { useState, useEffect } from "react"
 import BatchScheduleView from "@/components/poultry/Flocks/batchSchedule/BatchScheduleView"
+import BatchChatSheet from "@/components/poultry/Flocks/BatchChat/BatchChatSheet"
+import { AiGate } from "@/components/general/AiGate"
 // import TodayActivities from "@/components/poultry/Flocks/TodayActivities 
 import AddDailyRecordModal from "@/components/modals/AddDailyRecordModal"
 import AddFlockModal from "@/components/modals/AddFlockModal"
@@ -81,6 +84,7 @@ const FlockPage = () => {
     const [isEditFlockModalOpen, setIsEditFlockModalOpen] = useState(false);
     const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
     const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+    const [isBatchChatOpen, setIsBatchChatOpen] = useState(false);
     
     const token = useSelector((state: RootState) => state.authentication.token);
     const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id);
@@ -969,6 +973,17 @@ const FlockPage = () => {
                   <Activity className="h-4 w-4 mr-2" />
                   Metrics
                 </Button>
+                <AiGate fallback={null}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                    onClick={() => setIsBatchChatOpen(true)}
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Ask Batch AI
+                  </Button>
+                </AiGate>
                 <ActionGate anyOf={ACTIONS.records.create}>
                   <Button
                     variant="outline"
@@ -1665,6 +1680,20 @@ const FlockPage = () => {
               flockId={flock.id}
               onConfirmed={() => {
                 refreshFlock()
+              }}
+            />
+          )}
+
+          {farmId && (
+            <BatchChatSheet
+              isOpen={isBatchChatOpen}
+              onClose={() => setIsBatchChatOpen(false)}
+              farmId={farmId}
+              flockId={flock.id}
+              flockName={flock.name}
+              batchNumber={flock.batch_number}
+              onRefreshNeeded={() => {
+                void refreshFlock()
               }}
             />
           )}

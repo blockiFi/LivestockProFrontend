@@ -1,6 +1,6 @@
 import axios from "./axios"
 import type {    LoginData,  PaginatedRequestType,  RequestResponse } from "./interfaces"
-import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, EggReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout } from "./types"
+import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, EggReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout, BatchChatSessionSummary, BatchChatMessage, BatchChatTurnResponse, BatchChatMemory } from "./types"
 import  { isAxiosError } from "axios"
 
 const flattenApiErrors = (error: unknown): string => {
@@ -3054,6 +3054,279 @@ export const getFlockMetricsAiInsights = async (
           error.response?.data?.errors ||
           [error.response?.data?.message] ||
           ['Failed to fetch flock AI insights'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+const batchChatBase = (farmId: number, flockId: number) =>
+  `/api/farms/${farmId}/flocks/${flockId}/batch-chat`;
+
+const authHeader = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+export const listBatchChatSessions = async (
+  token: string,
+  farmId: number,
+  flockId: number
+): Promise<RequestResponse<{ sessions: BatchChatSessionSummary[] }>> => {
+  try {
+    const response = await axios.get(`${batchChatBase(farmId, flockId)}/sessions`, {
+      headers: authHeader(token),
+    });
+    if (response.status === 200) {
+      return { success: true, data: { sessions: response.data.data?.sessions ?? [] } };
+    }
+    return { success: false, error: [`Error listing batch chats! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to list batch chats'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const createBatchChatSession = async (
+  token: string,
+  farmId: number,
+  flockId: number
+): Promise<RequestResponse<BatchChatSessionSummary>> => {
+  try {
+    const response = await axios.post(
+      `${batchChatBase(farmId, flockId)}/sessions`,
+      {},
+      { headers: authHeader(token) }
+    );
+    if (response.status === 200 || response.status === 201) {
+      return { success: true, data: response.data.data as BatchChatSessionSummary };
+    }
+    return { success: false, error: [`Error creating batch chat! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to create batch chat'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const getBatchChatMessages = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  sessionId: number
+): Promise<RequestResponse<{ session: BatchChatSessionSummary; messages: BatchChatMessage[] }>> => {
+  try {
+    const response = await axios.get(
+      `${batchChatBase(farmId, flockId)}/sessions/${sessionId}/messages`,
+      { headers: authHeader(token) }
+    );
+    if (response.status === 200) {
+      return {
+        success: true,
+        data: {
+          session: response.data.data?.session,
+          messages: response.data.data?.messages ?? [],
+        },
+      };
+    }
+    return { success: false, error: [`Error loading chat messages! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to load messages'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const sendBatchChatMessage = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  sessionId: number,
+  content: string
+): Promise<RequestResponse<BatchChatTurnResponse>> => {
+  try {
+    const response = await axios.post(
+      `${batchChatBase(farmId, flockId)}/sessions/${sessionId}/messages`,
+      { content },
+      { headers: authHeader(token) }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data as BatchChatTurnResponse };
+    }
+    return { success: false, error: [`Error sending message! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to send message'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const confirmBatchChatAction = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  sessionId: number,
+  actionId: string
+): Promise<RequestResponse<BatchChatTurnResponse>> => {
+  try {
+    const response = await axios.post(
+      `${batchChatBase(farmId, flockId)}/sessions/${sessionId}/actions/${actionId}/confirm`,
+      {},
+      { headers: authHeader(token) }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data as BatchChatTurnResponse };
+    }
+    return { success: false, error: [`Error confirming action! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to confirm action'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const cancelBatchChatAction = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  sessionId: number,
+  actionId: string
+): Promise<RequestResponse<BatchChatTurnResponse>> => {
+  try {
+    const response = await axios.post(
+      `${batchChatBase(farmId, flockId)}/sessions/${sessionId}/actions/${actionId}/cancel`,
+      {},
+      { headers: authHeader(token) }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data as BatchChatTurnResponse };
+    }
+    return { success: false, error: [`Error cancelling action! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to cancel action'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const updateBatchChatSession = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  sessionId: number,
+  payload: { title?: string | null; status?: string }
+): Promise<RequestResponse<BatchChatSessionSummary>> => {
+  try {
+    const response = await axios.patch(
+      `${batchChatBase(farmId, flockId)}/sessions/${sessionId}`,
+      payload,
+      { headers: authHeader(token) }
+    );
+    if (response.status === 200) {
+      return { success: true, data: response.data.data as BatchChatSessionSummary };
+    }
+    return { success: false, error: [`Error updating session! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to update session'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const deleteBatchChatSession = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  sessionId: number
+): Promise<RequestResponse<null>> => {
+  try {
+    const response = await axios.delete(
+      `${batchChatBase(farmId, flockId)}/sessions/${sessionId}`,
+      { headers: authHeader(token) }
+    );
+    if (response.status === 200) {
+      return { success: true, data: null };
+    }
+    return { success: false, error: [`Error deleting session! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to delete session'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const listBatchChatMemories = async (
+  token: string,
+  farmId: number,
+  flockId: number
+): Promise<RequestResponse<{ memories: BatchChatMemory[] }>> => {
+  try {
+    const response = await axios.get(`${batchChatBase(farmId, flockId)}/memories`, {
+      headers: authHeader(token),
+    });
+    if (response.status === 200) {
+      return { success: true, data: { memories: response.data.data?.memories ?? [] } };
+    }
+    return { success: false, error: [`Error listing memories! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to list memories'],
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
+export const clearBatchChatMemories = async (
+  token: string,
+  farmId: number,
+  flockId: number
+): Promise<RequestResponse<null>> => {
+  try {
+    const response = await axios.delete(`${batchChatBase(farmId, flockId)}/memories`, {
+      headers: authHeader(token),
+    });
+    if (response.status === 200) {
+      return { success: true, data: null };
+    }
+    return { success: false, error: [`Error clearing memories! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ['Failed to clear memories'],
       };
     }
     return { success: false, error: ['An unexpected error occurred'] };
