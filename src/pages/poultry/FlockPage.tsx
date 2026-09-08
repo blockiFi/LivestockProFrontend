@@ -22,10 +22,13 @@ import {
   Pencil,
   Upload,
   Sparkles,
+  Timer,
 } from "lucide-react"
 import { Link, useLoaderData } from "react-router-dom"
 import type { DetailedFlockRecord, FeedInventoryType, FeedType, FlockProfitLoss, PoultryDailyReport, PoultryFeedUsageRecord } from "@/lib/types"
 import { getDaysInFlock, formatDate, isFlockActive, cn } from "@/lib/utils"
+import { toLocalIsoDate } from "@/lib/dateRange"
+import { flockAgeDaysOnDate, formatBirdAgeWeeksAndDays } from "@/lib/feed-age"
 import FlockOverview from "@/components/poultry/Flocks/FlockOverview"
 import PoultryPenOverview from "@/components/poultry/pen/PoultryPenOverview"
 import DailyRecord from "@/components/poultry/Flocks/DailyRecord"
@@ -99,13 +102,12 @@ const FlockPage = () => {
     const canUpdateSales = canAny([...ACTIONS.sales.update]);
     const canDeleteSales = canAny([...ACTIONS.sales.delete]);
 
-    // Compute current age of the flock in days (used for schedule views)
-    const arrivalDate = new Date(flock.arrival_date);
-    const now = new Date();
-    const daysSinceArrival = Math.floor(
-      (now.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    const currentAge = flock.arrival_age_days + daysSinceArrival;
+    // Bird age = arrival age + calendar days from arrival through today (local).
+    const currentAge = flockAgeDaysOnDate(
+      flock.arrival_date,
+      flock.arrival_age_days,
+      toLocalIsoDate(new Date())
+    )
     const daysInFlock = getDaysInFlock(
       flock.arrival_date,
       flock.actual_end_date,
@@ -1172,7 +1174,7 @@ const FlockPage = () => {
             </Collapsible>
 
             {/* Stat strip */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               <Card className="p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1224,6 +1226,21 @@ const FlockPage = () => {
                   </div>
                   <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center">
                     <Calendar className="h-5 w-5 text-white" />
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 bg-gradient-to-br from-teal-50 to-teal-100 border-teal-200">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs text-teal-600 font-medium mb-1">Bird Age</p>
+                    <p className="text-lg font-bold text-teal-900 leading-tight">
+                      {formatBirdAgeWeeksAndDays(currentAge)}
+                    </p>
+                    <p className="text-xs text-teal-600 mt-0.5">{currentAge} days old</p>
+                  </div>
+                  <div className="w-10 h-10 shrink-0 rounded-lg bg-teal-500 flex items-center justify-center">
+                    <Timer className="h-5 w-5 text-white" />
                   </div>
                 </div>
               </Card>

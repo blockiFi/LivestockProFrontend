@@ -2,14 +2,21 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { DetailedFlockRecord } from "@/lib/types"
 import { formatDate, getDaysInFlock, statusColors } from "@/lib/utils"
+import { toLocalIsoDate } from "@/lib/dateRange"
+import { flockAgeDaysOnDate, formatBirdAgeWeeksAndDays } from "@/lib/feed-age"
 import chicken from "@/assets/chicken.png"
-import { Calendar, Info } from "lucide-react"
+import { Calendar, Info, Timer } from "lucide-react"
 
 const FlockOverview = ({ flock }: { flock: DetailedFlockRecord }) => {
   const daysInFlock = getDaysInFlock(
     flock.arrival_date,
     flock.actual_end_date,
     flock.status === "active"
+  )
+  const birdAgeDays = flockAgeDaysOnDate(
+    flock.arrival_date,
+    flock.arrival_age_days,
+    toLocalIsoDate(new Date())
   )
   const isOverdue = flock.status === "active" && new Date() > new Date(flock.expected_end_date)
 
@@ -34,7 +41,7 @@ const FlockOverview = ({ flock }: { flock: DetailedFlockRecord }) => {
       </CardHeader>
 
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-6 mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <img src={chicken} className="h-5 w-5 text-blue-600" />
@@ -72,6 +79,17 @@ const FlockOverview = ({ flock }: { flock: DetailedFlockRecord }) => {
             <div>
               <p className="text-sm text-gray-500">Days in Flock</p>
               <p className="font-semibold">{daysInFlock} days</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-teal-100 rounded-lg">
+              <Timer className="h-5 w-5 text-teal-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Bird Age</p>
+              <p className="font-semibold text-sm">{formatBirdAgeWeeksAndDays(birdAgeDays)}</p>
+              <p className="text-xs text-gray-500">{birdAgeDays} days</p>
             </div>
           </div>
 

@@ -19,20 +19,32 @@ import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRange
 import { useRecordsDateRange } from "@/hooks/useRecordsDateRange";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { isDateInRange } from "@/lib/dateRange";
+import { EGGS_PER_CRATE, formatEggsWithCrates, unitPricePerCrate } from "@/lib/eggMetrics";
 import { Edit, Egg, Plus, Trash2 } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
 import { CustomerNameLink } from "@/components/crm/CustomerNameLink";
+import Pagination from "@/components/general/Pagination";
+import { toast } from "react-toastify";
+
+const ROWS_PER_PAGE = 10;
 
 const PRODUCT_SALE_EXPORT_COLUMNS: ExportColumn<SalesRecord>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
   { header: "Type", value: (row) => row.type },
-  { header: "Qty", value: (row) => row.quantity },
+  {
+    header: "Qty",
+    value: (row) => (row.type === "egg" ? formatEggsWithCrates(row.quantity) : row.quantity),
+  },
+  { header: "Unit price", value: (row) => row.unit_price ?? 0 },
+  {
+    header: "Price / crate",
+    value: (row) => (row.type === "egg" ? unitPricePerCrate(row.unit_price ?? 0) : ""),
+  },
   { header: "Total", value: (row) => row.total_amount ?? 0 },
   { header: "Customer", value: (row) => row.customer_name || row.customer?.name || "" },
   { header: "Status", value: (row) => row.payment_status },
 ];
-import { toast } from "react-toastify";
 
 interface ProductSalesViewProps {
   flockId: number;
@@ -67,6 +79,7 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
   const [editing, setEditing] = useState<SalesRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<SalesRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const load = useCallback(async () => {
     if (!token || !farmId) return;
@@ -90,9 +103,31 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
   }, [load]);
 
   const filteredRecords = useMemo(
-    () => records.filter((row) => isDateInRange(row.date, dateFrom, dateTo)),
+    () =>
+      records
+        .filter((row) => isDateInRange(row.date, dateFrom, dateTo))
+        .sort((a, b) => {
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          if (dateB !== dateA) return dateB - dateA;
+          return (b.id || 0) - (a.id || 0);
+        }),
     [records, dateFrom, dateTo]
   );
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / ROWS_PER_PAGE));
+  const paginatedRecords = useMemo(() => {
+    const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
+    return filteredRecords.slice(startIdx, startIdx + ROWS_PER_PAGE);
+  }, [filteredRecords, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFrom, dateTo, flockId]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const totals = useMemo(() => {
     return filteredRecords.reduce(
@@ -214,6 +249,8 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
                 <TableHead>Date</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
+                <TableHead className="text-right">Unit price</TableHead>
+                <TableHead className="text-right">Price / crate</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Status</TableHead>
@@ -223,66 +260,105 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 7 : 6} className="text-center text-slate-500 py-8">
+                  <TableCell colSpan={canManage ? 9 : 8} className="text-center text-slate-500 py-8">
                     Loading product sales...
                   </TableCell>
                 </TableRow>
               ) : filteredRecords.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 7 : 6} className="text-center text-slate-500 py-8">
+                  <TableCell colSpan={canManage ? 9 : 8} className="text-center text-slate-500 py-8">
                     No product sales in {rangeLabel}.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRecords.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{formatDate(row.date)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {typeLabel[row.type] || row.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{Number(row.quantity).toLocaleString()}</TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(row.total_amount)}</TableCell>
-                    <TableCell>
-                      <CustomerNameLink
-                        customerId={row.customer_id}
-                        name={row.customer_name || row.customer?.name}
-                      />
-                    </TableCell>
-                    <TableCell className="capitalize">{row.payment_status || "paid"}</TableCell>
-                    {canManage && (
+                paginatedRecords.map((row) => {
+                  const isEgg = row.type === "egg";
+                  const unitPrice = Number(row.unit_price || 0);
+                  return (
+                    <TableRow key={row.id}>
+                      <TableCell>{formatDate(row.date)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {typeLabel[row.type] || row.type}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            onClick={() => {
-                              setEditing(row);
-                              setModalOpen(true);
-                            }}
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-rose-600"
-                            disabled={isDeleting && deletingRecord?.id === row.id}
-                            onClick={() => setDeletingRecord(row)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                        {isEgg
+                          ? formatEggsWithCrates(row.quantity)
+                          : Number(row.quantity).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        <div className="flex flex-col items-end">
+                          <span>{formatCurrency(unitPrice)}</span>
+                          {isEgg ? (
+                            <span className="text-[11px] text-slate-500">per egg</span>
+                          ) : null}
                         </div>
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))
+                      <TableCell className="text-right text-sm">
+                        {isEgg ? (
+                          <div className="flex flex-col items-end">
+                            <span className="font-medium">
+                              {formatCurrency(unitPricePerCrate(unitPrice))}
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              {EGGS_PER_CRATE} eggs / crate
+                            </span>
+                          </div>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(row.total_amount)}
+                      </TableCell>
+                      <TableCell>
+                        <CustomerNameLink
+                          customerId={row.customer_id}
+                          name={row.customer_name || row.customer?.name}
+                        />
+                      </TableCell>
+                      <TableCell className="capitalize">{row.payment_status || "paid"}</TableCell>
+                      {canManage && (
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={() => {
+                                setEditing(row);
+                                setModalOpen(true);
+                              }}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-rose-600"
+                              disabled={isDeleting && deletingRecord?.id === row.id}
+                              onClick={() => setDeletingRecord(row)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </div>
+        {filteredRecords.length > ROWS_PER_PAGE && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        )}
       </CardContent>
 
       <AddProductSaleModal

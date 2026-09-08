@@ -13,6 +13,25 @@ export function flockAgeDaysOnDate(
   return Math.max(1, (arrivalAgeDays || 0) + daysSinceArrival)
 }
 
+/**
+ * e.g. 320 → "45 weeks + 5 days"
+ *      315 → "45 weeks"
+ *      5   → "5 days"
+ */
+export function formatBirdAgeWeeksAndDays(ageDays: number): string {
+  const days = Math.max(0, Math.floor(Number(ageDays) || 0))
+  const weeks = Math.floor(days / 7)
+  const remainder = days % 7
+
+  if (weeks === 0) {
+    return `${days} day${days === 1 ? "" : "s"}`
+  }
+  if (remainder === 0) {
+    return `${weeks} week${weeks === 1 ? "" : "s"}`
+  }
+  return `${weeks} week${weeks === 1 ? "" : "s"} + ${remainder} day${remainder === 1 ? "" : "s"}`
+}
+
 export function effectiveFeedAgeRange(feedType: {
   start_age?: number | null
   end_age?: number | null

@@ -47,8 +47,8 @@ import { getBirdCountOnDate } from "@/lib/flock-birds"
 
 const EGG_EXPORT_COLUMNS: ExportColumn<EggReport>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
-  { header: "Eggs Collected", value: (row) => row.eggs_collected },
-  { header: "Eggs Broken", value: (row) => row.eggs_broken ?? 0 },
+  { header: "Eggs Collected", value: (row) => formatEggsWithCrates(row.eggs_collected) },
+  { header: "Eggs Broken", value: (row) => formatEggsWithCrates(row.eggs_broken ?? 0) },
   { header: "Avg Egg Weight (g)", value: (row) => row.average_egg_weight },
   { header: "Production %", value: (row) => row.production_percentage },
   { header: "Bird Count", value: (row) => row.bird_count },
@@ -496,13 +496,14 @@ const EggRecordPage = ({
                   const previous = sortedReports[globalIndex + 1]
                   const delta = getDayOverDayDelta(report, previous)
                   const badgeLevel = getProductionBadgeLevel(Number(report.production_percentage || 0))
+                  const broken = Number(report.eggs_broken || 0)
 
                   return (
                     <TableRow key={report.id}>
                       <TableCell className="font-medium">{formatDate(report.date)}</TableCell>
-                      <TableCell>{report.eggs_collected.toLocaleString()}</TableCell>
-                      <TableCell className={Number(report.eggs_broken || 0) > 0 ? "text-rose-600 font-medium" : undefined}>
-                        {Number(report.eggs_broken || 0).toLocaleString()}
+                      <TableCell>{formatEggsWithCrates(report.eggs_collected)}</TableCell>
+                      <TableCell className={broken > 0 ? "text-rose-600 font-medium" : undefined}>
+                        {formatEggsWithCrates(broken)}
                       </TableCell>
                       <TableCell>{Number(report.average_egg_weight || 0).toFixed(2)}</TableCell>
                       <TableCell>

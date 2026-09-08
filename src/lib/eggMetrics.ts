@@ -193,6 +193,11 @@ export function formatEggsWithCrates(eggs: number): string {
   return `${crateLabel} + ${remainder} egg${remainder === 1 ? "" : "s"} (${eggLabel})`
 }
 
+/** Unit price is stored per egg; crate price = per-egg × eggs per crate. */
+export function unitPricePerCrate(unitPricePerEgg: number): number {
+  return Number(unitPricePerEgg || 0) * EGGS_PER_CRATE
+}
+
 /**
  * Match backend stock math:
  * egg reports + daily eggs only on dates that have no egg report.

@@ -14,6 +14,11 @@ import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/
 import { CustomerNameLink } from "@/components/crm/CustomerNameLink";
 import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRangeFilter";
 import { useRecordsDateRange } from "@/hooks/useRecordsDateRange";
+import Pagination from "@/components/general/Pagination";
+import AddFlockSaleModal, { type FlockSaleFormPayload } from "@/components/modals/AddFlockSaleModal";
+import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDialog";
+
+const ROWS_PER_PAGE = 10;
 
 const SALE_EXPORT_COLUMNS: ExportColumn<FlockSale>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
@@ -23,8 +28,6 @@ const SALE_EXPORT_COLUMNS: ExportColumn<FlockSale>[] = [
   { header: "Customer", value: (row) => row.customer_name || "" },
   { header: "Notes", value: (row) => row.notes || "" },
 ];
-import AddFlockSaleModal, { type FlockSaleFormPayload } from "@/components/modals/AddFlockSaleModal";
-import DeleteConfirmationDialog from "@/components/modals/DeleteConfirmationDialog";
 
 interface FlockSalesViewProps {
   flock: DetailedFlockRecord;
@@ -59,6 +62,7 @@ const FlockSalesView = ({
   const [deletingSale, setDeletingSale] = useState<FlockSale | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [rangeProfitLoss, setRangeProfitLoss] = useState<FlockProfitLoss | null>(profitLoss);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const sales = Array.isArray(flock.flock_sales) ? flock.flock_sales : [];
   const expenditures = Array.isArray(flock.flock_expenditures) ? flock.flock_expenditures : [];
@@ -72,9 +76,31 @@ const FlockSalesView = ({
   );
 
   const filteredSales = useMemo(
-    () => sales.filter((sale) => isDateInRange(sale.date, dateFrom, dateTo)),
+    () =>
+      sales
+        .filter((sale) => isDateInRange(sale.date, dateFrom, dateTo))
+        .sort((a, b) => {
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          if (dateB !== dateA) return dateB - dateA;
+          return (b.id || 0) - (a.id || 0);
+        }),
     [sales, dateFrom, dateTo]
   );
+
+  const totalPages = Math.max(1, Math.ceil(filteredSales.length / ROWS_PER_PAGE));
+  const paginatedSales = useMemo(() => {
+    const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
+    return filteredSales.slice(startIdx, startIdx + ROWS_PER_PAGE);
+  }, [filteredSales, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFrom, dateTo, salesRevision]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const totals = useMemo(() => {
     return filteredSales.reduce(
@@ -224,81 +250,90 @@ const FlockSalesView = ({
             <span>No sales in {rangeLabel}. Try a wider date range.</span>
           </div>
         ) : (
-          <div className="border rounded-md overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[120px]">Date</TableHead>
-                  <TableHead className="w-[90px] text-right">Qty</TableHead>
-                  <TableHead className="w-[120px] text-right">Unit price</TableHead>
-                  <TableHead className="w-[130px] text-right">Total</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Notes</TableHead>
-                  {showActions && <TableHead className="w-[90px] text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSales.map((sale) => (
-                  <TableRow key={sale.id}>
-                    <TableCell>{formatDate(sale.date)}</TableCell>
-                    <TableCell className="text-right font-medium">{sale.quantity}</TableCell>
-                    <TableCell className="text-right text-sm">
-                      {(sale.unit_price || 0).toLocaleString(undefined, {
-                        style: "currency",
-                        currency: "NGN",
-                        minimumFractionDigits: 2,
-                      })}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-semibold">
-                      {(sale.total_amount || 0).toLocaleString(undefined, {
-                        style: "currency",
-                        currency: "NGN",
-                        minimumFractionDigits: 2,
-                      })}
-                    </TableCell>
-                    <TableCell className="text-xs text-gray-700">
-                      <CustomerNameLink customerId={sale.customer_id} name={sale.customer_name} />
-                      {sale.customer_phone ? (
-                        <div className="text-gray-500">{sale.customer_phone}</div>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-xs text-gray-600">{sale.notes || "—"}</TableCell>
-                    {showActions && (
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          {onUpdateSale && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => openEditModal(sale)}
-                              aria-label="Edit sale"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {onDeleteSale && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                              onClick={() => setDeletingSale(sale)}
-                              disabled={isDeleting && deletingSale?.id === sale.id}
-                              aria-label="Delete sale"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
+          <>
+            <div className="border rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[120px]">Date</TableHead>
+                    <TableHead className="w-[90px] text-right">Qty</TableHead>
+                    <TableHead className="w-[120px] text-right">Unit price</TableHead>
+                    <TableHead className="w-[130px] text-right">Total</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Notes</TableHead>
+                    {showActions && <TableHead className="w-[90px] text-right">Actions</TableHead>}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {paginatedSales.map((sale) => (
+                    <TableRow key={sale.id}>
+                      <TableCell>{formatDate(sale.date)}</TableCell>
+                      <TableCell className="text-right font-medium">{sale.quantity}</TableCell>
+                      <TableCell className="text-right text-sm">
+                        {(sale.unit_price || 0).toLocaleString(undefined, {
+                          style: "currency",
+                          currency: "NGN",
+                          minimumFractionDigits: 2,
+                        })}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-semibold">
+                        {(sale.total_amount || 0).toLocaleString(undefined, {
+                          style: "currency",
+                          currency: "NGN",
+                          minimumFractionDigits: 2,
+                        })}
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-700">
+                        <CustomerNameLink customerId={sale.customer_id} name={sale.customer_name} />
+                        {sale.customer_phone ? (
+                          <div className="text-gray-500">{sale.customer_phone}</div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-600">{sale.notes || "—"}</TableCell>
+                      {showActions && (
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            {onUpdateSale && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => openEditModal(sale)}
+                                aria-label="Edit sale"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {onDeleteSale && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                                onClick={() => setDeletingSale(sale)}
+                                disabled={isDeleting && deletingSale?.id === sale.id}
+                                aria-label="Delete sale"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {filteredSales.length > ROWS_PER_PAGE && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            )}
+          </>
         )}
       </CardContent>
 
