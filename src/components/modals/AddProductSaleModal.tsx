@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,7 +15,14 @@ import {
 } from "@/components/ui/select";
 import type { SalesRecord } from "@/lib/types";
 import { getEggStock, type EggStockSummary, type ProductSaleFormPayload } from "@/lib/request";
-import { EGGS_PER_CRATE, formatEggsWithCrates } from "@/lib/eggMetrics";
+import {
+  EGGS_PER_CRATE,
+  cratePriceToUnitPrice,
+  cratesToEggs,
+  eggsToCrates,
+  formatEggsWithCrates,
+  unitPricePerCrate,
+} from "@/lib/eggMetrics";
 import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker";
 
 export type { ProductSaleFormPayload };
@@ -73,20 +80,44 @@ const AddProductSaleModal = ({
   const [eggStock, setEggStock] = useState<EggStockSummary | null>(null);
   const [eggStockLoading, setEggStockLoading] = useState(false);
 
-  const quantityNum = Number(formData.quantity) || 0;
-  const unitPriceNum = Number(formData.unit_price) || 0;
-  const totalAmount = quantityNum * unitPriceNum;
+  const isEgg = formData.type === "egg";
+  const quantityInput = Number(formData.quantity) || 0;
+  const priceInput = Number(formData.unit_price) || 0;
+
+  /** Eggs quantity sent to API (crates → eggs for egg sales). */
+  const quantityEggs = useMemo(
+    () => (isEgg ? cratesToEggs(quantityInput) : quantityInput),
+    [isEgg, quantityInput]
+  );
+
+  /** Per-egg unit price sent to API (crate price → per egg for egg sales). */
+  const unitPricePerEgg = useMemo(
+    () => (isEgg ? cratePriceToUnitPrice(priceInput) : priceInput),
+    [isEgg, priceInput]
+  );
+
+  const totalAmount = quantityEggs * unitPricePerEgg;
   const requiresFlock = formData.type === "egg" || formData.type === "meat";
 
   useEffect(() => {
     if (!isOpen) return;
 
     if (editing) {
+      const type = (editing.type as ProductSaleFormPayload["type"]) || "egg";
+      const qty =
+        type === "egg"
+          ? String(eggsToCrates(Number(editing.quantity ?? 0)))
+          : String(editing.quantity ?? "");
+      const price =
+        type === "egg"
+          ? String(unitPricePerCrate(Number(editing.unit_price ?? 0)))
+          : String(editing.unit_price ?? "");
+
       setFormData({
-        type: (editing.type as ProductSaleFormPayload["type"]) || "egg",
+        type,
         flock_id: editing.flock_id ? String(editing.flock_id) : "",
-        quantity: String(editing.quantity ?? ""),
-        unit_price: String(editing.unit_price ?? ""),
+        quantity: qty,
+        unit_price: price,
         date: localDateInputValue(editing.date),
         customer: {
           customer_id: editing.customer_id ?? null,
@@ -133,10 +164,14 @@ const AddProductSaleModal = ({
     const next: Record<string, string> = {};
     if (!formData.type) next.type = "Product type is required";
     if (requiresFlock && !formData.flock_id) next.flock_id = "Flock is required for egg and meat sales";
-    if (!formData.quantity || quantityNum <= 0) next.quantity = "Quantity must be greater than 0";
-    if (formData.unit_price === "" || unitPriceNum < 0) next.unit_price = "Unit price is required";
+    if (!formData.quantity || quantityInput <= 0) {
+      next.quantity = isEgg ? "Crates must be greater than 0" : "Quantity must be greater than 0";
+    }
+    if (formData.unit_price === "" || priceInput < 0) {
+      next.unit_price = isEgg ? "Price per crate is required" : "Unit price is required";
+    }
     if (!formData.date) next.date = "Sale date is required";
-    if (formData.type === "egg" && eggStock && quantityNum > eggStock.available) {
+    if (isEgg && eggStock && quantityEggs > eggStock.available) {
       next.quantity = `Only ${formatEggsWithCrates(eggStock.available)} available as of ${eggStock.as_of}`;
     }
     setErrors(next);
@@ -150,8 +185,8 @@ const AddProductSaleModal = ({
       await onSubmit({
         type: formData.type,
         flock_id: formData.flock_id ? Number(formData.flock_id) : null,
-        quantity: quantityNum,
-        unit_price: unitPriceNum,
+        quantity: quantityEggs,
+        unit_price: unitPricePerEgg,
         date: formData.date,
         customer_id: formData.customer.customer_id,
         customer_name: formData.customer.customer_name || null,
@@ -201,7 +236,12 @@ const AddProductSaleModal = ({
             <Select
               value={formData.type}
               onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, type: value as ProductSaleFormPayload["type"] }))
+                setFormData((prev) => ({
+                  ...prev,
+                  type: value as ProductSaleFormPayload["type"],
+                  quantity: "",
+                  unit_price: "",
+                }))
               }
             >
               <SelectTrigger>
@@ -240,14 +280,14 @@ const AddProductSaleModal = ({
               onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
             />
             {errors.date && <p className="text-xs text-rose-600">{errors.date}</p>}
-            {formData.type === "egg" && (
+            {isEgg && (
               <p className="text-xs text-slate-500">
                 Available stock is calculated from eggs collected on or before this date.
               </p>
             )}
           </div>
 
-          {formData.type === "egg" && formData.flock_id ? (
+          {isEgg && formData.flock_id ? (
             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               {eggStockLoading ? (
                 <span>Checking available egg stock…</span>
@@ -271,19 +311,25 @@ const AddProductSaleModal = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="quantity">Quantity (eggs)</Label>
+              <Label htmlFor="quantity">{isEgg ? "Quantity (crates)" : "Quantity"}</Label>
               <Input
                 id="quantity"
                 type="number"
                 min={0}
-                step="0.01"
+                step={isEgg ? "1" : "0.01"}
                 value={formData.quantity}
                 onChange={(e) => setFormData((prev) => ({ ...prev, quantity: e.target.value }))}
+                placeholder={isEgg ? "e.g. 10" : undefined}
               />
+              {isEgg && quantityInput > 0 ? (
+                <p className="text-xs text-slate-500">
+                  = {formatEggsWithCrates(quantityEggs)} sent to stock
+                </p>
+              ) : null}
               {errors.quantity && <p className="text-xs text-rose-600">{errors.quantity}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="unit_price">Unit price</Label>
+              <Label htmlFor="unit_price">{isEgg ? "Price per crate" : "Unit price"}</Label>
               <Input
                 id="unit_price"
                 type="number"
@@ -291,7 +337,13 @@ const AddProductSaleModal = ({
                 step="0.01"
                 value={formData.unit_price}
                 onChange={(e) => setFormData((prev) => ({ ...prev, unit_price: e.target.value }))}
+                placeholder={isEgg ? "Price for 30 eggs" : undefined}
               />
+              {isEgg && priceInput > 0 ? (
+                <p className="text-xs text-slate-500">
+                  ≈ {unitPricePerEgg.toLocaleString(undefined, { minimumFractionDigits: 2 })} per egg
+                </p>
+              ) : null}
               {errors.unit_price && <p className="text-xs text-rose-600">{errors.unit_price}</p>}
             </div>
           </div>
@@ -301,6 +353,12 @@ const AddProductSaleModal = ({
             <span className="font-semibold">
               {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </span>
+            {isEgg && quantityInput > 0 ? (
+              <span className="mt-0.5 block text-xs text-slate-500">
+                {quantityInput.toLocaleString()} crate{quantityInput === 1 ? "" : "s"} ×{" "}
+                {priceInput.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            ) : null}
           </div>
 
           <CustomerPicker

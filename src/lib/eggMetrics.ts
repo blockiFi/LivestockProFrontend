@@ -198,6 +198,24 @@ export function unitPricePerCrate(unitPricePerEgg: number): number {
   return Number(unitPricePerEgg || 0) * EGGS_PER_CRATE
 }
 
+/** Convert crate count to egg quantity for API payloads. */
+export function cratesToEggs(crates: number): number {
+  return Math.round(Number(crates || 0) * EGGS_PER_CRATE * 100) / 100
+}
+
+/** Convert stored egg quantity to crates for crate-based forms. */
+export function eggsToCrates(eggs: number): number {
+  const total = Number(eggs || 0)
+  if (!EGGS_PER_CRATE) return 0
+  return Math.round((total / EGGS_PER_CRATE) * 10000) / 10000
+}
+
+/** Convert price-per-crate to per-egg unit price for API payloads. */
+export function cratePriceToUnitPrice(pricePerCrate: number): number {
+  if (!EGGS_PER_CRATE) return 0
+  return Math.round((Number(pricePerCrate || 0) / EGGS_PER_CRATE) * 100) / 100
+}
+
 /**
  * Match backend stock math:
  * egg reports + daily eggs only on dates that have no egg report.
