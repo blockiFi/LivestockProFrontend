@@ -24,6 +24,7 @@ import FeedingScheduleView from "./FeedingScheduleView"
 import MedicationScheduleView from "./MedicationScheduleView"
 import VaccinationScheduleView from "./VaccinationScheduleView"
 import AssignFeedingScheduleModal from "./AssignFeedingScheduleModal"
+import AssignMedVacScheduleModal from "./AssignMedVacScheduleModal"
 import CloseBatchModal from "@/components/modals/CloseBatchModal"
 import { listMissedFeedingDays } from "@/lib/feeding-range"
 import { useSelector } from "react-redux"
@@ -72,9 +73,19 @@ const BatchScheduleView = ({
     const [loading , setLoading] = useState<boolean>(false)
     const [isCloseBatchOpen, setIsCloseBatchOpen] = useState(false)
     const [assignFeedingOpen, setAssignFeedingOpen] = useState(false)
+    const [assignMedVacOpen, setAssignMedVacOpen] = useState(false)
+    const [assignMedVacType, setAssignMedVacType] = useState<"medication" | "vaccination">("medication")
     const token = useSelector((state: RootState) => state.authentication.token)
     const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
     const isActiveBatch = flockStatus === "active"
+
+    const activeMedication = medicationSchedule?.[0] || null
+    const activeVaccination = vaccinationSchedule?.[0] || null
+
+    const openAssignMedVac = (type: "medication" | "vaccination") => {
+      setAssignMedVacType(type)
+      setAssignMedVacOpen(true)
+    }
 
     const activeFeedingSchedules = useMemo(
       () =>
@@ -294,24 +305,56 @@ const BatchScheduleView = ({
                   </TabsList>
                 
                 <TabsContent value="medication" className="mt-6">
-                  {medicationSchedule && medicationSchedule.length > 0 ? (
-                    <MedicationScheduleView schedule={medicationSchedule[0]} currentAge={currentAge} onRefresh={onRefresh} readOnly={!isActiveBatch} />
+                  {activeMedication ? (
+                    <MedicationScheduleView
+                      schedule={activeMedication}
+                      currentAge={currentAge}
+                      onRefresh={onRefresh}
+                      readOnly={!isActiveBatch}
+                      onChangeSchedule={
+                        isActiveBatch ? () => openAssignMedVac("medication") : undefined
+                      }
+                    />
                   ) : (
                     <div className="text-center text-gray-500 py-12">
                       <Pill className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                      <p className="text-lg font-medium">No medication schedules available</p>
-                      <p className="text-sm mt-1">Create a medication schedule to start tracking treatments</p>
+                      <p className="text-lg font-medium">No medication schedule assigned</p>
+                      <p className="text-sm mt-1">
+                        Assign an existing medication program to this flock to track treatments
+                      </p>
+                      {isActiveBatch && (
+                        <Button className="mt-4" onClick={() => openAssignMedVac("medication")}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Assign Medication Schedule
+                        </Button>
+                      )}
                     </div>
                   )}
                 </TabsContent>
                 <TabsContent value="vaccination" className="mt-6">
-                  {vaccinationSchedule && vaccinationSchedule.length > 0 ? (
-                    <VaccinationScheduleView schedule={vaccinationSchedule[0]} currentAge={currentAge} onRefresh={onRefresh} readOnly={!isActiveBatch} />
+                  {activeVaccination ? (
+                    <VaccinationScheduleView
+                      schedule={activeVaccination}
+                      currentAge={currentAge}
+                      onRefresh={onRefresh}
+                      readOnly={!isActiveBatch}
+                      onChangeSchedule={
+                        isActiveBatch ? () => openAssignMedVac("vaccination") : undefined
+                      }
+                    />
                   ) : (
                     <div className="text-center text-gray-500 py-12">
                       <Shield className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                      <p className="text-lg font-medium">No vaccination schedules available</p>
-                      <p className="text-sm mt-1">Create a vaccination schedule to protect your flock</p>
+                      <p className="text-lg font-medium">No vaccination schedule assigned</p>
+                      <p className="text-sm mt-1">
+                        Assign an existing vaccination program to this flock to protect the birds
+                      </p>
+                      {isActiveBatch && (
+                        <Button className="mt-4" onClick={() => openAssignMedVac("vaccination")}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Assign Vaccination Schedule
+                        </Button>
+                      )}
                     </div>
                   )}
                 </TabsContent>
@@ -391,6 +434,24 @@ const BatchScheduleView = ({
           poultryTypeId={poultryTypeId}
           poultryTypeName={poultryTypeName}
           currentFeedingScheduleId={activeFeeding?.feeding_schedule_id}
+          onAssigned={() => onRefresh?.()}
+        />
+      )}
+      {farmId && token && (
+        <AssignMedVacScheduleModal
+          open={assignMedVacOpen}
+          onOpenChange={setAssignMedVacOpen}
+          token={token}
+          farmId={farmId}
+          flockId={flockId}
+          type={assignMedVacType}
+          poultryTypeId={poultryTypeId}
+          poultryTypeName={poultryTypeName}
+          currentScheduleId={
+            assignMedVacType === "medication"
+              ? activeMedication?.schedule_id
+              : activeVaccination?.schedule_id
+          }
           onAssigned={() => onRefresh?.()}
         />
       )}

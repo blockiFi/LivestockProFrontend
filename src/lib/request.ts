@@ -6566,6 +6566,43 @@ export const getGroupedPermisssions = async (
     }
   }
 
+  export const createBatchSchedule = async (
+    token: string,
+    farmId: number,
+    type: "medication" | "vaccination",
+    data: {
+      flock_id: number
+      schedule_id: number
+      farm_id?: number
+      status?: "active" | "inactive"
+    }
+  ): Promise<RequestResponse<any>> => {
+    try {
+      const response = await axios.post(
+        `/api/farms/${farmId}/${type}/batch-schedules`,
+        { ...data, farm_id: data.farm_id ?? farmId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (response.status === 200 || response.status === 201) {
+        return { success: true, data: response.data.data }
+      }
+      return { success: false, error: [`Error assigning ${type} schedule: ${response.status}`] }
+    } catch (error: unknown) {
+      if (isAxiosError(error)) {
+        const errs = error.response?.data?.errors
+        if (errs && typeof errs === "object") {
+          const flat = Object.values(errs).flat().filter(Boolean) as string[]
+          if (flat.length) return { success: false, error: flat }
+        }
+        return {
+          success: false,
+          error: [error.response?.data?.message || `Failed to assign ${type} schedule`],
+        }
+      }
+      return { success: false, error: ["An unexpected error occurred"] }
+    }
+  }
+
   export const getFeedingBatchItemByDate = async (
     token: string,
     farmId: number,

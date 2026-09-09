@@ -23,9 +23,16 @@ interface VaccinationScheduleViewProps {
   currentAge: number
   onRefresh?: () => void
   readOnly?: boolean
+  onChangeSchedule?: () => void
 }
 
-const VaccinationScheduleView = ({ schedule, currentAge, onRefresh, readOnly = false }: VaccinationScheduleViewProps) => {
+const VaccinationScheduleView = ({
+  schedule,
+  currentAge,
+  onRefresh,
+  readOnly = false,
+  onChangeSchedule,
+}: VaccinationScheduleViewProps) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [selectedScheduleItem, setSelectedScheduleItem] = useState<ScheduleItem | null>(null)
   const [selectedBatchItem, setSelectedBatchItem] = useState<BatchScheduleItem | null>(null)
@@ -95,6 +102,11 @@ const VaccinationScheduleView = ({ schedule, currentAge, onRefresh, readOnly = f
               <Badge className={`${getStatusColor(schedule.status)} border px-3 py-1`}>
                 {schedule.status.toUpperCase()}
               </Badge>
+              {!readOnly && onChangeSchedule && (
+                <Button variant="outline" size="sm" onClick={onChangeSchedule} className="h-8">
+                  Change schedule
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)} className="h-8">
                 {isExpanded ? (
                   <>
