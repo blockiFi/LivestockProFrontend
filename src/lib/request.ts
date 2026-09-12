@@ -1701,6 +1701,7 @@ export const createFarm = async (
     eggs_broken: number
     notes: string
     poultry_feed_inventory_id?: number | null
+    allow_poultry_type_mismatch?: boolean
   }
 
   export const createDailyRecord = async (
@@ -2268,6 +2269,7 @@ export const updateFeedUsageRecord = async (
     quantity: number
     unit_cost: number
     usage_date: string
+    allow_poultry_type_mismatch?: boolean
   }>
 ): Promise<RequestResponse<PoultryFeedUsageRecord | { usage: PoultryFeedUsageRecord; split_usage?: PoultryFeedUsageRecord }>> => {
   try {

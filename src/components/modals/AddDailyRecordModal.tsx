@@ -31,6 +31,7 @@ interface AddDailyRecordModalProps {
   farmId: number
   token: string
   poultryType: string
+  poultryTypeId?: number
   flockArrivalDate?: string
   flockArrivalAgeDays?: number
   feedInventories?: FeedInventoryType[]
@@ -50,6 +51,7 @@ const AddDailyRecordModal = ({
   farmId,
   token,
   poultryType,
+  poultryTypeId,
   flockArrivalDate,
   flockArrivalAgeDays = 0,
   feedInventories = [],
@@ -109,10 +111,24 @@ const AddDailyRecordModal = ({
   const validateAllEntries = (): boolean => {
     const newErrors: Record<number, Record<string, string>> = {}
     entries.forEach((entry, index) => {
+      const selectedInv = feedInventories.find((inv) => inv.id === entry.poultry_feed_inventory_id)
+      const feedType = selectedInv?.feed_type || feedTypes.find((ft) => ft.id === selectedInv?.poultry_feed_type_id)
+      const isMismatch = Boolean(
+        selectedInv && feedType && (
+          (poultryTypeId != null && feedType.poultry_type_id != null && Number(feedType.poultry_type_id) !== Number(poultryTypeId))
+          || (poultryType && feedType.poultry_type?.name && feedType.poultry_type.name.toLowerCase() !== poultryType.toLowerCase())
+        )
+      )
+
       const errors = validateDailyRecordEntry(entry, flockQuantity, poultryType, {
         existingDates: existingDatesSet,
         duplicateDatesInBatch: batchDates,
       })
+
+      if (isMismatch && Number(entry.feed_consumed_kg) > 0 && !entry.allow_poultry_type_mismatch) {
+        errors.poultry_feed_inventory_id = "Please confirm permission to use feed of a different poultry type."
+      }
+
       if (Object.keys(errors).length > 0) {
         newErrors[index] = errors
       }
@@ -251,6 +267,7 @@ const AddDailyRecordModal = ({
                 farmId={farmId}
                 token={token}
                 poultryType={poultryType}
+                poultryTypeId={poultryTypeId}
                 flockArrivalDate={flockArrivalDate}
                 flockArrivalAgeDays={flockArrivalAgeDays}
                 feedInventories={feedInventories}

@@ -852,6 +852,7 @@ export type PoultryFeedUsageRecord =  {
   feed_inventory?: FeedInventoryType;
   feed_type?: FeedType;
   flock?: Pick<FlockRecord, 'id' | 'name' | 'batch_number'>;
+  allow_poultry_type_mismatch?: boolean;
 }
 
 

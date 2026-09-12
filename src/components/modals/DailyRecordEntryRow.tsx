@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Label } from "../ui/label"
 import { Input } from "../ui/input"
 import { Button } from "../ui/button"
@@ -49,6 +49,7 @@ interface DailyRecordEntryRowProps {
   farmId: number
   token: string
   poultryType: string
+  poultryTypeId?: number
   flockArrivalDate?: string
   flockArrivalAgeDays?: number
   feedInventories?: FeedInventoryType[]
@@ -73,6 +74,7 @@ const DailyRecordEntryRow = ({
   farmId,
   token,
   poultryType,
+  poultryTypeId,
   flockArrivalDate,
   flockArrivalAgeDays = 0,
   feedInventories = [],
@@ -116,6 +118,21 @@ const DailyRecordEntryRow = ({
     return map
   }, [feedTypes, feedInventories])
 
+  const isInventoryMatchingFlockPoultryType = useCallback(
+    (inv: FeedInventoryType): boolean => {
+      const ft = feedTypeById.get(inv.poultry_feed_type_id)
+      if (!ft) return false
+      if (poultryTypeId != null && ft.poultry_type_id != null) {
+        return Number(ft.poultry_type_id) === Number(poultryTypeId)
+      }
+      if (poultryType && ft.poultry_type?.name) {
+        return ft.poultry_type.name.toLowerCase() === poultryType.toLowerCase()
+      }
+      return true
+    },
+    [feedTypeById, poultryTypeId, poultryType]
+  )
+
   const availableInventories = useMemo(() => {
     const inStock = feedInventories.filter((inv) => {
       const status = (inv.status || "").toLowerCase()
@@ -126,6 +143,10 @@ const DailyRecordEntryRow = ({
     })
 
     return [...inStock].sort((a, b) => {
+      const matchA = isInventoryMatchingFlockPoultryType(a)
+      const matchB = isInventoryMatchingFlockPoultryType(b)
+      if (matchA !== matchB) return matchA ? -1 : 1
+
       if (flockAgeOnDate == null) {
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       }
@@ -136,7 +157,7 @@ const DailyRecordEntryRow = ({
       if (okA !== okB) return okA ? -1 : 1
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     })
-  }, [feedInventories, data.poultry_feed_inventory_id, flockAgeOnDate, feedTypeById])
+  }, [feedInventories, data.poultry_feed_inventory_id, flockAgeOnDate, feedTypeById, isInventoryMatchingFlockPoultryType])
 
   const selectedInventory = availableInventories.find((inv) => inv.id === data.poultry_feed_inventory_id)
     ?? feedInventories.find((inv) => inv.id === data.poultry_feed_inventory_id)
@@ -144,6 +165,14 @@ const DailyRecordEntryRow = ({
   const selectedFeedType = selectedInventory
     ? feedTypeById.get(selectedInventory.poultry_feed_type_id)
     : undefined
+
+  const isPoultryTypeMismatch = Boolean(
+    selectedInventory && !isInventoryMatchingFlockPoultryType(selectedInventory)
+  )
+
+  const matchingInventories = useMemo(() => {
+    return availableInventories.filter(isInventoryMatchingFlockPoultryType)
+  }, [availableInventories, isInventoryMatchingFlockPoultryType])
 
   const ageWarning = useMemo(() => {
     if (!selectedFeedType || flockAgeOnDate == null) return null
@@ -154,22 +183,22 @@ const DailyRecordEntryRow = ({
     return `${selectedFeedType.name} is intended for day ${rangeLabel}; this flock is on day ${flockAgeOnDate}`
   }, [selectedFeedType, flockAgeOnDate])
 
-  // Pre-select the best age-appropriate (or oldest in-stock) batch when date changes.
+  // Pre-select the best age-appropriate (or oldest in-stock) batch of the SAME poultry type when date changes.
   useEffect(() => {
     if (!isActive || skipAutoFill || !data.date) return
     if (lastAutoInventoryDateRef.current === data.date && data.poultry_feed_inventory_id) return
-    if (availableInventories.length === 0) return
+    if (matchingInventories.length === 0) return
 
-    const best = availableInventories[0]
+    const best = matchingInventories[0]
     if (!best) return
 
     if (data.poultry_feed_inventory_id !== best.id) {
       onChangeRef.current({ poultry_feed_inventory_id: best.id })
     }
     lastAutoInventoryDateRef.current = data.date
-  }, [isActive, skipAutoFill, data.date, data.poultry_feed_inventory_id, availableInventories])
+  }, [isActive, skipAutoFill, data.date, data.poultry_feed_inventory_id, matchingInventories])
 
-  const handleInputChange = (field: keyof DailyRecordFormData, value: string | number | null) => {
+  const handleInputChange = (field: keyof DailyRecordFormData, value: string | number | boolean | null) => {
     onChange({ [field]: value })
     onClearError(field)
   }
@@ -467,9 +496,12 @@ const DailyRecordEntryRow = ({
                 </Label>
                 <Select
                   value={data.poultry_feed_inventory_id ? String(data.poultry_feed_inventory_id) : undefined}
-                  onValueChange={(value) => handleInputChange("poultry_feed_inventory_id", parseInt(value, 10))}
+                  onValueChange={(value) => {
+                    handleInputChange("poultry_feed_inventory_id", parseInt(value, 10))
+                    handleInputChange("allow_poultry_type_mismatch", false)
+                  }}
                 >
-                  <SelectTrigger className="h-9 text-sm">
+                  <SelectTrigger className={cn("h-9 text-sm", isPoultryTypeMismatch && "border-amber-400 bg-amber-50/50")}>
                     <SelectValue placeholder="Select inventory batch (optional)" />
                   </SelectTrigger>
                   <SelectContent>
@@ -477,12 +509,21 @@ const DailyRecordEntryRow = ({
                       const feedType = feedTypeById.get(inventory.poultry_feed_type_id)
                       const { start, end } = feedType ? effectiveFeedAgeRange(feedType) : { start: null, end: null }
                       const rangeLabel = formatFeedAgeRange(start, end)
+                      const matchesFlock = isInventoryMatchingFlockPoultryType(inventory)
+                      const feedPoultryName = feedType?.poultry_type?.name
                       return (
                         <SelectItem key={inventory.id} value={String(inventory.id)}>
                           <div>
-                            <div className="font-medium">
-                              {feedType?.name ? `${feedType.name} · ` : ""}
-                              Batch {inventory.batch_number} — {inventory.manufacturer}
+                            <div className="font-medium flex items-center gap-1.5 flex-wrap">
+                              <span>
+                                {feedType?.name ? `${feedType.name} · ` : ""}
+                                Batch {inventory.batch_number} — {inventory.manufacturer}
+                              </span>
+                              {!matchesFlock && (
+                                <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.2">
+                                  {feedPoultryName || "Other Type"}
+                                </span>
+                              )}
                             </div>
                             <div className="text-sm text-gray-500">
                               Available: {inventory.quantity} kg | {Naira}{formatCurrency(Number(inventory.unit_cost))}/kg
@@ -496,7 +537,37 @@ const DailyRecordEntryRow = ({
                     })}
                   </SelectContent>
                 </Select>
-                {ageWarning && (
+
+                {isPoultryTypeMismatch && selectedInventory && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2 text-xs">
+                    <div className="flex items-start gap-2 text-amber-900">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold">Poultry Type Mismatch: </span>
+                        Batch <strong>{selectedInventory.batch_number}</strong> uses{" "}
+                        <strong>{selectedFeedType?.name || "feed"}</strong> formulated for{" "}
+                        <strong>{selectedFeedType?.poultry_type?.name || "another poultry type"}</strong>,
+                        but this flock is <strong>{poultryType}</strong>.
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 font-medium text-amber-900 cursor-pointer pt-1 border-t border-amber-200">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(data.allow_poultry_type_mismatch)}
+                        onChange={(e) => handleInputChange("allow_poultry_type_mismatch", e.target.checked)}
+                        className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-4 w-4"
+                      />
+                      <span>Permit using this feed for this {poultryType} flock</span>
+                    </label>
+                    {!data.allow_poultry_type_mismatch && (
+                      <p className="text-amber-700 text-[11px]">
+                        Confirmation is required to deduct feed from a different poultry type.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {ageWarning && !isPoultryTypeMismatch && (
                   <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>{ageWarning}</span>

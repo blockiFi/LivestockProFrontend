@@ -1660,6 +1660,7 @@ const FlockPage = () => {
             farmId={farmId!}
             token={token!}
             poultryType={flock.poultry_type.name}
+            poultryTypeId={flock.poultry_type_id}
             flockArrivalDate={flock.arrival_date}
             flockArrivalAgeDays={flock.arrival_age_days}
             feedInventories={feedInventories}

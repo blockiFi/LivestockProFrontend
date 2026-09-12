@@ -39,6 +39,7 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
+  const [allowMismatch, setAllowMismatch] = useState(false)
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -53,9 +54,39 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
         created_by: 1,
         usage_date: new Date().toISOString().split('T')[0],
       })
+      setAllowMismatch(false)
       setErrors({})
     }
   }, [isOpen, flock])
+
+  const allAvailableFeedTypes = useMemo(() => {
+    const map = new Map<number, FeedType>()
+    safeFeedTypes.forEach((ft) => map.set(ft.id, ft))
+    safeFeedInventories.forEach((inv) => {
+      if (inv.feed_type) map.set(inv.poultry_feed_type_id, inv.feed_type)
+    })
+    return Array.from(map.values())
+  }, [safeFeedTypes, safeFeedInventories])
+
+  const isFeedTypeMatchingFlock = (ft: FeedType): boolean => {
+    if (!flock) return true
+    if (flock.poultry_type_id && ft.poultry_type_id) {
+      return Number(flock.poultry_type_id) === Number(ft.poultry_type_id)
+    }
+    if (flock.poultry_type?.name && ft.poultry_type?.name) {
+      return flock.poultry_type.name.toLowerCase() === ft.poultry_type.name.toLowerCase()
+    }
+    return true
+  }
+
+  const selectedFeedType = allAvailableFeedTypes.find((ft) => ft.id === formData.poultry_feed_type_id)
+  const isPoultryTypeMismatch = Boolean(selectedFeedType && !isFeedTypeMatchingFlock(selectedFeedType))
+
+  const selectedFeedInventory = safeFeedInventories.find((inv) => inv.id === formData.poultry_feed_inventory_id)
+  const invFeedType = selectedFeedInventory?.feed_type || (selectedFeedInventory ? allAvailableFeedTypes.find(ft => ft.id === selectedFeedInventory.poultry_feed_type_id) : undefined)
+  const isInventoryMismatch = Boolean(invFeedType && !isFeedTypeMatchingFlock(invFeedType))
+
+  const hasMismatch = isPoultryTypeMismatch || isInventoryMismatch
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -74,6 +105,10 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
 
     if (!formData.usage_date) {
       newErrors.usage_date = "Please select a usage date"
+    }
+
+    if (hasMismatch && !allowMismatch) {
+      newErrors.allow_mismatch = "Confirmation is required to use feed of a different poultry type."
     }
 
     setErrors(newErrors)
@@ -95,6 +130,7 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
         poultry_feed_inventory_id: formData.poultry_feed_inventory_id || (undefined as unknown as number),
         quantity: parseFloat(formData.quantity),
         unit_cost: parseFloat(formData.unit_cost || "0"),
+        allow_poultry_type_mismatch: allowMismatch,
       }
 
       await onSubmit(recordData)
@@ -115,11 +151,6 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
 
   const hasUsableStock = availableFeedInventories.some((inv) => Number(inv.quantity) > 0)
   const willAutoCreate = Boolean(formData.poultry_feed_type_id) && !formData.poultry_feed_inventory_id && !hasUsableStock
-
-  // Get selected feed inventory for cost suggestion
-  const selectedFeedInventory = safeFeedInventories.find((inv) => inv.id === formData.poultry_feed_inventory_id)
-
-  const selectedFeedType = safeFeedTypes.find((ft) => ft.id === formData.poultry_feed_type_id)
 
   const flockAgeOnUsageDate = useMemo(() => {
     if (!flock?.arrival_date) return null
@@ -191,13 +222,21 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
                     <SelectValue placeholder="Select feed type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {safeFeedTypes.map((feedType) => {
+                    {allAvailableFeedTypes.map((feedType) => {
                       const { start, end } = effectiveFeedAgeRange(feedType)
                       const rangeLabel = formatFeedAgeRange(start, end)
+                      const matchesFlock = isFeedTypeMatchingFlock(feedType)
                       return (
                         <SelectItem key={feedType.id} value={feedType.id.toString()}>
                           <div>
-                            <div className="font-medium">{feedType.name}</div>
+                            <div className="font-medium flex items-center gap-1.5 flex-wrap">
+                              <span>{feedType.name}</span>
+                              {!matchesFlock && (
+                                <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">
+                                  {feedType.poultry_type?.name || "Other Type"}
+                                </span>
+                              )}
+                            </div>
                             <div className="text-sm text-gray-500">{feedType.description}</div>
                             {rangeLabel && (
                               <div className="text-xs text-gray-400">
@@ -253,19 +292,28 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
                         </div>
                       </div>
                     </SelectItem>
-                    {availableFeedInventories.map((inventory) => (
-                      <SelectItem key={inventory.id} value={inventory.id.toString()}>
-                        <div>
-                          <div className="font-medium">
-                            Batch: {inventory.batch_number} - {inventory.manufacturer}
+                    {availableFeedInventories.map((inventory) => {
+                      const feedType = inventory.feed_type || allAvailableFeedTypes.find(ft => ft.id === inventory.poultry_feed_type_id)
+                      const matchesFlock = feedType ? isFeedTypeMatchingFlock(feedType) : true
+                      return (
+                        <SelectItem key={inventory.id} value={inventory.id.toString()}>
+                          <div>
+                            <div className="font-medium flex items-center gap-1.5 flex-wrap">
+                              <span>Batch: {inventory.batch_number} - {inventory.manufacturer}</span>
+                              {!matchesFlock && (
+                                <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">
+                                  {feedType?.poultry_type?.name || "Other Type"}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Available: {inventory.quantity} kg | {Naira}
+                              {formatCurrency(Number(inventory.unit_cost))}/kg
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-500">
-                            Available: {inventory.quantity} kg | {Naira}
-                            {formatCurrency(Number(inventory.unit_cost))}/kg
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
                 {willAutoCreate && (
@@ -279,7 +327,39 @@ const AddFeedUsageModal = ({ isOpen, onClose, onSubmit, flock, feedInventories, 
                 )}
               </div>
             </div>
-            {ageWarning && (
+
+            {hasMismatch && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3.5 space-y-2.5 text-xs">
+                <div className="flex items-start gap-2 text-amber-900">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <div className="font-semibold text-amber-900">Poultry Type Mismatch Detected</div>
+                    <div>
+                      This feed (<strong>{selectedFeedType?.name || invFeedType?.name}</strong>) is formulated for{" "}
+                      <strong>{selectedFeedType?.poultry_type?.name || invFeedType?.poultry_type?.name || "a different poultry type"}</strong>,
+                      but this flock is <strong>{flock?.poultry_type?.name || "another poultry type"}</strong>.
+                    </div>
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-medium text-amber-950 cursor-pointer pt-2 border-t border-amber-200">
+                  <input
+                    type="checkbox"
+                    checked={allowMismatch}
+                    onChange={(e) => {
+                      setAllowMismatch(e.target.checked)
+                      setErrors(prev => ({ ...prev, allow_mismatch: "" }))
+                    }}
+                    className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-4 w-4"
+                  />
+                  <span>I confirm and permit deducting this feed for this {flock?.poultry_type?.name || "flock"}</span>
+                </label>
+                {errors.allow_mismatch && (
+                  <p className="text-xs text-red-600 font-medium">{errors.allow_mismatch}</p>
+                )}
+              </div>
+            )}
+
+            {ageWarning && !hasMismatch && (
               <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>{ageWarning}</span>

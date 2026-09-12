@@ -20,6 +20,7 @@ export interface DailyRecordFormData {
   eggs_broken: number
   notes: string
   poultry_feed_inventory_id: number | null
+  allow_poultry_type_mismatch?: boolean
 }
 
 export const toFormDate = (date: string) => (date.includes("T") ? date.split("T")[0] : date)
@@ -47,6 +48,7 @@ export const recordToFormData = (
   eggs_broken: record.eggs_broken ?? 0,
   notes: record.notes ?? "",
   poultry_feed_inventory_id: inventoryId,
+  allow_poultry_type_mismatch: false,
 })
 
 export const initialFormState = (flockId: number, date = format(new Date(), "yyyy-MM-dd")): DailyRecordFormData => ({
@@ -68,6 +70,7 @@ export const initialFormState = (flockId: number, date = format(new Date(), "yyy
   eggs_broken: 0,
   notes: "",
   poultry_feed_inventory_id: null,
+  allow_poultry_type_mismatch: false,
 })
 
 export const validateDailyRecordEntry = (
