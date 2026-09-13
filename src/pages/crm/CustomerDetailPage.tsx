@@ -443,12 +443,14 @@ export default function CustomerDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentAccountTxns.map((txn) => (
+                    {recentAccountTxns.map((txn) => {
+                      const date = txn.occurred_at ?? txn.created_at
+                      return (
                       <TableRow key={txn.id}>
-                        <TableCell>{formatDate(txn.occurred_at ?? txn.created_at)}</TableCell>
+                        <TableCell>{date ? formatDate(date) : "—"}</TableCell>
                         <TableCell>
                           <div>{txn.description || txn.type}</div>
-                          <div className="text-xs text-slate-500">{txn.type.replaceAll("_", " ")}</div>
+                          <div className="text-xs text-slate-500">{txn.type.replace(/_/g, " ")}</div>
                         </TableCell>
                         <TableCell className="text-right text-emerald-700">
                           {txn.direction === "credit" ? formatCurrency(Number(txn.amount)) : "—"}
@@ -485,7 +487,8 @@ export default function CustomerDetailPage() {
                           ) : null}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>

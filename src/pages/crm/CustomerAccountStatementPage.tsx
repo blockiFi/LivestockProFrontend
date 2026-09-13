@@ -228,9 +228,10 @@ export default function CustomerAccountStatementPage() {
                     rows.map((row) => {
                       const amount = Number(row.amount)
                       const isCredit = row.direction === "credit"
+                      const date = row.occurred_at ?? row.created_at
                       return (
                         <TableRow key={row.id}>
-                          <TableCell>{formatDate(row.occurred_at ?? row.created_at)}</TableCell>
+                          <TableCell>{date ? formatDate(date) : "—"}</TableCell>
                           <TableCell>
                             <div className="font-medium text-slate-900">{row.description || row.reference || "—"}</div>
                             <div className="text-xs text-slate-500">
@@ -240,7 +241,7 @@ export default function CustomerAccountStatementPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{row.type.replaceAll("_", " ")}</Badge>
+                            <Badge variant="outline">{row.type.replace(/_/g, " ")}</Badge>
                           </TableCell>
                           <TableCell className="text-right text-emerald-700">
                             {isCredit ? formatCurrency(amount) : "—"}
