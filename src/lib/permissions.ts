@@ -80,6 +80,12 @@ export const PERM = {
   CREATE_CUSTOMERS: "create customers",
   UPDATE_CUSTOMERS: "update customers",
   DELETE_CUSTOMERS: "delete customers",
+  VIEW_CUSTOMER_ACCOUNTS: "view customer accounts",
+  TOP_UP_CUSTOMER_ACCOUNTS: "top up customer accounts",
+  USE_CUSTOMER_ACCOUNT_FOR_PAYMENT: "use customer account for payment",
+  ADJUST_CUSTOMER_ACCOUNTS: "adjust customer accounts",
+  REFUND_CUSTOMER_ACCOUNTS: "refund customer accounts",
+  REVERSE_CUSTOMER_ACCOUNT_TRANSACTIONS: "reverse customer account transactions",
 
   // Medications
   VIEW_MEDICATIONS: "view medications",

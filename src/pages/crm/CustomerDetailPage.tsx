@@ -22,8 +22,8 @@ import {
 } from "lucide-react"
 
 import type { RootState } from "@/store"
-import type { Customer, CustomerHistoryItem, CustomerSummary } from "@/lib/types"
-import { getCustomer, getCustomerHistory } from "@/lib/crmRequest"
+import type { Customer, CustomerAccount, CustomerAccountTransaction, CustomerHistoryItem, CustomerSummary } from "@/lib/types"
+import { getCustomer, getCustomerHistory, refundCustomerAccountSale } from "@/lib/crmRequest"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -35,8 +35,12 @@ import CustomerFormSheet from "@/components/crm/CustomerFormSheet"
 import CustomerSaleDetailSheet from "@/components/crm/CustomerSaleDetailSheet"
 import CustomerPaymentAnalysis, { PaymentStatusBadge } from "@/components/crm/CustomerPaymentAnalysis"
 import RecordPaymentModal from "@/components/crm/RecordPaymentModal"
+import TopUpAccountModal from "@/components/crm/TopUpAccountModal"
+import AccountAdjustmentModal from "@/components/crm/AccountAdjustmentModal"
 import Pagination from "@/components/general/Pagination"
 import { CardGridSkeleton, TableSkeleton } from "@/components/general/skeletons"
+import { ActionGate } from "@/components/general/ActionGate"
+import { PERM } from "@/lib/permissions"
 
 const HISTORY_PER_PAGE = 10
 
@@ -137,12 +141,17 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [summary, setSummary] = useState<CustomerSummary | null>(null)
+  const [account, setAccount] = useState<CustomerAccount | null>(null)
+  const [recentAccountTxns, setRecentAccountTxns] = useState<CustomerAccountTransaction[]>([])
+  const [isLowBalance, setIsLowBalance] = useState(false)
   const [history, setHistory] = useState<CustomerHistoryItem[]>([])
   const [historyPage, setHistoryPage] = useState(1)
   const [historyTotalPages, setHistoryTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [historyLoading, setHistoryLoading] = useState(true)
   const [editOpen, setEditOpen] = useState(false)
+  const [topUpOpen, setTopUpOpen] = useState(false)
+  const [adjustOpen, setAdjustOpen] = useState(false)
   const [tab, setTab] = useState("all")
   const [search, setSearch] = useState("")
   const [selectedSale, setSelectedSale] = useState<CustomerHistoryItem | null>(null)
@@ -166,6 +175,9 @@ export default function CustomerDetailPage() {
     }
     setCustomer(res.data.customer)
     setSummary(res.data.summary)
+    setAccount(res.data.account ?? res.data.customer.account ?? null)
+    setRecentAccountTxns(res.data.recent_account_transactions ?? [])
+    setIsLowBalance(Boolean(res.data.is_low_balance))
     setLoading(false)
   }, [token, farmId, customerId])
 
@@ -371,6 +383,117 @@ export default function CustomerDetailPage() {
         {summary.payment_analysis ? (
           <CustomerPaymentAnalysis analysis={summary.payment_analysis} />
         ) : null}
+
+        <Card className="border-slate-200/80 shadow-sm">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Wallet className="h-5 w-5 text-emerald-600" />
+                Customer Account
+              </CardTitle>
+              <p className="mt-1 text-sm text-slate-500">Prepaid balance and recent ledger activity</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <ActionGate anyOf={[PERM.TOP_UP_CUSTOMER_ACCOUNTS, PERM.MANAGE_CUSTOMERS]}>
+                <Button size="sm" onClick={() => setTopUpOpen(true)}>Top Up Account</Button>
+              </ActionGate>
+              <Button size="sm" variant="outline" asChild>
+                <Link to={`/dashboard/crm/customers/${customer.id}/account`}>View Statement</Link>
+              </Button>
+              <ActionGate anyOf={[PERM.ADJUST_CUSTOMER_ACCOUNTS, PERM.MANAGE_CUSTOMERS]}>
+                <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>Adjust</Button>
+              </ActionGate>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLowBalance ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Low balance warning — balance is below the configured threshold.
+              </div>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Current Balance</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(Number(account?.balance ?? 0))}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Total Deposited</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(Number(account?.total_credited ?? 0))}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Total Used</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(Number(account?.total_debited ?? 0))}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Last Top Up</p>
+                <p className="mt-1 text-sm font-medium">{account?.last_top_up_at ? formatDate(account.last_top_up_at) : "—"}</p>
+              </div>
+            </div>
+            {recentAccountTxns.length > 0 ? (
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Credit</TableHead>
+                      <TableHead className="text-right">Debit</TableHead>
+                      <TableHead className="text-right">Balance</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentAccountTxns.map((txn) => (
+                      <TableRow key={txn.id}>
+                        <TableCell>{formatDate(txn.occurred_at ?? txn.created_at)}</TableCell>
+                        <TableCell>
+                          <div>{txn.description || txn.type}</div>
+                          <div className="text-xs text-slate-500">{txn.type.replaceAll("_", " ")}</div>
+                        </TableCell>
+                        <TableCell className="text-right text-emerald-700">
+                          {txn.direction === "credit" ? formatCurrency(Number(txn.amount)) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-rose-700">
+                          {txn.direction === "debit" ? formatCurrency(Number(txn.amount)) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(Number(txn.balance_after))}</TableCell>
+                        <TableCell className="text-right">
+                          {txn.type === "sale_payment" && txn.sales_record_id ? (
+                            <ActionGate anyOf={[PERM.REFUND_CUSTOMER_ACCOUNTS, PERM.MANAGE_CUSTOMERS]}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (!token || !farmId || !customerId) return
+                                  if (!window.confirm(`Refund ${formatCurrency(Number(txn.amount))} to account?`)) return
+                                  void refundCustomerAccountSale(token, farmId, Number(customerId), {
+                                    sales_record_id: txn.sales_record_id!,
+                                    amount: Number(txn.amount),
+                                  }).then((res) => {
+                                    if (!res.success) {
+                                      toast.error(res.error?.join(", ") || "Refund failed")
+                                      return
+                                    }
+                                    toast.success("Refund recorded")
+                                    void loadCustomer()
+                                  })
+                                }}
+                              >
+                                Refund
+                              </Button>
+                            </ActionGate>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No account transactions yet. Top up to get started.</p>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Profile sidebar */}
@@ -591,6 +714,27 @@ export default function CustomerDetailPage() {
           onSuccess={() => void refreshAfterPayment()}
         />
       )}
+
+      {customer ? (
+        <>
+          <TopUpAccountModal
+            open={topUpOpen}
+            onOpenChange={setTopUpOpen}
+            customerId={customer.id}
+            customerName={customer.name}
+            currentBalance={Number(account?.balance ?? 0)}
+            onSuccess={() => void loadCustomer()}
+          />
+          <AccountAdjustmentModal
+            open={adjustOpen}
+            onOpenChange={setAdjustOpen}
+            customerId={customer.id}
+            customerName={customer.name}
+            currentBalance={Number(account?.balance ?? 0)}
+            onSuccess={() => void loadCustomer()}
+          />
+        </>
+      ) : null}
     </div>
   )
 }

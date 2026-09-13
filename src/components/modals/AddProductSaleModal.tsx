@@ -13,8 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { SalesRecord } from "@/lib/types";
+import type { CustomerAccount, SalesRecord } from "@/lib/types";
 import { getEggStock, type EggStockSummary, type ProductSaleFormPayload } from "@/lib/request";
+import { getCustomerAccount } from "@/lib/crmRequest";
+import { formatCurrency } from "@/lib/utils";
 import {
   EGGS_PER_CRATE,
   cratePriceToUnitPrice,
@@ -26,6 +28,8 @@ import {
 import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker";
 
 export type { ProductSaleFormPayload };
+
+type PaymentMode = NonNullable<ProductSaleFormPayload["payment_mode"]>;
 
 interface AddProductSaleModalProps {
   isOpen: boolean;
@@ -61,6 +65,10 @@ const defaultFormData = (flockId?: number | null) => ({
   } as CustomerSelection,
   payment_method: "",
   payment_status: "paid" as ProductSaleFormPayload["payment_status"],
+  payment_mode: "cash" as PaymentMode,
+  account_amount: "",
+  other_amount: "",
+  other_payment_method: "cash" as NonNullable<ProductSaleFormPayload["other_payment_method"]>,
   notes: "",
 });
 
@@ -79,6 +87,7 @@ const AddProductSaleModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [eggStock, setEggStock] = useState<EggStockSummary | null>(null);
   const [eggStockLoading, setEggStockLoading] = useState(false);
+  const [account, setAccount] = useState<CustomerAccount | null>(null);
 
   const isEgg = formData.type === "egg";
   const quantityInput = Number(formData.quantity) || 0;
@@ -97,6 +106,22 @@ const AddProductSaleModal = ({
   );
 
   const totalAmount = quantityEggs * unitPricePerEgg;
+  const accountBalance = Number(account?.balance ?? 0);
+  const accountAmount = Number(formData.account_amount) || 0;
+  const otherAmount = Number(formData.other_amount) || 0;
+  const usesAccount =
+    formData.payment_mode === "customer_account" || formData.payment_mode === "account_and_other";
+  const requiredFromAccount =
+    formData.payment_mode === "customer_account" ? totalAmount : accountAmount;
+  const deficit = Math.max(0, requiredFromAccount - accountBalance);
+  const balanceAfter =
+    formData.payment_mode === "customer_account"
+      ? accountBalance - totalAmount
+      : formData.payment_mode === "account_and_other"
+        ? accountBalance - accountAmount
+        : null;
+  const accountBlocked =
+    formData.payment_mode === "customer_account" && totalAmount > 0 && deficit > 0;
   const requiresFlock = formData.type === "egg" || formData.type === "meat";
 
   useEffect(() => {
@@ -114,6 +139,7 @@ const AddProductSaleModal = ({
           : String(editing.unit_price ?? "");
 
       setFormData({
+        ...defaultFormData(defaultFlockId),
         type,
         flock_id: editing.flock_id ? String(editing.flock_id) : "",
         quantity: qty,
@@ -126,6 +152,7 @@ const AddProductSaleModal = ({
         },
         payment_method: editing.payment_method || "",
         payment_status: (editing.payment_status as ProductSaleFormPayload["payment_status"]) || "paid",
+        payment_mode: "cash",
         notes: editing.notes || "",
       });
     } else {
@@ -135,7 +162,24 @@ const AddProductSaleModal = ({
     setErrors({});
     setIsSubmitting(false);
     setEggStock(null);
+    setAccount(null);
   }, [isOpen, editing, defaultFlockId]);
+
+  useEffect(() => {
+    const customerId = formData.customer.customer_id;
+    if (!isOpen || !token || !farmId || !customerId || !usesAccount) {
+      if (!usesAccount) setAccount(null);
+      return;
+    }
+    let cancelled = false;
+    void getCustomerAccount(token, farmId, customerId).then((res) => {
+      if (cancelled) return;
+      setAccount(res.success && res.data ? res.data.account : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, token, farmId, formData.customer.customer_id, usesAccount]);
 
   useEffect(() => {
     if (!isOpen || formData.type !== "egg" || !token || !farmId || !formData.flock_id || !formData.date) {
@@ -174,15 +218,28 @@ const AddProductSaleModal = ({
     if (isEgg && eggStock && quantityEggs > eggStock.available) {
       next.quantity = `Only ${formatEggsWithCrates(eggStock.available)} available as of ${eggStock.as_of}`;
     }
+    if (usesAccount && !formData.customer.customer_id) {
+      next.customer = "Select a linked customer to pay from account";
+    }
+    if (formData.payment_mode === "customer_account" && deficit > 0) {
+      next.payment_mode = `Insufficient balance. Available ${formatCurrency(accountBalance)}, required ${formatCurrency(totalAmount)}.`;
+    }
+    if (formData.payment_mode === "account_and_other") {
+      if (accountAmount <= 0) next.account_amount = "Account amount is required";
+      if (accountAmount > accountBalance) next.account_amount = "Exceeds available balance";
+      if (otherAmount > 0 && !formData.other_payment_method) {
+        next.other_payment_method = "Select method for remaining amount";
+      }
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    if (!validate() || accountBlocked) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({
+      const payload: ProductSaleFormPayload = {
         type: formData.type,
         flock_id: formData.flock_id ? Number(formData.flock_id) : null,
         quantity: quantityEggs,
@@ -191,10 +248,25 @@ const AddProductSaleModal = ({
         customer_id: formData.customer.customer_id,
         customer_name: formData.customer.customer_name || null,
         customer_phone: formData.customer.customer_phone || null,
-        payment_method: formData.payment_method || null,
-        payment_status: formData.payment_status,
+        payment_mode: formData.payment_mode,
         notes: formData.notes || null,
-      });
+      };
+
+      if (formData.payment_mode === "pending") {
+        payload.payment_status = "pending";
+      } else if (formData.payment_mode === "customer_account") {
+        payload.payment_method = "customer_account";
+        payload.payment_status = "paid";
+      } else if (formData.payment_mode === "account_and_other") {
+        payload.account_amount = accountAmount;
+        payload.other_amount = otherAmount;
+        payload.other_payment_method = formData.other_payment_method;
+      } else {
+        payload.payment_method = formData.payment_mode;
+        payload.payment_status = "paid";
+      }
+
+      await onSubmit(payload);
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -365,39 +437,120 @@ const AddProductSaleModal = ({
             value={formData.customer}
             onChange={(customer) => setFormData((prev) => ({ ...prev, customer }))}
           />
+          {errors.customer ? <p className="text-xs text-rose-600">{errors.customer}</p> : null}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Payment status</Label>
-              <Select
-                value={formData.payment_status}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    payment_status: value as ProductSaleFormPayload["payment_status"],
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="payment_method">Payment method</Label>
-              <Input
-                id="payment_method"
-                value={formData.payment_method}
-                onChange={(e) => setFormData((prev) => ({ ...prev, payment_method: e.target.value }))}
-                placeholder="Cash, transfer..."
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Payment method</Label>
+            <Select
+              value={formData.payment_mode}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  payment_mode: value as PaymentMode,
+                  account_amount:
+                    value === "account_and_other" && totalAmount > 0
+                      ? String(Math.min(accountBalance, totalAmount))
+                      : prev.account_amount,
+                  other_amount:
+                    value === "account_and_other" && totalAmount > 0
+                      ? String(Math.max(0, totalAmount - Math.min(accountBalance, totalAmount)))
+                      : prev.other_amount,
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                <SelectItem value="pos">POS</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="customer_account">Customer Account</SelectItem>
+                <SelectItem value="account_and_other">Account + Other Payment</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.payment_mode ? <p className="text-xs text-rose-600">{errors.payment_mode}</p> : null}
           </div>
+
+          {usesAccount ? (
+            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="flex justify-between">
+                <span>Customer Account Balance</span>
+                <span className="font-semibold">{formatCurrency(accountBalance)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Sale Total</span>
+                <span className="font-semibold">{formatCurrency(totalAmount)}</span>
+              </div>
+              {balanceAfter != null ? (
+                <div className="flex justify-between">
+                  <span>Balance After Payment</span>
+                  <span className="font-semibold">{formatCurrency(Math.max(0, balanceAfter))}</span>
+                </div>
+              ) : null}
+              {deficit > 0 && formData.payment_mode === "customer_account" ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
+                  <p className="font-semibold">Insufficient Balance</p>
+                  <p>Available: {formatCurrency(accountBalance)}</p>
+                  <p>Required: {formatCurrency(totalAmount)}</p>
+                  <p>Deficit: {formatCurrency(deficit)}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {formData.payment_mode === "account_and_other" ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Account amount</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={formData.account_amount}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, account_amount: e.target.value }))}
+                />
+                {errors.account_amount ? <p className="text-xs text-rose-600">{errors.account_amount}</p> : null}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Other amount</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={formData.other_amount}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, other_amount: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>Other payment method</Label>
+                <Select
+                  value={formData.other_payment_method}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      other_payment_method: value as NonNullable<ProductSaleFormPayload["other_payment_method"]>,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="pos">POS</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.other_payment_method ? (
+                  <p className="text-xs text-rose-600">{errors.other_payment_method}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <div className="space-y-1.5">
             <Label htmlFor="notes">Notes</Label>
@@ -414,7 +567,11 @@ const AddProductSaleModal = ({
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting}>
+          <Button
+            type="button"
+            onClick={() => void handleSubmit()}
+            disabled={isSubmitting || accountBlocked}
+          >
             {isSubmitting ? "Saving..." : editing ? "Update sale" : "Record sale"}
           </Button>
         </DialogFooter>
