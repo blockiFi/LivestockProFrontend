@@ -3177,6 +3177,43 @@ export const sendBatchChatMessage = async (
   }
 };
 
+export const transcribeBatchChatAudio = async (
+  token: string,
+  farmId: number,
+  flockId: number,
+  blob: Blob,
+  filename = 'voice.webm'
+): Promise<RequestResponse<{ text: string }>> => {
+  try {
+    const form = new FormData();
+    form.append('audio', blob, filename);
+    const response = await axios.post(
+      `${batchChatBase(farmId, flockId)}/transcribe`,
+      form,
+      {
+        headers: {
+          ...authHeader(token),
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    if (response.status === 200) {
+      return { success: true, data: { text: response.data.data?.text ?? '' } };
+    }
+    return { success: false, error: [`Error transcribing audio! Status: ${response.status}`] };
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      const message = error.response?.data?.message;
+      const errors = error.response?.data?.errors;
+      return {
+        success: false,
+        error: errors || (message ? [message] : ['Failed to transcribe audio']),
+      };
+    }
+    return { success: false, error: ['An unexpected error occurred'] };
+  }
+};
+
 export const confirmBatchChatAction = async (
   token: string,
   farmId: number,

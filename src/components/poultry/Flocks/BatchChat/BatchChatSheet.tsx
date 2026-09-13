@@ -7,6 +7,8 @@ import {
   History,
   Loader2,
   MessageSquarePlus,
+  Mic,
+  MicOff,
   Send,
   Sparkles,
   Trash2,
@@ -23,6 +25,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { useVoiceInput } from "@/hooks/useVoiceInput"
 import { cn } from "@/lib/utils"
 import type { RootState } from "@/store"
 import type {
@@ -57,6 +60,7 @@ const SUGGESTIONS = [
   "Summarize mortality this week",
   "What's the profit and loss for this batch?",
   "Record today's egg collection",
+  "Add 12 dead birds today",
 ]
 
 function relativeTime(value?: string | null) {
@@ -228,6 +232,34 @@ export default function BatchChatSheet({
       setLoading(false)
     }
   }
+
+  const sendRef = useRef(send)
+  sendRef.current = send
+
+  const handleVoiceTranscript = useCallback((text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    setInput(trimmed)
+    void sendRef.current(trimmed)
+  }, [])
+
+  const {
+    status: voiceStatus,
+    interim: voiceInterim,
+    isActive: voiceActive,
+    toggle: toggleVoice,
+  } = useVoiceInput({
+    token,
+    farmId,
+    flockId,
+    disabled: loading || !sessionId,
+    onTranscript: handleVoiceTranscript,
+    onError: (message) => toast.error(message),
+  })
+
+  useEffect(() => {
+    if (voiceInterim) setInput(voiceInterim)
+  }, [voiceInterim])
 
   const confirmAction = async (actionId: string) => {
     if (!token || !sessionId) return
@@ -450,13 +482,24 @@ export default function BatchChatSheet({
               </div>
 
               <div className="border-t border-slate-200 p-3 space-y-2">
+                {(voiceStatus === "listening" || voiceStatus === "recording" || voiceStatus === "transcribing") && (
+                  <p className="text-[11px] text-emerald-700">
+                    {voiceStatus === "listening" && "Listening… tap mic to stop"}
+                    {voiceStatus === "recording" && "Recording… tap mic to stop & transcribe"}
+                    {voiceStatus === "transcribing" && "Transcribing…"}
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <Textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about this batch…"
+                    placeholder={
+                      voiceActive
+                        ? "Listening…"
+                        : "Ask about this batch or tap the mic…"
+                    }
                     className="min-h-[44px] max-h-28 resize-none text-sm"
-                    disabled={loading || !sessionId}
+                    disabled={loading || !sessionId || voiceStatus === "transcribing"}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault()
@@ -466,8 +509,28 @@ export default function BatchChatSheet({
                   />
                   <Button
                     type="button"
+                    variant="outline"
+                    className={cn(
+                      "shrink-0",
+                      voiceActive && "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                    )}
+                    disabled={loading || !sessionId || voiceStatus === "transcribing"}
+                    onClick={() => toggleVoice()}
+                    aria-label={voiceActive ? "Stop voice input" : "Start voice input"}
+                    title={voiceActive ? "Stop" : "Voice input"}
+                  >
+                    {voiceStatus === "transcribing" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : voiceActive ? (
+                      <MicOff className="h-4 w-4 animate-pulse" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
                     className="shrink-0 bg-emerald-600 hover:bg-emerald-700"
-                    disabled={loading || !input.trim() || !sessionId}
+                    disabled={loading || !input.trim() || !sessionId || voiceActive}
                     onClick={() => void send()}
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
