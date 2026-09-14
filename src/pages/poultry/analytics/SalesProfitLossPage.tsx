@@ -27,10 +27,11 @@ import {
 import StatisticsCard from "@/components/general/StatisticsCard";
 import { formatEggsWithCrates } from "@/lib/eggMetrics";
 import { formatCurrency, Naira } from "@/lib/utils";
-import type { FarmSalesProfitLoss, SalesRecord } from "@/lib/types";
+import type { FarmSalesProfitLoss, FlockRecord, SalesRecord } from "@/lib/types";
 import {
   createSalesRecord,
   deleteSalesRecord,
+  getFlocks,
   getSalesRecords,
   updateSalesRecord,
   type ProductSaleFormPayload,
@@ -41,12 +42,22 @@ import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "react-toastify";
 import { ActionGate } from "@/components/general/ActionGate";
 import { ACTIONS } from "@/lib/actionPermissions";
 import { CustomerNameLink } from "@/components/crm/CustomerNameLink";
+import Pagination from "@/components/general/Pagination";
 
 type FlockPnlRow = FarmSalesProfitLoss["flocks"][number]
+
+const PRODUCT_SALES_PAGE_SIZE = 10;
 
 const FLOCK_PNL_COLUMNS: ExportColumn<FlockPnlRow>[] = [
   { header: "Flock", value: (row) => row.flock_name },
@@ -98,6 +109,11 @@ const SalesProfitLossPage = () => {
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<SalesRecord | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [productTypeFilter, setProductTypeFilter] = useState<string>("all");
+  const [productFlockFilter, setProductFlockFilter] = useState<string>("all");
+  const [productCustomerSearch, setProductCustomerSearch] = useState("");
+  const [productSalesPage, setProductSalesPage] = useState(1);
+  const [filterFlocks, setFilterFlocks] = useState<FlockRecord[]>([]);
 
   const data = salesProfitLoss;
 
@@ -116,18 +132,75 @@ const SalesProfitLossPage = () => {
       const res = await getSalesRecords(token, farmId, {
         date_from: data.date_from,
         date_to: data.date_to,
+        type: productTypeFilter !== "all" ? productTypeFilter : undefined,
+        flock_id: productFlockFilter !== "all" && productFlockFilter !== "farm"
+          ? Number(productFlockFilter)
+          : undefined,
       });
       if (res.success && res.data) {
-        setProductSales(res.data);
+        let rows = res.data;
+        if (productFlockFilter === "farm") {
+          rows = rows.filter((row) => !row.flock_id);
+        }
+        setProductSales(rows);
+      } else {
+        setProductSales([]);
       }
     } finally {
       setLoadingProducts(false);
     }
-  }, [token, farmId, data]);
+  }, [token, farmId, data, productTypeFilter, productFlockFilter]);
 
   useEffect(() => {
     void loadProductSales();
   }, [loadProductSales]);
+
+  useEffect(() => {
+    if (!token || !farmId) return;
+    let cancelled = false;
+    void getFlocks(token, farmId, false).then((res) => {
+      if (cancelled) return;
+      if (res.success && res.data) setFilterFlocks(res.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, farmId]);
+
+  const filteredProductSales = useMemo(() => {
+    const q = productCustomerSearch.trim().toLowerCase();
+    if (!q) return productSales;
+    return productSales.filter((row) => {
+      const name = (row.customer_name || row.customer?.name || "").toLowerCase();
+      return name.includes(q);
+    });
+  }, [productSales, productCustomerSearch]);
+
+  const productSalesTotalPages = Math.max(1, Math.ceil(filteredProductSales.length / PRODUCT_SALES_PAGE_SIZE));
+
+  const paginatedProductSales = useMemo(() => {
+    const start = (productSalesPage - 1) * PRODUCT_SALES_PAGE_SIZE;
+    return filteredProductSales.slice(start, start + PRODUCT_SALES_PAGE_SIZE);
+  }, [filteredProductSales, productSalesPage]);
+
+  useEffect(() => {
+    setProductSalesPage(1);
+  }, [productTypeFilter, productFlockFilter, productCustomerSearch, data?.date_from, data?.date_to]);
+
+  useEffect(() => {
+    if (productSalesPage > productSalesTotalPages) {
+      setProductSalesPage(productSalesTotalPages);
+    }
+  }, [productSalesPage, productSalesTotalPages]);
+
+  const flockFilterOptions = useMemo(() => {
+    return [...filterFlocks].sort((a, b) => {
+      const aActive = a.status === "active" ? 0 : 1;
+      const bActive = b.status === "active" ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [filterFlocks]);
 
   const flockChartData = useMemo(
     () =>
@@ -517,7 +590,7 @@ const SalesProfitLossPage = () => {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <ExportDataButton
-              rows={productSales}
+              rows={filteredProductSales}
               columns={PRODUCT_SALE_COLUMNS}
               filename={buildExportFilename("sales-profit-loss", "product-sales")}
             />
@@ -535,7 +608,61 @@ const SalesProfitLossPage = () => {
             </ActionGate>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="space-y-1.5">
+              <Label>Type</Label>
+              <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  <SelectItem value="egg">Eggs</SelectItem>
+                  <SelectItem value="meat">Meat</SelectItem>
+                  <SelectItem value="manure">Manure</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Flock</Label>
+              <Select value={productFlockFilter} onValueChange={setProductFlockFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All flocks" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All flocks</SelectItem>
+                  <SelectItem value="farm">Farm-level (no flock)</SelectItem>
+                  {flockFilterOptions.map((flock) => (
+                    <SelectItem key={flock.id} value={String(flock.id)}>
+                      {flock.name}
+                      {flock.batch_number ? ` · ${flock.batch_number}` : ""}
+                      {flock.status && flock.status !== "active" ? ` (${flock.status})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2 lg:col-span-2">
+              <Label htmlFor="product-customer-search">Customer</Label>
+              <Input
+                id="product-customer-search"
+                value={productCustomerSearch}
+                onChange={(e) => setProductCustomerSearch(e.target.value)}
+                placeholder="Search by customer name…"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-sm text-slate-600">
+            <span>
+              {filteredProductSales.length} sale{filteredProductSales.length === 1 ? "" : "s"}
+              {filteredProductSales.length !== productSales.length
+                ? ` (of ${productSales.length} loaded)`
+                : ""}
+            </span>
+          </div>
+
           <div className="border rounded-md overflow-hidden">
             <Table>
               <TableHeader>
@@ -556,14 +683,14 @@ const SalesProfitLossPage = () => {
                       Loading product sales...
                     </TableCell>
                   </TableRow>
-                ) : productSales.length === 0 ? (
+                ) : filteredProductSales.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                      No product sales in this period.
+                      No product sales match these filters.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  productSales.map((row) => (
+                  paginatedProductSales.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>{new Date(row.date).toLocaleDateString("en-GB")}</TableCell>
                       <TableCell>
@@ -627,6 +754,14 @@ const SalesProfitLossPage = () => {
               </TableBody>
             </Table>
           </div>
+
+          {filteredProductSales.length > 0 && (
+            <Pagination
+              currentPage={productSalesPage}
+              totalPages={productSalesTotalPages}
+              onPageChange={setProductSalesPage}
+            />
+          )}
         </CardContent>
       </Card>
 

@@ -13,8 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { CustomerAccount, SalesRecord } from "@/lib/types";
-import { getEggStock, type EggStockSummary, type ProductSaleFormPayload } from "@/lib/request";
+import type { CustomerAccount, FlockRecord, SalesRecord } from "@/lib/types";
+import { getEggStock, getFlocks, type EggStockSummary, type ProductSaleFormPayload } from "@/lib/request";
 import { getCustomerAccount } from "@/lib/crmRequest";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -39,6 +39,13 @@ interface AddProductSaleModalProps {
   defaultFlockId?: number | null;
   lockFlock?: boolean;
 }
+
+const flockLabel = (flock: Pick<FlockRecord, "id" | "name" | "batch_number" | "status">) => {
+  const name = flock.name?.trim() || `Flock #${flock.id}`;
+  const batch = flock.batch_number?.trim();
+  const base = batch ? `${name} · ${batch}` : name;
+  return flock.status && flock.status !== "active" ? `${base} (${flock.status})` : base;
+};
 
 /** Local calendar date (YYYY-MM-DD) — avoid UTC shift from toISOString(). */
 const localDateInputValue = (value?: string | null) => {
@@ -88,6 +95,9 @@ const AddProductSaleModal = ({
   const [eggStock, setEggStock] = useState<EggStockSummary | null>(null);
   const [eggStockLoading, setEggStockLoading] = useState(false);
   const [account, setAccount] = useState<CustomerAccount | null>(null);
+  const [flocks, setFlocks] = useState<FlockRecord[]>([]);
+  const [flocksLoading, setFlocksLoading] = useState(false);
+  const [flocksError, setFlocksError] = useState<string | null>(null);
 
   const isEgg = formData.type === "egg";
   const quantityInput = Number(formData.quantity) || 0;
@@ -123,6 +133,52 @@ const AddProductSaleModal = ({
   const accountBlocked =
     formData.payment_mode === "customer_account" && totalAmount > 0 && deficit > 0;
   const requiresFlock = formData.type === "egg" || formData.type === "meat";
+
+  const sortedFlocks = useMemo(() => {
+    return [...flocks].sort((a, b) => {
+      const aActive = a.status === "active" ? 0 : 1;
+      const bActive = b.status === "active" ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [flocks]);
+
+  const selectedFlockLabel = useMemo(() => {
+    if (!formData.flock_id) return null;
+    const found = flocks.find((f) => String(f.id) === formData.flock_id);
+    if (found) return flockLabel(found);
+    if (editing?.flock) {
+      return flockLabel({
+        id: editing.flock.id,
+        name: editing.flock.name,
+        batch_number: editing.flock.batch_number || "",
+        status: "active",
+      });
+    }
+    return `Flock #${formData.flock_id}`;
+  }, [formData.flock_id, flocks, editing?.flock]);
+
+  useEffect(() => {
+    if (!isOpen || !token || !farmId) return;
+
+    let cancelled = false;
+    setFlocksLoading(true);
+    setFlocksError(null);
+    void getFlocks(token, farmId, false).then((res) => {
+      if (cancelled) return;
+      if (res.success && res.data) {
+        setFlocks(res.data);
+      } else {
+        setFlocks([]);
+        setFlocksError(res.error?.[0] || "Could not load flocks");
+      }
+      setFlocksLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, token, farmId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -330,15 +386,49 @@ const AddProductSaleModal = ({
 
           {requiresFlock && (
             <div className="space-y-1.5">
-              <Label htmlFor="flock_id">Flock ID {lockFlock ? "(fixed)" : ""}</Label>
-              <Input
-                id="flock_id"
-                type="number"
-                min={1}
-                value={formData.flock_id}
-                disabled={lockFlock}
-                onChange={(e) => setFormData((prev) => ({ ...prev, flock_id: e.target.value }))}
-              />
+              <Label htmlFor="flock_id">Flock {lockFlock ? "(fixed)" : ""}</Label>
+              {lockFlock ? (
+                <Input
+                  id="flock_id"
+                  value={selectedFlockLabel || (formData.flock_id ? `Flock #${formData.flock_id}` : "")}
+                  disabled
+                  readOnly
+                />
+              ) : (
+                <Select
+                  value={formData.flock_id || undefined}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, flock_id: value }))}
+                  disabled={flocksLoading}
+                >
+                  <SelectTrigger id="flock_id">
+                    <SelectValue
+                      placeholder={
+                        flocksLoading
+                          ? "Loading flocks…"
+                          : flocksError
+                            ? "Could not load flocks"
+                            : "Select a flock"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedFlocks.length === 0 && !flocksLoading ? (
+                      <SelectItem value="__none" disabled>
+                        No flocks found
+                      </SelectItem>
+                    ) : (
+                      sortedFlocks.map((flock) => (
+                        <SelectItem key={flock.id} value={String(flock.id)}>
+                          {flockLabel(flock)}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+              {flocksError && !lockFlock && (
+                <p className="text-xs text-amber-700">{flocksError}</p>
+              )}
               {errors.flock_id && <p className="text-xs text-rose-600">{errors.flock_id}</p>}
             </div>
           )}
