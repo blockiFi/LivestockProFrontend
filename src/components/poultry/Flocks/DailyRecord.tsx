@@ -5,6 +5,7 @@ import {
   Droplets,
   Edit,
   Eye,
+  Scissors,
   Skull,
   Sun,
   Thermometer,
@@ -38,6 +39,7 @@ import { cn, formatDate } from "@/lib/utils"
 const DAILY_EXPORT_COLUMNS: ExportColumn<PoultryDailyReport>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
   { header: "Mortality", value: (row) => row.mortality },
+  { header: "Culls", value: (row) => row.culls ?? 0 },
   { header: "Feed (kg)", value: (row) => row.feed_consumed_kg },
   { header: "Water (L)", value: (row) => row.water_consumed_liters },
   { header: "Avg Weight (kg)", value: (row) => (row.avg_weight_grams ? row.avg_weight_grams / 1000 : "") },
@@ -126,11 +128,13 @@ const DailyRecord = ({
   const kpis = useMemo(() => {
     const days = filteredRecords.length
     const totalMortality = filteredRecords.reduce((sum, r) => sum + Number(r.mortality || 0), 0)
+    const totalCulls = filteredRecords.reduce((sum, r) => sum + Number(r.culls || 0), 0)
     const totalFeed = filteredRecords.reduce((sum, r) => sum + Number(r.feed_consumed_kg || 0), 0)
     const totalWater = filteredRecords.reduce((sum, r) => sum + Number(r.water_consumed_liters || 0), 0)
     const avgWater = days > 0 ? totalWater / days : 0
     const highMortalityDays = filteredRecords.filter((r) => Number(r.mortality || 0) > 2).length
-    return { days, totalMortality, totalFeed, avgWater, highMortalityDays }
+    const cullDays = filteredRecords.filter((r) => Number(r.culls || 0) > 0).length
+    return { days, totalMortality, totalCulls, totalFeed, avgWater, highMortalityDays, cullDays }
   }, [filteredRecords])
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / recordsPerPage))
@@ -199,7 +203,7 @@ const DailyRecord = ({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           title="Days logged"
           value={String(kpis.days)}
@@ -215,6 +219,14 @@ const DailyRecord = ({
           icon={Skull}
           accent="bg-red-500"
           iconBg="bg-red-50 text-red-600"
+        />
+        <KpiCard
+          title="Culls"
+          value={String(kpis.totalCulls)}
+          subtitle={kpis.cullDays === 1 ? "on 1 day" : `on ${kpis.cullDays} days`}
+          icon={Scissors}
+          accent="bg-purple-500"
+          iconBg="bg-purple-50 text-purple-600"
         />
         <KpiCard
           title="Feed used"
@@ -259,6 +271,7 @@ const DailyRecord = ({
                 <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                   <TableHead className="font-semibold text-slate-700">Date</TableHead>
                   <TableHead className="font-semibold text-slate-700">Mortality</TableHead>
+                  <TableHead className="font-semibold text-slate-700">Culls</TableHead>
                   <TableHead className="font-semibold text-slate-700">Feed (kg)</TableHead>
                   <TableHead className="font-semibold text-slate-700">Water (L)</TableHead>
                   <TableHead className="font-semibold text-slate-700 hidden md:table-cell">Avg weight</TableHead>
@@ -302,6 +315,19 @@ const DailyRecord = ({
                             <span className="tabular-nums text-slate-700">{record.mortality}</span>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {Number(record.culls || 0) > 0 ? (
+                          <Badge
+                            variant="outline"
+                            className="gap-1 font-normal bg-purple-50 text-purple-700 border-purple-200"
+                          >
+                            <Scissors className="h-3 w-3" />
+                            {Number(record.culls)}
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="tabular-nums">{Number(record.feed_consumed_kg).toLocaleString()}</TableCell>
                       <TableCell className="tabular-nums">

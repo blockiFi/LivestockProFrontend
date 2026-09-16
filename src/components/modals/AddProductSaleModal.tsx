@@ -332,7 +332,7 @@ const AddProductSaleModal = ({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="sm:max-w-md"
+        className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
         onPointerDownOutside={(e) => {
           const target = e.target as HTMLElement | null;
           if (
@@ -354,11 +354,11 @@ const AddProductSaleModal = ({
           }
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-4 pr-12">
           <DialogTitle>{editing ? "Edit product sale" : "Record product sale"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
           <div className="space-y-1.5">
             <Label>Product type</Label>
             <Select
@@ -653,7 +653,7 @@ const AddProductSaleModal = ({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
