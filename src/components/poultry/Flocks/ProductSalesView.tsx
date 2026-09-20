@@ -19,7 +19,7 @@ import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRange
 import { useRecordsDateRange } from "@/hooks/useRecordsDateRange";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { isDateInRange } from "@/lib/dateRange";
-import { EGGS_PER_CRATE, formatEggsWithCrates, unitPricePerCrate } from "@/lib/eggMetrics";
+import { formatSaleCrates } from "@/lib/eggMetrics";
 import { Edit, Egg, Plus, Trash2 } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
@@ -34,13 +34,9 @@ const PRODUCT_SALE_EXPORT_COLUMNS: ExportColumn<SalesRecord>[] = [
   { header: "Type", value: (row) => row.type },
   {
     header: "Qty",
-    value: (row) => (row.type === "egg" ? formatEggsWithCrates(row.quantity) : row.quantity),
+    value: (row) => (row.type === "egg" ? formatSaleCrates(row.quantity) : row.quantity),
   },
   { header: "Unit price", value: (row) => row.unit_price ?? 0 },
-  {
-    header: "Price / crate",
-    value: (row) => (row.type === "egg" ? unitPricePerCrate(row.unit_price ?? 0) : ""),
-  },
   { header: "Total", value: (row) => row.total_amount ?? 0 },
   { header: "Customer", value: (row) => row.customer_name || row.customer?.name || "" },
   { header: "Status", value: (row) => row.payment_status },
@@ -250,7 +246,6 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
                 <TableHead className="text-right">Unit price</TableHead>
-                <TableHead className="text-right">Price / crate</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Status</TableHead>
@@ -260,13 +255,13 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 9 : 8} className="text-center text-slate-500 py-8">
+                  <TableCell colSpan={canManage ? 8 : 7} className="text-center text-slate-500 py-8">
                     Loading product sales...
                   </TableCell>
                 </TableRow>
               ) : filteredRecords.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 9 : 8} className="text-center text-slate-500 py-8">
+                  <TableCell colSpan={canManage ? 8 : 7} className="text-center text-slate-500 py-8">
                     No product sales in {rangeLabel}.
                   </TableCell>
                 </TableRow>
@@ -284,30 +279,16 @@ const ProductSalesView = ({ flockId, flockName, canManage = true }: ProductSales
                       </TableCell>
                       <TableCell className="text-right">
                         {isEgg
-                          ? formatEggsWithCrates(row.quantity)
+                          ? formatSaleCrates(row.quantity)
                           : Number(row.quantity).toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right text-sm">
                         <div className="flex flex-col items-end">
                           <span>{formatCurrency(unitPrice)}</span>
                           {isEgg ? (
-                            <span className="text-[11px] text-slate-500">per egg</span>
+                            <span className="text-[11px] text-slate-500">per crate</span>
                           ) : null}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {isEgg ? (
-                          <div className="flex flex-col items-end">
-                            <span className="font-medium">
-                              {formatCurrency(unitPricePerCrate(unitPrice))}
-                            </span>
-                            <span className="text-[11px] text-slate-500">
-                              {EGGS_PER_CRATE} eggs / crate
-                            </span>
-                          </div>
-                        ) : (
-                          "—"
-                        )}
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {formatCurrency(row.total_amount)}

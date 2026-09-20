@@ -3625,7 +3625,9 @@ export const getFarmSalesProfitLoss = async (
 export type ProductSaleFormPayload = {
   type: 'egg' | 'meat' | 'manure';
   flock_id?: number | null;
+  /** For egg sales: crates. For meat/manure: product units. */
   quantity: number;
+  /** For egg sales: price per crate. For meat/manure: price per unit. */
   unit_price: number;
   date: string;
   customer_id?: number | null;

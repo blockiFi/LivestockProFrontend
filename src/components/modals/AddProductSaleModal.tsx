@@ -19,11 +19,8 @@ import { getCustomerAccount } from "@/lib/crmRequest";
 import { formatCurrency } from "@/lib/utils";
 import {
   EGGS_PER_CRATE,
-  cratePriceToUnitPrice,
   cratesToEggs,
-  eggsToCrates,
   formatEggsWithCrates,
-  unitPricePerCrate,
 } from "@/lib/eggMetrics";
 import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker";
 
@@ -103,19 +100,14 @@ const AddProductSaleModal = ({
   const quantityInput = Number(formData.quantity) || 0;
   const priceInput = Number(formData.unit_price) || 0;
 
-  /** Eggs quantity sent to API (crates → eggs for egg sales). */
+  /** Eggs equivalent for stock checks (API stores crates for egg sales). */
   const quantityEggs = useMemo(
     () => (isEgg ? cratesToEggs(quantityInput) : quantityInput),
     [isEgg, quantityInput]
   );
 
-  /** Per-egg unit price sent to API (crate price → per egg for egg sales). */
-  const unitPricePerEgg = useMemo(
-    () => (isEgg ? cratePriceToUnitPrice(priceInput) : priceInput),
-    [isEgg, priceInput]
-  );
-
-  const totalAmount = quantityEggs * unitPricePerEgg;
+  /** Total = crates × price/crate for eggs; quantity × unit price otherwise. */
+  const totalAmount = quantityInput * priceInput;
   const accountBalance = Number(account?.balance ?? 0);
   const accountAmount = Number(formData.account_amount) || 0;
   const otherAmount = Number(formData.other_amount) || 0;
@@ -185,21 +177,13 @@ const AddProductSaleModal = ({
 
     if (editing) {
       const type = (editing.type as ProductSaleFormPayload["type"]) || "egg";
-      const qty =
-        type === "egg"
-          ? String(eggsToCrates(Number(editing.quantity ?? 0)))
-          : String(editing.quantity ?? "");
-      const price =
-        type === "egg"
-          ? String(unitPricePerCrate(Number(editing.unit_price ?? 0)))
-          : String(editing.unit_price ?? "");
 
       setFormData({
         ...defaultFormData(defaultFlockId),
         type,
         flock_id: editing.flock_id ? String(editing.flock_id) : "",
-        quantity: qty,
-        unit_price: price,
+        quantity: String(editing.quantity ?? ""),
+        unit_price: String(editing.unit_price ?? ""),
         date: localDateInputValue(editing.date),
         customer: {
           customer_id: editing.customer_id ?? null,
@@ -298,8 +282,8 @@ const AddProductSaleModal = ({
       const payload: ProductSaleFormPayload = {
         type: formData.type,
         flock_id: formData.flock_id ? Number(formData.flock_id) : null,
-        quantity: quantityEggs,
-        unit_price: unitPricePerEgg,
+        quantity: quantityInput,
+        unit_price: priceInput,
         date: formData.date,
         customer_id: formData.customer.customer_id,
         customer_name: formData.customer.customer_name || null,
@@ -485,7 +469,7 @@ const AddProductSaleModal = ({
               />
               {isEgg && quantityInput > 0 ? (
                 <p className="text-xs text-slate-500">
-                  = {formatEggsWithCrates(quantityEggs)} sent to stock
+                  = {formatEggsWithCrates(quantityEggs)}
                 </p>
               ) : null}
               {errors.quantity && <p className="text-xs text-rose-600">{errors.quantity}</p>}
@@ -501,11 +485,6 @@ const AddProductSaleModal = ({
                 onChange={(e) => setFormData((prev) => ({ ...prev, unit_price: e.target.value }))}
                 placeholder={isEgg ? "Price for 30 eggs" : undefined}
               />
-              {isEgg && priceInput > 0 ? (
-                <p className="text-xs text-slate-500">
-                  ≈ {unitPricePerEgg.toLocaleString(undefined, { minimumFractionDigits: 2 })} per egg
-                </p>
-              ) : null}
               {errors.unit_price && <p className="text-xs text-rose-600">{errors.unit_price}</p>}
             </div>
           </div>

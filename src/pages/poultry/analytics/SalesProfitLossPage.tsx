@@ -25,7 +25,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import StatisticsCard from "@/components/general/StatisticsCard";
-import { formatEggsWithCrates } from "@/lib/eggMetrics";
+import { formatSaleCrates } from "@/lib/eggMetrics";
 import { formatCurrency, Naira } from "@/lib/utils";
 import type { FarmSalesProfitLoss, FlockRecord, SalesRecord } from "@/lib/types";
 import {
@@ -77,7 +77,7 @@ const PRODUCT_SALE_COLUMNS: ExportColumn<SalesRecord>[] = [
   { header: "Flock", value: (row) => row.flock?.name ?? "" },
   {
     header: "Qty",
-    value: (row) => (row.type === "egg" ? formatEggsWithCrates(row.quantity) : row.quantity),
+    value: (row) => (row.type === "egg" ? formatSaleCrates(row.quantity) : row.quantity),
   },
   { header: "Total", value: (row) => row.total_amount ?? 0 },
   { header: "Customer", value: (row) => row.customer_name || row.customer?.name || "" },
@@ -710,7 +710,7 @@ const SalesProfitLossPage = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         {row.type === "egg"
-                          ? formatEggsWithCrates(row.quantity)
+                          ? formatSaleCrates(row.quantity)
                           : Number(row.quantity).toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(row.total_amount)}</TableCell>

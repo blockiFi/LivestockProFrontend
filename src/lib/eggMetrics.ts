@@ -193,24 +193,36 @@ export function formatEggsWithCrates(eggs: number): string {
   return `${crateLabel} + ${remainder} egg${remainder === 1 ? "" : "s"} (${eggLabel})`
 }
 
-/** Unit price is stored per egg; crate price = per-egg × eggs per crate. */
+/**
+ * Format egg sale quantity already stored in crates.
+ * e.g. 4 → "4 crates (120 eggs)"
+ *      2.5 → "2.5 crates (75 eggs)"
+ */
+export function formatSaleCrates(crates: number): string {
+  const qty = Number(crates) || 0
+  const crateLabel = `${qty.toLocaleString(undefined, { maximumFractionDigits: 2 })} crate${qty === 1 ? "" : "s"}`
+  const eggs = cratesToEggs(qty)
+  return `${crateLabel} (${eggs.toLocaleString()} egg${eggs === 1 ? "" : "s"})`
+}
+
+/** Convert crates to eggs (stock / display helper). Unit price helpers remain for legacy egg-unit data. */
 export function unitPricePerCrate(unitPricePerEgg: number): number {
   return Number(unitPricePerEgg || 0) * EGGS_PER_CRATE
 }
 
-/** Convert crate count to egg quantity for API payloads. */
+/** Convert crate count to egg quantity (stock checks / display). */
 export function cratesToEggs(crates: number): number {
   return Math.round(Number(crates || 0) * EGGS_PER_CRATE * 100) / 100
 }
 
-/** Convert stored egg quantity to crates for crate-based forms. */
+/** Convert egg count to crates. */
 export function eggsToCrates(eggs: number): number {
   const total = Number(eggs || 0)
   if (!EGGS_PER_CRATE) return 0
   return Math.round((total / EGGS_PER_CRATE) * 10000) / 10000
 }
 
-/** Convert price-per-crate to per-egg unit price for API payloads. */
+/** Convert price-per-crate to per-egg unit price (legacy helper). */
 export function cratePriceToUnitPrice(pricePerCrate: number): number {
   if (!EGGS_PER_CRATE) return 0
   return Math.round((Number(pricePerCrate || 0) / EGGS_PER_CRATE) * 100) / 100
