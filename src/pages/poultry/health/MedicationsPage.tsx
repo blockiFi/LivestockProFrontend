@@ -14,6 +14,12 @@ import "react-toastify/dist/ReactToastify.css"
 import { Textarea } from "@/components/ui/textarea"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
+import { DosageRatioFields } from "@/components/poultry/health/DosageRatioFields"
+import {
+  dosageRatiosToPayload,
+  emptyMedicationDosageRatios,
+  type MedicationDosageRatios,
+} from "@/lib/medicationDosage"
 
 interface NewMedicationForm {
   poultry_medication_id: number | null
@@ -22,10 +28,9 @@ interface NewMedicationForm {
   administration_method_id: number | null
   withdrawal_period: number
   withdrawal_period_unit: "days" | "hours"
-  dosage: number | null
-  dosage_unit: string
   image_url?: string
   min_stock_level: number
+  dosage_ratios: MedicationDosageRatios
 }
 
 function CreateMedicationModal({
@@ -46,10 +51,9 @@ function CreateMedicationModal({
     administration_method_id: null,
     withdrawal_period: 0,
     withdrawal_period_unit: "days",
-    dosage: null,
-    dosage_unit: "",
     image_url: "",
     min_stock_level: 0,
+    dosage_ratios: emptyMedicationDosageRatios(),
   })
   const [adminMethods, setAdminMethods] = useState<AdministrationMethod[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -96,10 +100,9 @@ function CreateMedicationModal({
           administration_method_id: null,
           withdrawal_period: 0,
           withdrawal_period_unit: "days",
-          dosage: null,
-          dosage_unit: "",
           image_url: "",
           min_stock_level: 0,
+          dosage_ratios: emptyMedicationDosageRatios(),
         })
         onClose()
       }
@@ -152,25 +155,6 @@ function CreateMedicationModal({
               <Input value={formData.manufacturer} onChange={(e) => setFormData((p) => ({ ...p, manufacturer: e.target.value }))} placeholder="e.g., VetPharm" />
             </div>
             <div>
-              <Label>Dosage</Label>
-              <Input type="number" step="0.01" value={formData.dosage ?? ''} onChange={(e) => setFormData((p) => ({ ...p, dosage: e.target.value === '' ? null : Number.parseFloat(e.target.value) }))} placeholder="e.g., 10" />
-            </div>
-            <div>
-              <Label>Dosage Unit</Label>
-              <Select value={formData.dosage_unit} onValueChange={(v) => setFormData((p) => ({ ...p, dosage_unit: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="g">Grams (g)</SelectItem>
-                  <SelectItem value="mg">Milligrams (mg)</SelectItem>
-                  <SelectItem value="ml">Milliliters (ml)</SelectItem>
-                  <SelectItem value="tablet">Tablet</SelectItem>
-                  <SelectItem value="unit">Unit</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <Label>Withdrawal Period</Label>
               <Input type="number" value={formData.withdrawal_period} onChange={(e) => setFormData((p) => ({ ...p, withdrawal_period: Number.parseInt(e.target.value) || 0 }))} />
             </div>
@@ -194,6 +178,25 @@ function CreateMedicationModal({
               <Label>Image URL (optional)</Label>
               <Input value={formData.image_url || ''} onChange={(e) => setFormData((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://..." />
             </div>
+          </div>
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-gray-800">Label mix ratios (optional)</p>
+            <DosageRatioFields
+              idPrefix="meds-preventive"
+              title="Preventive"
+              value={formData.dosage_ratios.preventive}
+              onChange={(preventive) =>
+                setFormData((p) => ({ ...p, dosage_ratios: { ...p.dosage_ratios, preventive } }))
+              }
+            />
+            <DosageRatioFields
+              idPrefix="meds-treatment"
+              title="Treatment"
+              value={formData.dosage_ratios.treatment}
+              onChange={(treatment) =>
+                setFormData((p) => ({ ...p, dosage_ratios: { ...p.dosage_ratios, treatment } }))
+              }
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
@@ -328,10 +331,9 @@ export default function CategoriesPage() {
         administration_method_id: Number(form.administration_method_id),
         withdrawal_period: Number(form.withdrawal_period) || 0,
         withdrawal_period_unit: form.withdrawal_period_unit,
-        dosage: form.dosage == null ? undefined : Number(form.dosage),
-        dosage_unit: form.dosage_unit || undefined,
         image_url: form.image_url?.trim() || undefined,
         min_stock_level: Number(form.min_stock_level) || 0,
+        ...dosageRatiosToPayload(form.dosage_ratios),
       }
       const res = await createMedicationProduct(token, farm.id, payload)
       if (res.success) {

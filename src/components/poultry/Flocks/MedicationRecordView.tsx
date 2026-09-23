@@ -24,6 +24,7 @@ interface MedicationRecordFormData {
   administered_by: string
   dosage: number
   dosage_unit: string
+  purpose?: "preventive" | "treatment" | ""
   quantity: number
   cost?: number
   notes: string
@@ -33,8 +34,8 @@ interface MedicationRecordFormData {
 const MEDICATION_EXPORT_COLUMNS: ExportColumn<PoultryMedicationRecord>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
   { header: "Medication", value: (row) => row.medication?.name ?? "" },
-  { header: "Dosage", value: (row) => `${row.dosage || 0} ${row.dosage_unit || ""}`.trim() },
-  { header: "Quantity", value: (row) => Number(row.quantity) || 0 },
+  { header: "Amount Used", value: (row) => `${row.dosage || 0} ${row.dosage_unit || ""}`.trim() },
+  { header: "Purpose", value: (row) => row.purpose ?? "" },
   { header: "Cost", value: (row) => Number(row.cost) || 0 },
   { header: "Administered By", value: (row) => row.administered_by },
   { header: "Method", value: (row) => row.administration_method?.name ?? "" },
@@ -218,8 +219,8 @@ const MedicationRecordView = ({
             <TableRow>
               <TableHead>Date</TableHead>
               <TableHead>Medication</TableHead>
-              <TableHead>Dosage</TableHead>
-              <TableHead>Quantity</TableHead>
+              <TableHead>Amount Used</TableHead>
+              <TableHead>Purpose</TableHead>
               <TableHead>Cost</TableHead>
               <TableHead>Administered By</TableHead>
               <TableHead>Method</TableHead>
@@ -258,7 +259,15 @@ const MedicationRecordView = ({
                       {record.dosage || 0} {record.dosage_unit || ''}
                     </span>
                   </TableCell>
-                  <TableCell>{(Number(record.quantity) || 0).toFixed(2)}</TableCell>
+                  <TableCell>
+                    {record.purpose ? (
+                      <Badge variant="outline" className="capitalize text-xs">
+                        {record.purpose}
+                      </Badge>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="font-medium">{Naira}{(Number(record.cost) || 0).toFixed(2)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -445,7 +454,8 @@ const MedicationRecordView = ({
                   <p className="font-medium">{recordToDelete.medication?.name || 'Unknown Medication'}</p>
                   <p className="text-sm text-gray-600">
                     Date: {formatDate(recordToDelete.date)} | 
-                    Dosage: {recordToDelete.dosage || 0} {recordToDelete.dosage_unit || ''} | 
+                    Dosage: {recordToDelete.dosage || 0} {recordToDelete.dosage_unit || ''}
+                    {recordToDelete.purpose ? ` · ${recordToDelete.purpose}` : ''} | 
                     Quantity: {Number(recordToDelete.quantity) || 0}
                   </p>
                 </div>

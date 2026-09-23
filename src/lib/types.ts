@@ -406,7 +406,22 @@ export type MedicationProduct = {
   administration_method_id: number;
   withdrawal_period: number;
   withdrawal_period_unit: string; // e.g., "days"
-  dosage: string;
+  dosage: string | number | null;
+  dosage_unit?: string | null;
+  preventive_medicine_amount?: number | string | null;
+  preventive_medicine_unit?: string | null;
+  preventive_diluent_amount?: number | string | null;
+  preventive_diluent_unit?: string | null;
+  preventive_diluent_type?: "water" | "feed" | "other" | null;
+  preventive_diluent_label?: string | null;
+  treatment_medicine_amount?: number | string | null;
+  treatment_medicine_unit?: string | null;
+  treatment_diluent_amount?: number | string | null;
+  treatment_diluent_unit?: string | null;
+  treatment_diluent_type?: "water" | "feed" | "other" | null;
+  treatment_diluent_label?: string | null;
+  preventive_dosage_label?: string | null;
+  treatment_dosage_label?: string | null;
   created_at: string;
   updated_at: string;
   inventory? : MedicationInventory[];
@@ -742,6 +757,7 @@ export type PoultryMedicationRecord = {
   administered_by: string;     // e.g., "Vet 4"
   dosage: number;
   dosage_unit: string;         // e.g., "mL"
+  purpose?: "preventive" | "treatment" | null;
   quantity: number;            // consider number if always numeric
   cost: number;                // consider number if always numeric
   notes: string;

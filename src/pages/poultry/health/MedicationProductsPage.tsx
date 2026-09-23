@@ -38,6 +38,13 @@ import {
 } from "lucide-react"
 import type { Medication, MedicationData, MedicationProduct, AdministrationMethod } from "@/lib/types"
 import { useLoaderData, useRevalidator } from "react-router-dom"
+import { DosageRatioFields } from "@/components/poultry/health/DosageRatioFields"
+import {
+  dosageRatiosToPayload,
+  emptyMedicationDosageRatios,
+  formatMedicationDosage,
+  type MedicationDosageRatios,
+} from "@/lib/medicationDosage"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { MedicationInventory } from "@/lib/types"
 import { Naira, formatCurrency } from "@/lib/utils"
@@ -75,10 +82,9 @@ interface NewMedicationForm {
   administration_method_id: number | null
   withdrawal_period: number
   withdrawal_period_unit: "days" | "hours"
-  dosage: number | null
-  dosage_unit: string
   image_url?: string
   min_stock_level: number
+  dosage_ratios: MedicationDosageRatios
 }
 
 // Dynamic medication color handling
@@ -188,10 +194,9 @@ function CreateMedicationModal({
     administration_method_id: null,
     withdrawal_period: 0,
     withdrawal_period_unit: "days",
-    dosage: null,
-    dosage_unit: "",
     image_url: "",
     min_stock_level: 0,
+    dosage_ratios: emptyMedicationDosageRatios(),
   }
 
   const mapMedicationToForm = (med: Medication): NewMedicationForm => ({
@@ -201,10 +206,9 @@ function CreateMedicationModal({
     administration_method_id: null,
     withdrawal_period: 0,
     withdrawal_period_unit: "days",
-    dosage: null,
-    dosage_unit: "",
     image_url: "",
     min_stock_level: 0,
+    dosage_ratios: emptyMedicationDosageRatios(),
   })
 
   const [formData, setFormData] = useState<NewMedicationForm>(() =>
@@ -244,10 +248,9 @@ function CreateMedicationModal({
       administration_method_id: null,
       withdrawal_period: 0,
       withdrawal_period_unit: "days",
-      dosage: null,
-      dosage_unit: "",
       image_url: "",
       min_stock_level: 0,
+      dosage_ratios: emptyMedicationDosageRatios(),
     })
     onClose()
   }
@@ -340,35 +343,6 @@ function CreateMedicationModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
-                <Label htmlFor="dosage">Dosage</Label>
-                <Input
-                  id="dosage"
-                  type="number"
-                  step="0.01"
-                  value={formData.dosage ?? ''}
-                  onChange={(e) => setFormData((prev: NewMedicationForm) => ({ ...prev, dosage: e.target.value === '' ? null : Number.parseFloat(e.target.value) }))}
-                  placeholder="e.g., 10"
-                />
-              </div>
-              <div>
-                <Label htmlFor="dosage_unit">Dosage Unit</Label>
-                <Select
-                  value={formData.dosage_unit}
-                  onValueChange={(value) => setFormData((prev: NewMedicationForm) => ({ ...prev, dosage_unit: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="g">Grams (g)</SelectItem>
-                    <SelectItem value="mg">Milligrams (mg)</SelectItem>
-                    <SelectItem value="ml">Milliliters (ml)</SelectItem>
-                    <SelectItem value="tablet">Tablet</SelectItem>
-                    <SelectItem value="unit">Unit</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <Label htmlFor="withdrawal">Withdrawal Period</Label>
                 <Input
                   id="withdrawal"
@@ -412,6 +386,25 @@ function CreateMedicationModal({
                   placeholder="https://..."
                 />
               </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              <p className="text-sm font-medium text-gray-800">Label mix ratios (optional)</p>
+              <DosageRatioFields
+                idPrefix="products-preventive"
+                title="Preventive"
+                value={formData.dosage_ratios.preventive}
+                onChange={(preventive) =>
+                  setFormData((prev) => ({ ...prev, dosage_ratios: { ...prev.dosage_ratios, preventive } }))
+                }
+              />
+              <DosageRatioFields
+                idPrefix="products-treatment"
+                title="Treatment"
+                value={formData.dosage_ratios.treatment}
+                onChange={(treatment) =>
+                  setFormData((prev) => ({ ...prev, dosage_ratios: { ...prev.dosage_ratios, treatment } }))
+                }
+              />
             </div>
            </Card>
 
@@ -515,8 +508,19 @@ function ProductCard({
               <div className="flex items-start gap-2">
                 <Package className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-xs text-gray-500">Dosage</p>
-                  <p className="font-medium">{product.dosage}</p>
+                  <p className="text-xs text-gray-500">Label dosage</p>
+                  {(() => {
+                    const { preventive, treatment, legacy } = formatMedicationDosage(product)
+                    if (!preventive && !treatment) {
+                      return <p className="font-medium">{legacy || "—"}</p>
+                    }
+                    return (
+                      <div className="space-y-0.5 text-sm font-medium">
+                        {preventive && <p>Preventive: {preventive}</p>}
+                        {treatment && <p>Treatment: {treatment}</p>}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -776,10 +780,9 @@ function ProductCard({
         administration_method_id: Number(form.administration_method_id),
         withdrawal_period: Number(form.withdrawal_period) || 0,
         withdrawal_period_unit: form.withdrawal_period_unit,
-        dosage: form.dosage == null ? undefined : Number(form.dosage),
-        dosage_unit: form.dosage_unit || undefined,
         image_url: form.image_url?.trim() || undefined,
         min_stock_level: Number(form.min_stock_level) || 0,
+        ...dosageRatiosToPayload(form.dosage_ratios),
       }
       const res = await createMedicationProduct(token, farm.id, payload)
       if (res.success) {

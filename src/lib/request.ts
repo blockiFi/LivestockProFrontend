@@ -1861,8 +1861,9 @@ export const createFarm = async (
       administered_by: string
       dosage: number
       dosage_unit: string
+      purpose?: "preventive" | "treatment" | null
       quantity: number
-      cost: number
+      cost?: number
       notes: string
       administration_method_id: number
     }
@@ -5566,6 +5567,18 @@ export const createMedicationProduct = async (
     dosage_unit?: string
     image_url?: string
     min_stock_level?: number
+    preventive_medicine_amount?: number | null
+    preventive_medicine_unit?: string | null
+    preventive_diluent_amount?: number | null
+    preventive_diluent_unit?: string | null
+    preventive_diluent_type?: string | null
+    preventive_diluent_label?: string | null
+    treatment_medicine_amount?: number | null
+    treatment_medicine_unit?: string | null
+    treatment_diluent_amount?: number | null
+    treatment_diluent_unit?: string | null
+    treatment_diluent_type?: string | null
+    treatment_diluent_label?: string | null
     type?: "default" | "user"
   }
 ): Promise<RequestResponse<MedicationProduct>> => {

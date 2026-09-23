@@ -27,6 +27,7 @@ import {
 import { cn, Naira, formatCurrency, getExpiryStatus } from "@/lib/utils"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 import type { MedicationInventory } from "@/lib/types"
+import { formatMedicationDosageSummary } from "@/lib/medicationDosage"
 import AddMedicationInventoryModal from "@/components/modals/AddMedicationInventoryModal"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
@@ -172,8 +173,8 @@ function MedicationInventoryCard({
                <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-gray-500" />
                 <div>
-                  <p className="text-xs text-gray-500">Dosage</p>
-                  <p className="font-medium">{item.product?.dosage || "-"}</p>
+                  <p className="text-xs text-gray-500">Label dosage</p>
+                  <p className="font-medium text-sm">{formatMedicationDosageSummary(item.product) || "-"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
