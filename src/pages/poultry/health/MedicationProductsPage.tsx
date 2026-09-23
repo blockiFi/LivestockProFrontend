@@ -41,7 +41,7 @@ import { useLoaderData, useRevalidator } from "react-router-dom"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { MedicationInventory } from "@/lib/types"
 import { Naira, formatCurrency } from "@/lib/utils"
-import { GetToken, getFarm, createMedication } from "@/lib/request"
+import { GetToken, getFarm, createMedicationProduct } from "@/lib/request"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { ActionGate } from "@/components/general/ActionGate"
@@ -781,13 +781,14 @@ function ProductCard({
         image_url: form.image_url?.trim() || undefined,
         min_stock_level: Number(form.min_stock_level) || 0,
       }
-      const res = await createMedication(token, farm.id, payload)
+      const res = await createMedicationProduct(token, farm.id, payload)
       if (res.success) {
         toast.success("Medication product created successfully!")
         revalidator.revalidate()
         return true
       } else {
-        toast.error((res.error || []).join("\n"))
+        const err = Array.isArray(res.error) ? res.error.join("\n") : (res.error || "Failed to create medication product")
+        toast.error(err)
         return false
       }
     } catch (e) {

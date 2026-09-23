@@ -301,9 +301,9 @@ export default function CategoriesPage() {
       case "Name":
         return arr.sort((a, b) => a.name.localeCompare(b.name))
       case "Products (Most)":
-        return arr.sort((a, b) => b.products.length - a.products.length)
+        return arr.sort((a, b) => (b.products?.length ?? 0) - (a.products?.length ?? 0))
       case "Products (Least)":
-        return arr.sort((a, b) => a.products.length - b.products.length)
+        return arr.sort((a, b) => (a.products?.length ?? 0) - (b.products?.length ?? 0))
       default:
         return arr
     }
@@ -372,7 +372,7 @@ export default function CategoriesPage() {
     }
   }
 
-  const totalProducts = medications.reduce((sum, cat) => sum + cat.products.length, 0)
+  const totalProducts = medications.reduce((sum, cat) => sum + (cat.products?.length ?? 0), 0)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 p-6 md:p-8">
@@ -389,6 +389,17 @@ export default function CategoriesPage() {
                 <BarChart3 className="h-5 w-5 mr-2" />
                 Analytics
               </Button>
+              <ActionGate anyOf={ACTIONS.medicationProducts.create}>
+                <Button
+                  onClick={() => setIsCreateOpen(true)}
+                  variant="outline"
+                  className="gap-2 px-6 py-6 text-base font-semibold"
+                  size="lg"
+                >
+                  <Plus className="h-5 w-5" />
+                  Add Product
+                </Button>
+              </ActionGate>
               <ActionGate anyOf={ACTIONS.medications.create}>
                 <Button 
                   onClick={() => setIsCreateCategoryOpen(true)}
@@ -499,7 +510,7 @@ export default function CategoriesPage() {
                       <div className="grid grid-cols-2 gap-4 mb-4 py-4 border-y border-gray-200">
                         <div className="p-3 bg-gray-50 rounded-lg">
                           <p className="text-xs text-gray-500 mb-1">Medications</p>
-                          <p className="text-2xl font-bold text-gray-900">{category.products.length}</p>
+                          <p className="text-2xl font-bold text-gray-900">{category.products?.length ?? 0}</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
                           <p className="text-xs text-gray-500 mb-1">Status</p>
@@ -550,7 +561,7 @@ export default function CategoriesPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-sm text-gray-500">Medications</p>
-                          <p className="text-3xl font-bold text-gray-900">{category.products.length}</p>
+                          <p className="text-3xl font-bold text-gray-900">{category.products?.length ?? 0}</p>
                         </div>
                       </div>
 
@@ -561,7 +572,7 @@ export default function CategoriesPage() {
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
                           <p className="text-xs text-gray-500 mb-1">Total Medications</p>
-                          <p className="font-bold text-gray-900">{category.products.length}</p>
+                          <p className="font-bold text-gray-900">{category.products?.length ?? 0}</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
                           <p className="text-xs text-gray-500 mb-1">Status</p>
