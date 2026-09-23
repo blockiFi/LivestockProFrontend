@@ -53,7 +53,7 @@ import { AiGate } from "@/components/general/AiGate"
 import AddDailyRecordModal from "@/components/modals/AddDailyRecordModal"
 import AddFlockModal from "@/components/modals/AddFlockModal"
 import type { FlockFormData } from "@/components/modals/AddFlockModal"
-import { createDailyRecord, createDailyRecordsBatch, updateDailyRecord, deleteDailyRecord, createMortalityRecord, deleteMortalityRecord, createWeightReport, deleteWeightReport, createEggReport, updateEggReport, deleteEggReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, createMedicationRecord, deleteMedicationRecord, getFlock, createFlockExpenditure, updateFlockExpenditure, deleteFlockExpenditure, getFlockExpenditures, createFlockSale, updateFlockSale, deleteFlockSale, getFlockProfitLoss, updateFlock } from "@/lib/request"
+import { createDailyRecord, createDailyRecordsBatch, updateDailyRecord, deleteDailyRecord, createMortalityRecord, deleteMortalityRecord, createWeightReport, deleteWeightReport, createEggReport, updateEggReport, deleteEggReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, getMedicationInventories, createMedicationRecord, deleteMedicationRecord, getFlock, createFlockExpenditure, updateFlockExpenditure, deleteFlockExpenditure, getFlockExpenditures, createFlockSale, updateFlockSale, deleteFlockSale, getFlockProfitLoss, updateFlock } from "@/lib/request"
 import type { BatchSubmitResult } from "@/components/modals/AddDailyRecordModal"
 import type { DailyRecordFormData } from "@/components/modals/dailyRecordForm"
 import { useSelector } from "react-redux"
@@ -209,14 +209,16 @@ const FlockPage = () => {
                     vaccinesResponse, 
                     vaccineInventoriesResponse, 
                     administrationMethodsResponse,
-                    medicationsResponse
+                    medicationsResponse,
+                    medicationInventoriesResponse,
                 ] = await Promise.all([
                     getFeedInventories(token, farmId),
                     getFeedTypes(token, farmId, flock.poultry_type_id),
                     getVaccines(token, farmId),
                     getVaccineInventories(token, farmId),
                     getAdministrationMethods(token, farmId),
-                    getMedications(token, farmId)
+                    getMedications(token, farmId),
+                    getMedicationInventories(token, farmId),
                 ]);
                 
                 if (inventoriesResponse.success && Array.isArray(inventoriesResponse.data)) {
@@ -255,8 +257,11 @@ const FlockPage = () => {
                     setMedications([]);
                 }
 
-                // Medication inventories are not provided by the current request exports; default to empty.
-                setMedicationInventories([]);
+                if (medicationInventoriesResponse.success && Array.isArray(medicationInventoriesResponse.data)) {
+                    setMedicationInventories(medicationInventoriesResponse.data);
+                } else {
+                    setMedicationInventories([]);
+                }
             } catch (error) {
                 console.error("Error fetching flock page data:", error);
                 // Reset to safe defaults on failure

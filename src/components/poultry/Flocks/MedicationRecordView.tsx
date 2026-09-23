@@ -1,4 +1,4 @@
-import type { PoultryMedicationRecord, Medication, MedicationInventory, AdministrationMethod } from "@/lib/types"
+import type { PoultryMedicationRecord, MedicationData, MedicationInventory, AdministrationMethod } from "@/lib/types"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -50,7 +50,7 @@ interface MedicationRecordViewProps {
   flockId: number
   farmId: number
   flockName?: string
-  medications?: Medication[]
+  medications?: MedicationData[]
   medicationInventories?: MedicationInventory[]
   administrationMethods?: AdministrationMethod[]
   onAddMedicationRecord?: (recordData: MedicationRecordFormData) => Promise<void>

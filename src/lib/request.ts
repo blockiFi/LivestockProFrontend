@@ -329,7 +329,19 @@ export const createFarm = async (
     medication_product_id: toNumber(inv.medication_product_id),
     farm_id: toNumber(inv.farm_id),
     quantity: toNumber(inv.quantity),
+    available_quantity: inv.available_quantity != null ? toNumber(inv.available_quantity) : toNumber(inv.quantity),
     unit_cost: toNumber(inv.unit_cost),
+    product: inv.product
+      ? {
+          ...inv.product,
+          id: toNumber(inv.product.id),
+          poultry_medication_id: toNumber(inv.product.poultry_medication_id),
+          administration_method_id: toNumber(inv.product.administration_method_id),
+          withdrawal_period: toNumber(inv.product.withdrawal_period),
+          dosage: inv.product.dosage != null ? toNumber(inv.product.dosage) : inv.product.dosage,
+          min_stock_level: inv.product.min_stock_level != null ? toNumber(inv.product.min_stock_level) : inv.product.min_stock_level,
+        }
+      : undefined,
   } : undefined;
   
   // Helper for Medication
@@ -337,6 +349,25 @@ export const createFarm = async (
     ...med,
     id: toNumber(med.id),
     farm_id: med.farm_id !== undefined && med.farm_id !== null ? toNumber(med.farm_id) : null,
+    products: Array.isArray(med.products)
+      ? med.products.map((p: any) => ({
+          ...p,
+          id: toNumber(p.id),
+          poultry_medication_id: toNumber(p.poultry_medication_id),
+          administration_method_id: toNumber(p.administration_method_id),
+          withdrawal_period: toNumber(p.withdrawal_period),
+          dosage: p.dosage != null ? toNumber(p.dosage) : p.dosage,
+          min_stock_level: p.min_stock_level != null ? toNumber(p.min_stock_level) : p.min_stock_level,
+          inventory: Array.isArray(p.inventories)
+            ? p.inventories.map(sanitizeMedicationInventory).filter(Boolean)
+            : Array.isArray(p.inventory)
+              ? p.inventory.map(sanitizeMedicationInventory).filter(Boolean)
+              : undefined,
+          inventories: Array.isArray(p.inventories)
+            ? p.inventories.map(sanitizeMedicationInventory).filter(Boolean)
+            : undefined,
+        }))
+      : med.products,
   } : undefined;
   
   // Helper for AdministrationMethod
