@@ -5380,9 +5380,10 @@ export const getPoultryMedicationData = async (
       { headers: { Authorization: `Bearer ${token}` } }
     )
     if (response.status === 200) {
+      const raw = response.data.data
       return {
         success: true,
-        data: response.data.data
+        data: Array.isArray(raw) ? raw.map(sanitizeMedication).filter(Boolean) : raw
       }
     } else {
       return {
@@ -5632,6 +5633,50 @@ export const createMedicationProduct = async (
       }
     }
     return { success: false, error: ["An unexpected error occurred"] }
+  }
+}
+
+const medicationProductErrors = (error: unknown, fallback: string): string[] => {
+  if (!isAxiosError(error)) return ["An unexpected error occurred"]
+  const errors = error.response?.data?.errors
+  if (errors && typeof errors === "object" && !Array.isArray(errors)) {
+    const flat = Object.values(errors as Record<string, unknown>).flat().map(String)
+    if (flat.length) return flat
+  }
+  if (Array.isArray(errors) && errors.length) return errors.map(String)
+  return [error.response?.data?.message || fallback]
+}
+
+export const updateMedicationProduct = async (
+  token: string,
+  farmId: number,
+  productId: number,
+  productData: Record<string, unknown>
+): Promise<RequestResponse<MedicationProduct>> => {
+  try {
+    const response = await axios.put(
+      `/api/farms/${farmId}/medication-products/${productId}`,
+      productData,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return { success: true, data: response.data.data }
+  } catch (error: unknown) {
+    return { success: false, error: medicationProductErrors(error, "Failed to update medication product") }
+  }
+}
+
+export const deleteMedicationProduct = async (
+  token: string,
+  farmId: number,
+  productId: number
+): Promise<RequestResponse<null>> => {
+  try {
+    await axios.delete(`/api/farms/${farmId}/medication-products/${productId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return { success: true, data: null }
+  } catch (error: unknown) {
+    return { success: false, error: medicationProductErrors(error, "Failed to delete medication product") }
   }
 }
 

@@ -63,6 +63,7 @@ type Props = {
   onClose: () => void
   onSubmit: (form: MedicationProductFormValues) => Promise<boolean>
   editing?: boolean
+  initialValues?: MedicationProductFormValues
   idPrefix?: string
 }
 
@@ -124,6 +125,7 @@ export default function AddMedicationProductModal({
   onClose,
   onSubmit,
   editing = false,
+  initialValues,
   idPrefix = "med-product",
 }: Props) {
   const [formData, setFormData] = useState<MedicationProductFormValues>(emptyForm)
@@ -133,7 +135,7 @@ export default function AddMedicationProductModal({
 
   useEffect(() => {
     if (!isOpen) return
-    setFormData(emptyForm())
+    setFormData(initialValues ?? emptyForm())
     setTouched(false)
     setSubmitting(false)
 
@@ -150,7 +152,7 @@ export default function AddMedicationProductModal({
       }
     }
     void load()
-  }, [isOpen])
+  }, [isOpen, initialValues])
 
   const setField = <K extends keyof MedicationProductFormValues>(
     key: K,

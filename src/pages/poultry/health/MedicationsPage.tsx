@@ -101,6 +101,20 @@ function CreateMedicationCategoryModal({
   )
 }
 
+const categoryStockStats = (category: MedicationData) => {
+  const products = category.products ?? []
+  let inStock = 0
+  let available = 0
+  for (const product of products) {
+    const raw = product as unknown as { inventories?: { available_quantity?: unknown; quantity?: unknown }[]; inventory?: { available_quantity?: unknown; quantity?: unknown }[] }
+    const batches = raw.inventories ?? raw.inventory ?? []
+    const qty = batches.reduce((sum, inv) => sum + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
+    if (qty > 0) inStock += 1
+    available += qty
+  }
+  return { productCount: products.length, inStock, available }
+}
+
 export default function CategoriesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -127,7 +141,7 @@ export default function CategoriesPage() {
     return medications.filter(
       (cat) =>
         cat.name.toLowerCase().includes(q) ||
-        cat.description.toLowerCase().includes(q),
+        (cat.description ?? "").toLowerCase().includes(q),
     )
   }, [debouncedSearch, medications])
 
@@ -324,6 +338,7 @@ export default function CategoriesPage() {
                 ]
                 const colorIndex = category.id % colorVariants.length
                 const gradient = colorVariants[colorIndex]
+                const stats = categoryStockStats(category)
 
                 return (
                   <Card
@@ -344,12 +359,15 @@ export default function CategoriesPage() {
 
                       <div className="grid grid-cols-2 gap-4 mb-4 py-4 border-y border-gray-200">
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-xs text-gray-500 mb-1">Medications</p>
-                          <p className="text-2xl font-bold text-gray-900">{category.products?.length ?? 0}</p>
+                          <p className="text-xs text-gray-500 mb-1">Products</p>
+                          <p className="text-2xl font-bold text-gray-900">{stats.productCount}</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-xs text-gray-500 mb-1">Status</p>
-                          <p className="text-lg font-bold text-green-600">Active</p>
+                          <p className="text-xs text-gray-500 mb-1">In stock</p>
+                          <p className={`text-2xl font-bold ${stats.inStock > 0 ? "text-green-600" : "text-gray-400"}`}>
+                            {stats.inStock}
+                            <span className="text-sm font-medium text-gray-500"> / {stats.productCount}</span>
+                          </p>
                         </div>
                       </div>
 
@@ -375,6 +393,7 @@ export default function CategoriesPage() {
                 ]
                 const colorIndex = category.id % colorVariants.length
                 const gradient = colorVariants[colorIndex]
+                const stats = categoryStockStats(category)
 
                 return (
                   <Card
@@ -395,23 +414,25 @@ export default function CategoriesPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm text-gray-500">Medications</p>
-                          <p className="text-3xl font-bold text-gray-900">{category.products?.length ?? 0}</p>
+                          <p className="text-sm text-gray-500">Products</p>
+                          <p className="text-3xl font-bold text-gray-900">{stats.productCount}</p>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 border-t border-gray-200">
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-xs text-gray-500 mb-1">Usage Frequency</p>
-                          <p className="font-bold text-gray-900">0</p>
+                          <p className="text-xs text-gray-500 mb-1">Products in stock</p>
+                          <p className="font-bold text-gray-900">{stats.inStock} / {stats.productCount}</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-xs text-gray-500 mb-1">Total Medications</p>
-                          <p className="font-bold text-gray-900">{category.products?.length ?? 0}</p>
+                          <p className="text-xs text-gray-500 mb-1">Available stock</p>
+                          <p className="font-bold text-gray-900">{stats.available.toLocaleString()}</p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-xs text-gray-500 mb-1">Status</p>
-                          <p className="font-bold text-green-600">Active</p>
+                          <p className="text-xs text-gray-500 mb-1">Out of stock</p>
+                          <p className={`font-bold ${stats.productCount - stats.inStock > 0 ? "text-red-600" : "text-gray-900"}`}>
+                            {stats.productCount - stats.inStock}
+                          </p>
                         </div>
                         <div className="p-3 bg-gray-50 rounded-lg">
                           <p className="text-xs text-gray-500 mb-1">Last Updated</p>

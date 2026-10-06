@@ -53,7 +53,7 @@ import { AiGate } from "@/components/general/AiGate"
 import AddDailyRecordModal from "@/components/modals/AddDailyRecordModal"
 import AddFlockModal from "@/components/modals/AddFlockModal"
 import type { FlockFormData } from "@/components/modals/AddFlockModal"
-import { createDailyRecord, createDailyRecordsBatch, updateDailyRecord, deleteDailyRecord, createMortalityRecord, deleteMortalityRecord, createWeightReport, deleteWeightReport, createEggReport, updateEggReport, deleteEggReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getMedications, getMedicationInventories, createMedicationRecord, deleteMedicationRecord, getFlock, createFlockExpenditure, updateFlockExpenditure, deleteFlockExpenditure, getFlockExpenditures, createFlockSale, updateFlockSale, deleteFlockSale, getFlockProfitLoss, updateFlock } from "@/lib/request"
+import { createDailyRecord, createDailyRecordsBatch, updateDailyRecord, deleteDailyRecord, createMortalityRecord, deleteMortalityRecord, createWeightReport, deleteWeightReport, createEggReport, updateEggReport, deleteEggReport, createFeedUsageRecord, deleteFeedUsageRecord, getFeedInventories, getFeedTypes, createVaccinationRecord, deleteVaccinationRecord, getVaccines, getVaccineInventories, getAdministrationMethods, getPoultryMedicationData, getMedicationInventories, createMedicationRecord, deleteMedicationRecord, getFlock, createFlockExpenditure, updateFlockExpenditure, deleteFlockExpenditure, getFlockExpenditures, createFlockSale, updateFlockSale, deleteFlockSale, getFlockProfitLoss, updateFlock } from "@/lib/request"
 import type { BatchSubmitResult } from "@/components/modals/AddDailyRecordModal"
 import type { DailyRecordFormData } from "@/components/modals/dailyRecordForm"
 import { useSelector } from "react-redux"
@@ -217,7 +217,7 @@ const FlockPage = () => {
                     getVaccines(token, farmId),
                     getVaccineInventories(token, farmId),
                     getAdministrationMethods(token, farmId),
-                    getMedications(token, farmId),
+                    getPoultryMedicationData(token, farmId),
                     getMedicationInventories(token, farmId),
                 ]);
                 
@@ -819,6 +819,12 @@ const FlockPage = () => {
                     ...prevFlock,
                     poultry_medication_records: [...prevFlock.poultry_medication_records, response.data]
                 }));
+                const [medsRes, invRes] = await Promise.all([
+                    getPoultryMedicationData(token, farmId),
+                    getMedicationInventories(token, farmId),
+                ]);
+                if (medsRes.success && Array.isArray(medsRes.data)) setMedications(medsRes.data);
+                if (invRes.success && Array.isArray(invRes.data)) setMedicationInventories(invRes.data);
                 await refreshExpenditures();
             } else {
                 console.error("Failed to create medication record:", response);

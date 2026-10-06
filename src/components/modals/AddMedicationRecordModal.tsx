@@ -32,6 +32,7 @@ import {
   formatMedicationDosageSummary,
   suggestedMedicineUnit,
 } from "@/lib/medicationDosage"
+import { GetToken, getPoultryMedicationData } from "@/lib/request"
 
 type MedicationOption = Medication | MedicationData
 
@@ -76,12 +77,63 @@ const emptyForm = (farmId: number, flockId: number): MedicationRecordFormData =>
   administration_method_id: 0,
 })
 
-const productInventories = (product: MedicationProduct | undefined): MedicationInventory[] => {
-  if (!product) return []
-  const p = product as MedicationProduct & { inventories?: MedicationInventory[] }
-  const raw = p.inventory ?? p.inventories ?? []
-  return Array.isArray(raw) ? raw : []
+type CatalogProduct = MedicationProduct & { batches: MedicationInventory[]; totalStock: number }
+type CatalogType = { id: number; name: string; description: string; products: CatalogProduct[] }
+
+const inventoryQty = (inv: MedicationInventory): number =>
+  Number(inv.available_quantity ?? inv.quantity ?? 0) || 0
+
+const isUsableBatch = (inv: MedicationInventory): boolean => {
+  if (inventoryQty(inv) <= 0) return false
+  if (inv.status === "expired" || inv.status === "out_of_stock") return false
+  if (inv.expiry_date && new Date(inv.expiry_date).getTime() < Date.now()) return false
+  return true
 }
+
+/** Build type → product → batch catalog from `/medications/data` (or props as fallback). */
+const buildCatalog = (
+  medications: MedicationOption[],
+  flatInventories: MedicationInventory[],
+): CatalogType[] =>
+  medications.map((med) => {
+    const rawProducts = (med as MedicationData).products ?? []
+    const products: CatalogProduct[] = (Array.isArray(rawProducts) ? rawProducts : []).map((p) => {
+      const raw = p as MedicationProduct & { inventories?: MedicationInventory[] }
+      const nested = raw.inventories ?? raw.inventory ?? []
+      const source = nested.length
+        ? nested
+        : flatInventories.filter((inv) => Number(inv.medication_product_id) === Number(p.id))
+      const batches = source
+        .map((inv) => ({
+          ...inv,
+          id: Number(inv.id),
+          medication_product_id: Number(inv.medication_product_id ?? p.id),
+          quantity: Number(inv.quantity ?? 0),
+          available_quantity: Number(inv.available_quantity ?? inv.quantity ?? 0),
+          product: inv.product ?? p,
+        }))
+        .filter(isUsableBatch)
+        .sort((a, b) => {
+          const ea = a.expiry_date ? new Date(a.expiry_date).getTime() : Infinity
+          const eb = b.expiry_date ? new Date(b.expiry_date).getTime() : Infinity
+          return ea - eb
+        })
+      return {
+        ...p,
+        id: Number(p.id),
+        poultry_medication_id: Number(p.poultry_medication_id),
+        administration_method_id: Number(p.administration_method_id),
+        batches,
+        totalStock: batches.reduce((sum, inv) => sum + inventoryQty(inv), 0),
+      }
+    })
+    return {
+      id: Number(med.id),
+      name: med.name,
+      description: med.description ?? "",
+      products: products.sort((a, b) => b.totalStock - a.totalStock || a.name.localeCompare(b.name)),
+    }
+  })
 
 const AddMedicationRecordModal = ({
   isOpen,
@@ -98,50 +150,64 @@ const AddMedicationRecordModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showCalendar, setShowCalendar] = useState(false)
+  const [catalogSource, setCatalogSource] = useState<MedicationOption[] | null>(null)
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogError, setCatalogError] = useState<string | null>(null)
 
-  const selectedMedication = useMemo(
-    () => medications.find((m) => m.id === formData.poultry_medication_id),
-    [medications, formData.poultry_medication_id],
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    const load = async () => {
+      const token = GetToken()
+      if (!token || !farmId) return
+      setCatalogLoading(true)
+      setCatalogError(null)
+      try {
+        const res = await getPoultryMedicationData(token, farmId)
+        if (cancelled) return
+        if (res.success && Array.isArray(res.data)) {
+          setCatalogSource(res.data as unknown as MedicationData[])
+        } else {
+          setCatalogSource(null)
+          setCatalogError("Could not load medication products. Showing cached list.")
+        }
+      } catch {
+        if (!cancelled) {
+          setCatalogSource(null)
+          setCatalogError("Could not load medication products. Showing cached list.")
+        }
+      } finally {
+        if (!cancelled) setCatalogLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, farmId])
+
+  const catalog = useMemo(
+    () => buildCatalog(catalogSource ?? medications, medicationInventories),
+    [catalogSource, medications, medicationInventories],
   )
 
-  const productsForMedication = useMemo((): MedicationProduct[] => {
-    if (!formData.poultry_medication_id) return []
+  const selectedType = useMemo(
+    () => catalog.find((t) => t.id === formData.poultry_medication_id),
+    [catalog, formData.poultry_medication_id],
+  )
 
-    const fromMed = (selectedMedication as MedicationData | undefined)?.products
-    if (Array.isArray(fromMed) && fromMed.length > 0) {
-      return fromMed
-    }
-
-    // Fall back to unique products attached to farm inventories for this medication type
-    const map = new Map<number, MedicationProduct>()
-    for (const inv of medicationInventories) {
-      const product = inv.product
-      if (!product) continue
-      if (Number(product.poultry_medication_id) !== formData.poultry_medication_id) continue
-      map.set(product.id, product)
-    }
-    return Array.from(map.values())
-  }, [formData.poultry_medication_id, selectedMedication, medicationInventories])
+  const productsForMedication = selectedType?.products ?? []
 
   const selectedProduct = useMemo(
     () => productsForMedication.find((p) => p.id === selectedProductId),
     [productsForMedication, selectedProductId],
   )
 
-  const inventoriesForProduct = useMemo((): MedicationInventory[] => {
-    if (!selectedProductId) return []
+  const inventoriesForProduct = selectedProduct?.batches ?? []
 
-    const fromFlat = medicationInventories.filter(
-      (inv) => Number(inv.medication_product_id) === selectedProductId,
-    )
-    if (fromFlat.length > 0) return fromFlat
-
-    return productInventories(selectedProduct).map((inv) => ({
-      ...inv,
-      medication_product_id: inv.medication_product_id || selectedProductId,
-      product: inv.product ?? selectedProduct,
-    }))
-  }, [selectedProductId, medicationInventories, selectedProduct])
+  const selectedBatch = inventoriesForProduct.find(
+    (inv) => inv.id === formData.poultry_medication_inventory_id,
+  )
 
   const labelHint = selectedProduct ? formatMedicationDosageSummary(selectedProduct) : null
 
@@ -160,12 +226,19 @@ const AddMedicationRecordModal = ({
 
   const handleMedicationTypeChange = (medicationId: string) => {
     const id = Number.parseInt(medicationId, 10)
-    setSelectedProductId(0)
+    const type = catalog.find((t) => t.id === id)
+    const onlyProduct =
+      type && type.products.length === 1 && type.products[0].totalStock > 0 ? type.products[0] : undefined
+    setSelectedProductId(onlyProduct?.id ?? 0)
     setFormData((prev) => ({
       ...prev,
       poultry_medication_id: id,
-      poultry_medication_inventory_id: 0,
-      administration_method_id: 0,
+      poultry_medication_inventory_id:
+        onlyProduct && onlyProduct.batches.length === 1 ? onlyProduct.batches[0].id : 0,
+      dosage_unit: onlyProduct ? suggestedMedicineUnit(onlyProduct) || prev.dosage_unit : prev.dosage_unit,
+      administration_method_id: onlyProduct?.administration_method_id
+        ? Number(onlyProduct.administration_method_id)
+        : 0,
     }))
     clearError("poultry_medication_id")
     clearError("medication_product_id")
@@ -178,7 +251,7 @@ const AddMedicationRecordModal = ({
     setSelectedProductId(id)
     setFormData((prev) => ({
       ...prev,
-      poultry_medication_inventory_id: 0,
+      poultry_medication_inventory_id: product?.batches.length === 1 ? product.batches[0].id : 0,
       dosage_unit: suggestedMedicineUnit(product) || prev.dosage_unit,
       administration_method_id: product?.administration_method_id
         ? Number(product.administration_method_id)
@@ -216,6 +289,8 @@ const AddMedicationRecordModal = ({
       newErrors.poultry_medication_inventory_id = "Please select an inventory batch"
     if (!formData.administered_by.trim()) newErrors.administered_by = "Administered by is required"
     if (formData.dosage <= 0) newErrors.dosage = "Amount used must be greater than 0"
+    else if (selectedBatch && formData.dosage > inventoryQty(selectedBatch))
+      newErrors.dosage = `Only ${inventoryQty(selectedBatch)} available in this batch`
     if (!formData.dosage_unit.trim()) newErrors.dosage_unit = "Unit is required"
     if (!formData.administration_method_id)
       newErrors.administration_method_id = "Please select administration method"
@@ -347,21 +422,27 @@ const AddMedicationRecordModal = ({
                 <Select
                   value={formData.poultry_medication_id ? String(formData.poultry_medication_id) : undefined}
                   onValueChange={handleMedicationTypeChange}
+                  disabled={catalogLoading && catalog.length === 0}
                 >
                   <SelectTrigger className={cn("h-9 text-sm", errors.poultry_medication_id && "border-red-400")}>
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder={catalogLoading ? "Loading types..." : "Select type"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {medications.map((medication) => (
-                      <SelectItem key={medication.id} value={String(medication.id)}>
-                        <div>
-                          <div className="font-medium">{medication.name}</div>
-                          {medication.description ? (
-                            <div className="text-xs text-gray-500">{medication.description}</div>
-                          ) : null}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {catalog.map((type) => {
+                      const inStock = type.products.filter((p) => p.totalStock > 0).length
+                      return (
+                        <SelectItem key={type.id} value={String(type.id)}>
+                          <div>
+                            <div className="font-medium">{type.name}</div>
+                            <div className="text-xs text-gray-500">
+                              {type.products.length
+                                ? `${inStock} of ${type.products.length} product${type.products.length === 1 ? "" : "s"} in stock`
+                                : "No products yet"}
+                            </div>
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
                 {errors.poultry_medication_id && (
@@ -392,10 +473,20 @@ const AddMedicationRecordModal = ({
                   </SelectTrigger>
                   <SelectContent>
                     {productsForMedication.map((product) => (
-                      <SelectItem key={product.id} value={String(product.id)}>
+                      <SelectItem
+                        key={product.id}
+                        value={String(product.id)}
+                        disabled={product.totalStock <= 0}
+                      >
                         <div>
                           <div className="font-medium">{product.name}</div>
-                          <div className="text-xs text-gray-500">{product.manufacturer}</div>
+                          <div className="text-xs text-gray-500">
+                            {product.manufacturer}
+                            {" · "}
+                            {product.totalStock > 0
+                              ? `${product.totalStock} in stock (${product.batches.length} batch${product.batches.length === 1 ? "" : "es"})`
+                              : "Out of stock"}
+                          </div>
                         </div>
                       </SelectItem>
                     ))}
@@ -435,7 +526,7 @@ const AddMedicationRecordModal = ({
                   </SelectTrigger>
                   <SelectContent>
                     {inventoriesForProduct.map((inventory) => {
-                      const qty = inventory.available_quantity ?? inventory.quantity
+                      const qty = inventoryQty(inventory)
                       return (
                         <SelectItem key={inventory.id} value={String(inventory.id)}>
                           <div>
@@ -457,6 +548,17 @@ const AddMedicationRecordModal = ({
                 )}
               </div>
             </div>
+            {catalogError && <p className="text-xs text-amber-700">{catalogError}</p>}
+            {selectedType && productsForMedication.length === 0 && !catalogLoading && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                No products are registered under {selectedType.name}. Add one under Health → Medications first.
+              </p>
+            )}
+            {selectedProduct && inventoriesForProduct.length === 0 && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                {selectedProduct.name} has no usable stock (empty or expired). Add inventory before recording usage.
+              </p>
+            )}
             {labelHint && labelHint !== "—" && (
               <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
                 Label: {labelHint}

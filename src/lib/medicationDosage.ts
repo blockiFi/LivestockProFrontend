@@ -122,8 +122,38 @@ export function suggestedMedicineUnit(product: RatioSource): string {
   return "ml"
 }
 
-/** Flatten form ratios into API payload fields (omit empty blocks). */
-export function dosageRatiosToPayload(ratios: MedicationDosageRatios): Record<string, string | number | null> {
+/** Rebuild form ratios from a stored product's flat ratio fields. */
+export function productToDosageRatios(product: RatioSource): MedicationDosageRatios {
+  const block = (prefix: "preventive" | "treatment"): DosageRatioFields => {
+    const num = (key: string) => {
+      const v = get(product, `${prefix}_${key}`)
+      return v == null || v === "" ? null : Number(v)
+    }
+    const str = (key: string) => {
+      const v = get(product, `${prefix}_${key}`)
+      return typeof v === "string" ? v : ""
+    }
+    const diluentType = str("diluent_type")
+    return {
+      medicine_amount: num("medicine_amount"),
+      medicine_unit: str("medicine_unit"),
+      diluent_amount: num("diluent_amount"),
+      diluent_unit: str("diluent_unit"),
+      diluent_type: diluentType === "water" || diluentType === "feed" || diluentType === "other" ? diluentType : "",
+      diluent_label: str("diluent_label"),
+    }
+  }
+  return { preventive: block("preventive"), treatment: block("treatment") }
+}
+
+/**
+ * Flatten form ratios into API payload fields. Empty blocks are omitted unless
+ * `includeEmpty` is set, in which case they are sent as nulls (clears them on update).
+ */
+export function dosageRatiosToPayload(
+  ratios: MedicationDosageRatios,
+  { includeEmpty = false }: { includeEmpty?: boolean } = {},
+): Record<string, string | number | null> {
   const out: Record<string, string | number | null> = {}
   for (const prefix of ["preventive", "treatment"] as const) {
     const block = ratios[prefix]
@@ -134,7 +164,14 @@ export function dosageRatiosToPayload(ratios: MedicationDosageRatios): Record<st
       !!block.diluent_unit ||
       !!block.diluent_type ||
       !!block.diluent_label
-    if (!hasAny) continue
+    if (!hasAny) {
+      if (includeEmpty) {
+        for (const key of ["medicine_amount", "medicine_unit", "diluent_amount", "diluent_unit", "diluent_type", "diluent_label"]) {
+          out[`${prefix}_${key}`] = null
+        }
+      }
+      continue
+    }
     out[`${prefix}_medicine_amount`] = block.medicine_amount
     out[`${prefix}_medicine_unit`] = block.medicine_unit || null
     out[`${prefix}_diluent_amount`] = block.diluent_amount

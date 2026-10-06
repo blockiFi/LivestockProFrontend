@@ -24,21 +24,28 @@ import {
   Settings,
   Clock,
   AlertTriangle,
-  Eye,
 } from "lucide-react"
 import type { Medication, MedicationData, MedicationProduct } from "@/lib/types"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 import {
   dosageRatiosToPayload,
   formatMedicationDosage,
+  productToDosageRatios,
 } from "@/lib/medicationDosage"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import AddMedicationProductModal, {
   type MedicationProductFormValues,
 } from "@/components/modals/AddMedicationProductModal"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { MedicationInventory } from "@/lib/types"
 import { Naira, formatCurrency } from "@/lib/utils"
-import { GetToken, getFarm, createMedicationProduct } from "@/lib/request"
+import {
+  GetToken,
+  getFarm,
+  createMedicationProduct,
+  updateMedicationProduct,
+  deleteMedicationProduct,
+} from "@/lib/request"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { ActionGate } from "@/components/general/ActionGate"
@@ -136,13 +143,11 @@ function ProductCard({
   medication,
   onEdit,
   onDelete,
-  onViewDetails,
 }: {
   product: MedicationProduct
   medication: Medication
   onEdit: (product: MedicationProduct) => void
-  onDelete: (id: number) => void
-  onViewDetails: (product: MedicationProduct) => void
+  onDelete: (product: MedicationProduct) => void
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const inventories = getProductInventories(product)
@@ -353,11 +358,12 @@ function ProductCard({
             </div>
 
             {/* Actions */}
-            <div className="flex justify-between items-center pt-4 border-t">
-              <Button size="sm" variant="ghost" onClick={() => onViewDetails(product)}>
-                <Eye className="h-4 w-4 mr-2" />
-                View Details
-              </Button>
+            {product.farm_id == null ? (
+              <p className="pt-4 border-t text-xs text-gray-500">
+                Default product — shared across farms and cannot be edited or deleted.
+              </p>
+            ) : (
+            <div className="flex justify-end items-center pt-4 border-t">
               <div className="flex gap-2">
                 <ActionGate anyOf={ACTIONS.medicationProducts.update}>
                   <Button
@@ -374,7 +380,7 @@ function ProductCard({
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onDelete(product.id)}
+                    onClick={() => onDelete(product)}
                     className="text-red-600 hover:text-red-700"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -383,6 +389,7 @@ function ProductCard({
                 </ActionGate>
               </div>
             </div>
+            )}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
@@ -397,8 +404,25 @@ function ProductCard({
   const [stockFilter] = useState<string>("all")
   const [sortBy] = useState<string>("name")
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [editingMedication, setEditingMedication] = useState<Medication | undefined>()
+  const [editingProduct, setEditingProduct] = useState<MedicationProduct | undefined>()
+  const [deletingProduct, setDeletingProduct] = useState<MedicationProduct | undefined>()
+  const [isDeleting, setIsDeleting] = useState(false)
   const revalidator = useRevalidator()
+
+  const editingInitialValues = useMemo<MedicationProductFormValues | undefined>(() => {
+    if (!editingProduct) return undefined
+    return {
+      poultry_medication_id: Number(editingProduct.poultry_medication_id) || null,
+      name: editingProduct.name ?? "",
+      manufacturer: editingProduct.manufacturer ?? "",
+      administration_method_id: Number(editingProduct.administration_method_id) || null,
+      withdrawal_period: Number(editingProduct.withdrawal_period) || 0,
+      withdrawal_period_unit: editingProduct.withdrawal_period_unit === "hours" ? "hours" : "days",
+      image_url: editingProduct.image_url ?? "",
+      min_stock_level: Number(editingProduct.min_stock_level ?? 0) || 0,
+      dosage_ratios: productToDosageRatios(editingProduct as unknown as Record<string, unknown>),
+    }
+  }, [editingProduct])
   
     // Use the loader data shape returned by the route loader: { medications }
     const loaderData = useLoaderData() as { medications: MedicationData[] | null }
@@ -509,29 +533,80 @@ function ProductCard({
     }
   }
 
-  const handleUpdateMedication = async (_medicationData: MedicationProductFormValues): Promise<boolean> => {
-    // TODO: implement update via backend when available
-    toast.info("Update medication not implemented yet")
-    return false
+  const handleUpdateMedication = async (form: MedicationProductFormValues): Promise<boolean> => {
+    if (!editingProduct) return false
+    const token = GetToken()
+    const farm = getFarm()
+    if (!token || !farm) {
+      toast.error("Missing authentication or active farm")
+      return false
+    }
+    const payload = {
+      poultry_medication_id: Number(form.poultry_medication_id),
+      name: form.name.trim(),
+      manufacturer: form.manufacturer.trim(),
+      administration_method_id: Number(form.administration_method_id),
+      withdrawal_period: Number(form.withdrawal_period) || 0,
+      withdrawal_period_unit: form.withdrawal_period_unit,
+      image_url: form.image_url?.trim() || null,
+      min_stock_level: Number(form.min_stock_level) || 0,
+      ...dosageRatiosToPayload(form.dosage_ratios, { includeEmpty: true }),
+    }
+    const res = await updateMedicationProduct(token, farm.id, editingProduct.id, payload)
+    if (!res.success) {
+      toast.error(res.error?.join("\n") || "Failed to update medication product")
+      return false
+    }
+    toast.success("Medication product updated")
+    setEditingProduct(undefined)
+    revalidator.revalidate()
+    return true
   }
 
+  const handleConfirmDelete = async () => {
+    if (!deletingProduct) return
+    const token = GetToken()
+    const farm = getFarm()
+    if (!token || !farm) {
+      toast.error("Missing authentication or active farm")
+      return
+    }
+    setIsDeleting(true)
+    try {
+      const res = await deleteMedicationProduct(token, farm.id, deletingProduct.id)
+      if (!res.success) {
+        toast.error(res.error?.join("\n") || "Failed to delete medication product")
+        return
+      }
+      toast.success("Medication product deleted")
+      setDeletingProduct(undefined)
+      revalidator.revalidate()
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const availableOf = (product: MedicationProduct) =>
+    getProductInventories(product).reduce((s, inv) => s + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
+
   // Calculate statistics
-  const totalMedications = (medications ?? []).reduce((count, med) => count + ((med.products || []).length), 0)
-  // Low stock products count (available <= min_stock_level)
-  const lowStockCount = (products ?? []).reduce((sum, { product }) => {
-    const available = getProductInventories(product).reduce((s, inv) => s + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
-    const minStock = Number((product as any).min_stock_level ?? 0)
-    return sum + (available <= minStock ? 1 : 0)
+  const totalMedications = products.length
+  // Out of stock, or at/below a configured minimum stock level
+  const lowStockCount = products.reduce((sum, { product }) => {
+    const available = availableOf(product)
+    const minStock = Number(product.min_stock_level ?? 0)
+    return sum + (available <= 0 || (minStock > 0 && available <= minStock) ? 1 : 0)
   }, 0)
-  // Estimate stock value from inventories on products if present
-  const totalStockValue = (medications ?? []).reduce((sum, med) => {
-    const productValue = (med.products || []).reduce((pSum, prod) => {
-      const invValue = getProductInventories(prod).reduce((iSum, inv) => iSum + (Number(inv.quantity) || 0) * (Number(inv.unit_cost) || 0), 0)
-      return pSum + invValue
-    }, 0)
-    return sum + productValue
-  }, 0)
-  const categoriesCount = new Set((medications ?? []).map((m) => m.type || "unknown")).size
+  const totalStockValue = products.reduce(
+    (sum, { product }) =>
+      sum +
+      getProductInventories(product).reduce(
+        (iSum, inv) => iSum + (Number(inv.available_quantity ?? inv.quantity) || 0) * (Number(inv.unit_cost) || 0),
+        0,
+      ),
+    0,
+  )
+  const categoriesCount = (medications ?? []).length
 
   return (
     <TooltipProvider>
@@ -558,7 +633,7 @@ function ProductCard({
                     size="sm"
                     className="bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
-                      setEditingMedication(undefined)
+                      setEditingProduct(undefined)
                       setIsCreateModalOpen(true)
                     }}
                   >
@@ -612,7 +687,7 @@ function ProductCard({
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-purple-100 text-sm">Medications </p>
+                    <p className="text-purple-100 text-sm">Medication Types</p>
                     <p className="text-2xl font-bold">{categoriesCount}</p>
                   </div>
                   <Package className="h-8 w-8 text-purple-200" />
@@ -683,9 +758,11 @@ function ProductCard({
                   key={`${medication.id}-${product.id}`}
                   product={product}
                   medication={medication}
-                  onEdit={() => {}}
-                  onDelete={() => {}}
-                  onViewDetails={() => {}}
+                  onEdit={(p) => {
+                    setEditingProduct(p)
+                    setIsCreateModalOpen(true)
+                  }}
+                  onDelete={(p) => setDeletingProduct(p)}
                 />
               ))
             )}
@@ -699,12 +776,37 @@ function ProductCard({
         isOpen={isCreateModalOpen}
         onClose={() => {
           setIsCreateModalOpen(false)
-          setEditingMedication(undefined)
+          setEditingProduct(undefined)
         }}
-        onSubmit={editingMedication ? handleUpdateMedication : handleCreateMedication}
-        editing={!!editingMedication}
+        onSubmit={editingProduct ? handleUpdateMedication : handleCreateMedication}
+        editing={!!editingProduct}
+        initialValues={editingInitialValues}
         idPrefix="products-page"
       />
+      <Dialog
+        open={!!deletingProduct}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) setDeletingProduct(undefined)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete medication product?</DialogTitle>
+            <DialogDescription>
+              {deletingProduct?.name} and all of its inventory batches will be removed. Products already used in
+              medication records cannot be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingProduct(undefined)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ToastContainer position="top-right" autoClose={3000} newestOnTop closeOnClick pauseOnHover draggable theme="colored" />
      </TooltipProvider>
     )

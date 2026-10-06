@@ -31,9 +31,13 @@ interface MedicationRecordFormData {
   administration_method_id: number
 }
 
+const recordProductName = (record: PoultryMedicationRecord): string =>
+  record.medication_inventory?.product?.name || record.medication?.name || "Unknown Medication"
+
 const MEDICATION_EXPORT_COLUMNS: ExportColumn<PoultryMedicationRecord>[] = [
   { header: "Date", value: (row) => formatExportDate(row.date) },
-  { header: "Medication", value: (row) => row.medication?.name ?? "" },
+  { header: "Medication", value: (row) => recordProductName(row) },
+  { header: "Medication Type", value: (row) => row.medication?.name ?? "" },
   { header: "Amount Used", value: (row) => `${row.dosage || 0} ${row.dosage_unit || ""}`.trim() },
   { header: "Purpose", value: (row) => row.purpose ?? "" },
   { header: "Cost", value: (row) => Number(row.cost) || 0 },
@@ -99,7 +103,7 @@ const MedicationRecordView = ({
 
   const totalMedications = filteredRecords.length
   const totalCost = filteredRecords.reduce((sum, record) => sum + (Number(record.cost) || 0), 0)
-  const uniqueMedications = new Set(filteredRecords.map((r) => r.medication?.name).filter(Boolean)).size
+  const uniqueMedications = new Set(filteredRecords.map(recordProductName)).size
 
   const handleAddMedicationRecord = async (recordData: MedicationRecordFormData) => {
     if (onAddMedicationRecord) {
@@ -242,16 +246,15 @@ const MedicationRecordView = ({
                   <TableCell className="font-medium">{formatDate(record.date)}</TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium">{record.medication?.name || 'Unknown Medication'}</p>
-                      <p className="text-xs text-gray-500">{record.medication?.description || ''}</p>
-                      <Badge
-                        variant="outline"
-                        className={`mt-1 text-xs ${
-                          record.medication?.type === "vaccine" ? "border-blue-200 text-blue-700" : "border-gray-200"
-                        }`}
-                      >
-                        {record.medication?.type || 'medication'}
-                      </Badge>
+                      <p className="font-medium">{recordProductName(record)}</p>
+                      {record.medication_inventory?.product?.manufacturer && (
+                        <p className="text-xs text-gray-500">{record.medication_inventory.product.manufacturer}</p>
+                      )}
+                      {record.medication_inventory?.product?.name && record.medication?.name && (
+                        <Badge variant="outline" className="mt-1 text-xs border-purple-200 text-purple-700">
+                          {record.medication.name}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
