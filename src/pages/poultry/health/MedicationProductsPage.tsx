@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,14 +9,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   Pill,
   Plus,
@@ -36,15 +26,15 @@ import {
   AlertTriangle,
   Eye,
 } from "lucide-react"
-import type { Medication, MedicationData, MedicationProduct, AdministrationMethod } from "@/lib/types"
+import type { Medication, MedicationData, MedicationProduct } from "@/lib/types"
 import { useLoaderData, useRevalidator } from "react-router-dom"
-import { DosageRatioFields } from "@/components/poultry/health/DosageRatioFields"
 import {
   dosageRatiosToPayload,
-  emptyMedicationDosageRatios,
   formatMedicationDosage,
-  type MedicationDosageRatios,
 } from "@/lib/medicationDosage"
+import AddMedicationProductModal, {
+  type MedicationProductFormValues,
+} from "@/components/modals/AddMedicationProductModal"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { MedicationInventory } from "@/lib/types"
 import { Naira, formatCurrency } from "@/lib/utils"
@@ -53,39 +43,6 @@ import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
-
-// If the backend helper for fetching administration methods is not exported from "@/lib/request",
-// provide a lightweight local implementation that fetches the administration methods directly.
-// Adjust the endpoint if your API uses a different URL/route.
-const getAdministrationMethods = async (token: string, farmId: number) => {
-  try {
-    const res = await fetch(`/api/administration-methods?farm_id=${farmId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    if (!res.ok) return { success: false, data: [] }
-    const data = await res.json()
-    return { success: true, data: data?.data ?? data ?? [] }
-  } catch (e) {
-    return { success: false, data: [] }
-  }
-}
-
-// Form for creating a Medication Product via API
-interface NewMedicationForm {
-  poultry_medication_id: number | null
-  name: string
-  manufacturer: string
-  administration_method_id: number | null
-  withdrawal_period: number
-  withdrawal_period_unit: "days" | "hours"
-  image_url?: string
-  min_stock_level: number
-  dosage_ratios: MedicationDosageRatios
-}
 
 // Dynamic medication color handling
 // A broad palette of Tailwind color combinations to support many medications
@@ -172,254 +129,6 @@ const getProductInventories = (product: MedicationProduct): MedicationInventory[
     deleted_at: inv.deleted_at ?? null,
     created_by: inv.created_by ?? null,
   })) as MedicationInventory[]
-}
-
-function CreateMedicationModal({
- medications,
-   isOpen,
-   onClose,
-   onSubmit,
-   editingMedication,
- }: {
-   medications: MedicationData[]
-   isOpen: boolean
-   onClose: () => void
-   onSubmit: (medication: NewMedicationForm) => Promise<boolean>
-   editingMedication?: Medication
- }) {
-  const defaultForm: NewMedicationForm = {
-    poultry_medication_id: null,
-    name: "",
-    manufacturer: "",
-    administration_method_id: null,
-    withdrawal_period: 0,
-    withdrawal_period_unit: "days",
-    image_url: "",
-    min_stock_level: 0,
-    dosage_ratios: emptyMedicationDosageRatios(),
-  }
-
-  const mapMedicationToForm = (med: Medication): NewMedicationForm => ({
-    poultry_medication_id: (med as any).id ?? null,
-    name: "",
-    manufacturer: (med as any).manufacturer ?? "",
-    administration_method_id: null,
-    withdrawal_period: 0,
-    withdrawal_period_unit: "days",
-    image_url: "",
-    min_stock_level: 0,
-    dosage_ratios: emptyMedicationDosageRatios(),
-  })
-
-  const [formData, setFormData] = useState<NewMedicationForm>(() =>
-    editingMedication ? mapMedicationToForm(editingMedication) : defaultForm
-  )
-
-  const [adminMethods, setAdminMethods] = useState<AdministrationMethod[]>([])
-  useEffect(() => {
-    const loadMethods = async () => {
-      if (!isOpen) return
-      const token = GetToken()
-      const farm = getFarm()
-      if (!token || !farm) return
-      const res = await getAdministrationMethods(token, farm.id)
-      if (res.success) setAdminMethods(res.data || [])
-    }
-    loadMethods()
-  }, [isOpen])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formData.name || !formData.manufacturer || !formData.poultry_medication_id || !formData.administration_method_id) {
-      toast.error("Please fill in name, manufacturer, medication and administration method")
-      return
-    }
-    const ok = await onSubmit(formData)
-    if (ok) {
-      handleClose()
-    }
-  }
-
-  const handleClose = () => {
-    setFormData({
-      poultry_medication_id: null,
-      name: "",
-      manufacturer: "",
-      administration_method_id: null,
-      withdrawal_period: 0,
-      withdrawal_period_unit: "days",
-      image_url: "",
-      min_stock_level: 0,
-      dosage_ratios: emptyMedicationDosageRatios(),
-    })
-    onClose()
-  }
-
-  return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Pill className="h-5 w-5 text-purple-600" />
-            {editingMedication ? "Edit Medication" : "Add New Medication"}
-          </DialogTitle>
-          <DialogDescription>
-            {editingMedication ? "Update medication details" : "Create a new medication entry"}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Product Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData((prev: NewMedicationForm) => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter product name"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="manufacturer">Manufacturer *</Label>
-                <Input
-                  id="manufacturer"
-                  value={formData.manufacturer}
-                  onChange={(e) => setFormData((prev: NewMedicationForm) => ({ ...prev, manufacturer: e.target.value }))}
-                  placeholder="Enter manufacturer name"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="category">Medication *</Label>
-                <Select
-                  value={formData.poultry_medication_id == null ? undefined : String(formData.poultry_medication_id)}
-                  onValueChange={(value: string) =>
-                    setFormData((prev: NewMedicationForm) => {
-                      // convert numeric string ids back to numbers; non-numeric values map to null
-                      const num = Number(value)
-                      return { ...prev, poultry_medication_id: Number.isNaN(num) ? null : num }
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {
-                        medications.map((med) => (
-                            <SelectItem key={med.id} value={String(med.id)}>{med.name}</SelectItem>
-                        ) )
-                    }
-         
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="method">Administration Method *</Label>
-                <Select
-                  value={formData.administration_method_id == null ? undefined : String(formData.administration_method_id)}
-                  onValueChange={(value: string) =>
-                    setFormData((prev: NewMedicationForm) => ({ ...prev, administration_method_id: Number(value) }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select administration method..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {adminMethods.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div>
-                <Label htmlFor="withdrawal">Withdrawal Period</Label>
-                <Input
-                  id="withdrawal"
-                  type="number"
-                  value={formData.withdrawal_period}
-                  onChange={(e) => setFormData((prev: NewMedicationForm) => ({ ...prev, withdrawal_period: Number.parseInt(e.target.value) || 0 }))}
-                  min="0"
-                />
-              </div>
-              <div>
-                <Label htmlFor="withdrawal_unit">Withdrawal Period Unit</Label>
-                <Select
-                  value={formData.withdrawal_period_unit}
-                  onValueChange={(value: "days" | "hours") => setFormData((prev: NewMedicationForm) => ({ ...prev, withdrawal_period_unit: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="days">Days</SelectItem>
-                    <SelectItem value="hours">Hours</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="min_stock_level">Minimum Stock Level</Label>
-                <Input
-                  id="min_stock_level"
-                  type="number"
-                  value={formData.min_stock_level}
-                  onChange={(e) => setFormData((prev: NewMedicationForm) => ({ ...prev, min_stock_level: Number.parseInt(e.target.value) || 0 }))}
-                  min="0"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="image_url">Image URL (optional)</Label>
-                <Input
-                  id="image_url"
-                  value={formData.image_url || ''}
-                  onChange={(e) => setFormData((prev: NewMedicationForm) => ({ ...prev, image_url: e.target.value }))}
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-            <div className="mt-4 space-y-3">
-              <p className="text-sm font-medium text-gray-800">Label mix ratios (optional)</p>
-              <DosageRatioFields
-                idPrefix="products-preventive"
-                title="Preventive"
-                value={formData.dosage_ratios.preventive}
-                onChange={(preventive) =>
-                  setFormData((prev) => ({ ...prev, dosage_ratios: { ...prev.dosage_ratios, preventive } }))
-                }
-              />
-              <DosageRatioFields
-                idPrefix="products-treatment"
-                title="Treatment"
-                value={formData.dosage_ratios.treatment}
-                onChange={(treatment) =>
-                  setFormData((prev) => ({ ...prev, dosage_ratios: { ...prev.dosage_ratios, treatment } }))
-                }
-              />
-            </div>
-           </Card>
-
-           <DialogFooter>
-             <Button type="button" variant="outline" onClick={handleClose}>
-               Cancel
-             </Button>
-             <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-               {editingMedication ? "Update Medication" : "Add Medication"}
-             </Button>
-           </DialogFooter>
-         </form>
-       </DialogContent>
-     </Dialog>
-   )
 }
 
 function ProductCard({
@@ -761,7 +470,7 @@ function ProductCard({
       return sorted
     }, [products, categoryFilter, searchTerm, stockFilter, sortBy])
 
-  const handleCreateMedication = async (form: NewMedicationForm): Promise<boolean> => {
+  const handleCreateMedication = async (form: MedicationProductFormValues): Promise<boolean> => {
     try {
       const token = GetToken()
       const farm = getFarm()
@@ -800,7 +509,7 @@ function ProductCard({
     }
   }
 
-  const handleUpdateMedication = async (_medicationData: NewMedicationForm): Promise<boolean> => {
+  const handleUpdateMedication = async (_medicationData: MedicationProductFormValues): Promise<boolean> => {
     // TODO: implement update via backend when available
     toast.info("Update medication not implemented yet")
     return false
@@ -985,7 +694,7 @@ function ProductCard({
       </div>
 
       {/* Modals */}
-      <CreateMedicationModal
+      <AddMedicationProductModal
         medications={medications}
         isOpen={isCreateModalOpen}
         onClose={() => {
@@ -993,7 +702,8 @@ function ProductCard({
           setEditingMedication(undefined)
         }}
         onSubmit={editingMedication ? handleUpdateMedication : handleCreateMedication}
-        editingMedication={editingMedication}
+        editing={!!editingMedication}
+        idPrefix="products-page"
       />
       <ToastContainer position="top-right" autoClose={3000} newestOnTop closeOnClick pauseOnHover draggable theme="colored" />
      </TooltipProvider>
