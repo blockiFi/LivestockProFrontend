@@ -114,8 +114,9 @@ const AddDailyRecordModal = ({
       const selectedInv = feedInventories.find((inv) => inv.id === entry.poultry_feed_inventory_id)
       const feedType = selectedInv?.feed_type || feedTypes.find((ft) => ft.id === selectedInv?.poultry_feed_type_id)
       const isMismatch = Boolean(
-        selectedInv && feedType && (
-          (poultryTypeId != null && feedType.poultry_type_id != null && Number(feedType.poultry_type_id) !== Number(poultryTypeId))
+        selectedInv && (
+          !feedType
+          || (poultryTypeId != null && feedType.poultry_type_id != null && Number(feedType.poultry_type_id) !== Number(poultryTypeId))
           || (poultryType && feedType.poultry_type?.name && feedType.poultry_type.name.toLowerCase() !== poultryType.toLowerCase())
         )
       )
