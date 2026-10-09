@@ -6173,6 +6173,7 @@ export const createMedicationInventory = async (
     manufacture_date?: string | null
     expiry_date?: string | null
     unit_cost?: number
+    manufacturer?: string
     notes?: string
   }
 ): Promise<RequestResponse<MedicationInventory>> => {

@@ -31,7 +31,6 @@ import { formatMedicationDosageSummary } from "@/lib/medicationDosage"
 import AddMedicationInventoryModal from "@/components/modals/AddMedicationInventoryModal"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
-import { toast } from "react-toastify"
 
 
 
@@ -501,18 +500,12 @@ export default function MedicationInventoryPage() {
       <AddMedicationInventoryModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
-        existingItems={items}
         onCreated={async (item) => {
-          // trigger loader revalidation so page reloads server data
           try {
             await revalidator.revalidate()
-            toast.success('Medication inventory added')
           } catch (e) {
-            // fallback to optimistic update if revalidation fails
             setItems((prev) => [item, ...prev])
-            toast.success('Medication inventory added (local)')
           }
-          setShowAddModal(false)
         }}
       />
     </div>
