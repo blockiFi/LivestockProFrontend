@@ -4,11 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import { toast } from "react-toastify";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FormField, FormModal, FormSection, ModalFooterActions, formInputClass } from "@/components/ui/form-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2, Sparkles } from "lucide-react";
+import { FlaskConical, Layers, Loader2, Sparkles, Wheat } from "lucide-react";
 import type { FeedComponent } from "@/lib/types";
 import { generateFeedComponentWithAI } from "@/lib/request";
 import { AiGate } from "@/components/general/AiGate";
@@ -177,108 +176,112 @@ export default function AddFeedComponentModal({
     }
   };
 
+  const nutrientFields: Array<{ key: Exclude<keyof FormState, "status">; label: string }> = [
+    { key: "crude_protein", label: "Crude protein (%)" },
+    { key: "crude_fat", label: "Crude fat (%)" },
+    { key: "crude_fiber", label: "Crude fiber (%)" },
+    { key: "moisture", label: "Moisture (%)" },
+    { key: "calcium", label: "Calcium (%)" },
+    { key: "phosphorus", label: "Phosphorus (%)" },
+    { key: "ash", label: "Ash (%)" },
+    { key: "metabolizable_energy", label: "Metab. energy (kcal/kg)" },
+  ];
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editing ? "Edit Feed Component" : "Add Feed Component"}</DialogTitle>
-          <DialogDescription>
-            Feed components are ingredients like maize, soybean meal, fish meal, etc. Nutritional values are per 100%.
-          </DialogDescription>
-        </DialogHeader>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={editing ? "Edit feed component" : "Add feed component"}
+      description="Feed components are ingredients like maize, soybean meal, fish meal, etc. Nutritional values are per 100%."
+      icon={Layers}
+      tone="feed"
+      size="lg"
+      busy={isSaving}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={onClose}
+          submitLabel={editing ? "Save changes" : "Create component"}
+          busyLabel="Saving..."
+          busy={isSaving}
+        />
+      }
+    >
+      {error && (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>
+      )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && <p className="text-sm text-red-600">{error}</p>}
+      <FormSection icon={Wheat} title="Ingredient" description="Name the ingredient, or let AI fill in its nutritional profile.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <FormField label="Name" required htmlFor="feed-component-name" className="md:col-span-2">
+            <div className="flex gap-2">
+              <Input
+                id="feed-component-name"
+                value={form.name}
+                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                className={formInputClass(false, "flex-1")}
+              />
+              <AiGate fallback={null}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGenerateAI}
+                  disabled={isGenerating || !form.name.trim()}
+                  className="h-10 rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      AI...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5 mr-1" />
+                      AI Assist
+                    </>
+                  )}
+                </Button>
+              </AiGate>
+            </div>
+          </FormField>
+          <FormField label="Unit" htmlFor="feed-component-unit">
+            <Input
+              id="feed-component-unit"
+              value={form.unit}
+              onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))}
+              placeholder="kg"
+              className={formInputClass()}
+            />
+          </FormField>
+          <FormField label="Description" htmlFor="feed-component-desc" className="md:col-span-3">
+            <Input
+              id="feed-component-desc"
+              value={form.description}
+              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Optional notes..."
+              className={formInputClass()}
+            />
+          </FormField>
+        </div>
+      </FormSection>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <Label>Name *</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  className="flex-1"
-                />
-                <AiGate fallback={null}>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGenerateAI}
-                    disabled={isGenerating || !form.name.trim()}
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        AI...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-3 w-3 mr-1" />
-                        AI Assist
-                      </>
-                    )}
-                  </Button>
-                </AiGate>
-              </div>
-            </div>
-            <div>
-              <Label>Unit</Label>
-              <Input value={form.unit} onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))} placeholder="kg" />
-            </div>
-          </div>
-
-          <div>
-            <Label>Description</Label>
-            <Input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Optional notes..." />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Label>Crude Protein (%)</Label>
-              <Input inputMode="decimal" value={form.crude_protein} onChange={(e) => setForm((p) => ({ ...p, crude_protein: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Crude Fat (%)</Label>
-              <Input inputMode="decimal" value={form.crude_fat} onChange={(e) => setForm((p) => ({ ...p, crude_fat: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Crude Fiber (%)</Label>
-              <Input inputMode="decimal" value={form.crude_fiber} onChange={(e) => setForm((p) => ({ ...p, crude_fiber: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Moisture (%)</Label>
-              <Input inputMode="decimal" value={form.moisture} onChange={(e) => setForm((p) => ({ ...p, moisture: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Calcium (%)</Label>
-              <Input inputMode="decimal" value={form.calcium} onChange={(e) => setForm((p) => ({ ...p, calcium: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Phosphorus (%)</Label>
-              <Input inputMode="decimal" value={form.phosphorus} onChange={(e) => setForm((p) => ({ ...p, phosphorus: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Ash (%)</Label>
-              <Input inputMode="decimal" value={form.ash} onChange={(e) => setForm((p) => ({ ...p, ash: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Metab. Energy (kcal/kg)</Label>
-              <Input inputMode="decimal" value={form.metabolizable_energy} onChange={(e) => setForm((p) => ({ ...p, metabolizable_energy: e.target.value }))} />
-            </div>
-          </div>
-
-          <DialogFooter className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700">
-              {isSaving ? "Saving..." : editing ? "Save Changes" : "Create Component"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <FormSection icon={FlaskConical} title="Nutritional profile" description="Leave blank any values you don't know.">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {nutrientFields.map(({ key, label }) => (
+            <FormField key={key} label={label} htmlFor={`feed-component-${key}`}>
+              <Input
+                id={`feed-component-${key}`}
+                inputMode="decimal"
+                value={form[key]}
+                onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
+                className={formInputClass()}
+              />
+            </FormField>
+          ))}
+        </div>
+      </FormSection>
+    </FormModal>
   );
 }
-

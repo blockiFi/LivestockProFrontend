@@ -3,15 +3,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { FormField, FormModal, FormSection, ModalFooterActions, formInputClass } from "@/components/ui/form-modal"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -23,7 +15,9 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowRightLeft,
+  Boxes,
   Receipt,
+  Scale,
 } from "lucide-react"
 import { toast } from "react-toastify"
 import { forceFeedUsageExpenditure, getFeedUsagesByInventory, updateFeedUsageRecord } from "@/lib/request"
@@ -422,35 +416,67 @@ const FeedInventoryUsageSection = ({
       )}
       </CollapsibleContent>
 
-      <Dialog open={Boolean(movingRecord)} onOpenChange={(open) => !open && closeMoveDialog()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Move feed usage</DialogTitle>
-            <DialogDescription>
-              Move all or part of this usage to another inventory batch. Stock is restored on the
-              current batch and deducted from the destination.
-            </DialogDescription>
-          </DialogHeader>
-
-          {movingRecord && (
-            <div className="space-y-4">
-              <div className="rounded-lg border bg-slate-50 p-3 text-sm space-y-1">
-                <p>
-                  <span className="text-muted-foreground">Date:</span>{" "}
+      <FormModal
+        open={Boolean(movingRecord)}
+        onOpenChange={(open) => {
+          if (!open) closeMoveDialog()
+        }}
+        title="Move feed usage"
+        description="Move all or part of this usage to another inventory batch. Stock is restored on the current batch and deducted from the destination."
+        icon={ArrowRightLeft}
+        tone="feed"
+        size="md"
+        busy={isMoving}
+        footer={
+          <ModalFooterActions
+            onCancel={closeMoveDialog}
+            submitType="button"
+            onConfirm={handleMoveUsage}
+            submitLabel={isPartialMove ? `Move ${parsedMoveQuantity.toFixed(2)} ${unit}` : "Move usage"}
+            busyLabel="Moving..."
+            busy={isMoving}
+            disabled={
+              !destinationInventoryId ||
+              destinationInventoryId === "__none" ||
+              !Number.isFinite(parsedMoveQuantity) ||
+              parsedMoveQuantity <= 0 ||
+              parsedMoveQuantity > maxMoveQuantity + 0.001
+            }
+            icon={ArrowRightLeft}
+          />
+        }
+      >
+        {movingRecord && (
+          <>
+            <dl className="grid grid-cols-3 gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs">
+              <div>
+                <dt className="text-slate-500">Date</dt>
+                <dd className="font-medium text-slate-900">
                   {movingRecord.usage_date ? formatDate(movingRecord.usage_date) : "—"}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Flock:</span>{" "}
-                  {movingRecord.flock?.name || "—"}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Quantity:</span>{" "}
-                  {movingRecord.quantity?.toFixed(2) ?? "0.00"} {unit}
-                </p>
+                </dd>
               </div>
+              <div>
+                <dt className="text-slate-500">Flock</dt>
+                <dd className="font-medium text-slate-900">{movingRecord.flock?.name || "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Quantity</dt>
+                <dd className="font-medium text-slate-900">
+                  {movingRecord.quantity?.toFixed(2) ?? "0.00"} {unit}
+                </dd>
+              </div>
+            </dl>
 
-              <div className="space-y-2">
-                <Label htmlFor="move-quantity">Quantity to move ({unit})</Label>
+            <FormSection step={1} icon={Scale} title="Amount" description="Move the full usage or just part of it.">
+              <FormField
+                label={`Quantity to move (${unit})`}
+                htmlFor="move-quantity"
+                hint={
+                  isPartialMove
+                    ? `${(maxMoveQuantity - parsedMoveQuantity).toFixed(2)} ${unit} will remain on this batch.`
+                    : "Leave at the full amount to move the entire usage row."
+                }
+              >
                 <Input
                   id="move-quantity"
                   type="number"
@@ -460,18 +486,15 @@ const FeedInventoryUsageSection = ({
                   value={moveQuantity}
                   onChange={(e) => setMoveQuantity(e.target.value)}
                   placeholder={`Max ${maxMoveQuantity.toFixed(2)}`}
+                  className={formInputClass()}
                 />
-                <p className="text-xs text-muted-foreground">
-                  {isPartialMove
-                    ? `${(maxMoveQuantity - parsedMoveQuantity).toFixed(2)} ${unit} will remain on this batch.`
-                    : "Leave at the full amount to move the entire usage row."}
-                </p>
-              </div>
+              </FormField>
+            </FormSection>
 
-              <div className="space-y-2">
-                <Label>Destination inventory</Label>
+            <FormSection step={2} icon={Boxes} title="Destination" description="The inventory batch that should carry this usage.">
+              <FormField label="Destination inventory">
                 <Select value={destinationInventoryId} onValueChange={setDestinationInventoryId}>
-                  <SelectTrigger>
+                  <SelectTrigger className={formInputClass()}>
                     <SelectValue placeholder="Select inventory batch" />
                   </SelectTrigger>
                   <SelectContent>
@@ -501,36 +524,11 @@ const FeedInventoryUsageSection = ({
                     )}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeMoveDialog} disabled={isMoving}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleMoveUsage}
-              disabled={
-                isMoving ||
-                !destinationInventoryId ||
-                destinationInventoryId === "__none" ||
-                !Number.isFinite(parsedMoveQuantity) ||
-                parsedMoveQuantity <= 0 ||
-                parsedMoveQuantity > maxMoveQuantity + 0.001
-              }
-            >
-              {isMoving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isMoving
-                ? "Moving..."
-                : isPartialMove
-                  ? `Move ${parsedMoveQuantity.toFixed(2)} ${unit}`
-                  : "Move usage"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              </FormField>
+            </FormSection>
+          </>
+        )}
+      </FormModal>
     </Collapsible>
   )
 }

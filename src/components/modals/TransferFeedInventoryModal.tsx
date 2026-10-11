@@ -1,17 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormField, FormModal, FormSection, ModalFooterActions, formInputClass } from "@/components/ui/form-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -19,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ArrowLeftRight, Loader2 } from "lucide-react"
+import { ArrowLeftRight, Boxes, Scale } from "lucide-react"
 import { GetToken, getFarm, transferFeedInventory } from "@/lib/request"
 import type { FeedInventoryType } from "@/lib/types"
 import { formatCurrency, Naira } from "@/lib/utils"
@@ -118,47 +110,69 @@ export default function TransferFeedInventoryModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !saving && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ArrowLeftRight className="h-5 w-5 text-amber-600" />
-            Transfer stock
-          </DialogTitle>
-          <DialogDescription>
-            Move feed from another {target?.name ?? "same-type"} batch into{" "}
-            <strong>{target?.batchNumber || `batch #${target?.id}`}</strong>
-            {deficit > 0 ? ` to cover a ${deficit} ${target?.unit} deficit` : ""}.
-          </DialogDescription>
-        </DialogHeader>
-
-        {!target ? null : sources.length === 0 ? (
-          <p className="text-sm text-slate-600">
-            No other positive stock batches of this feed type are available to transfer from.
-          </p>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title="Transfer stock"
+      description={
+        <>
+          Move feed from another {target?.name ?? "same-type"} batch into{" "}
+          <strong>{target?.batchNumber || `batch #${target?.id}`}</strong>
+          {deficit > 0 ? ` to cover a ${deficit} ${target?.unit} deficit` : ""}.
+        </>
+      }
+      icon={ArrowLeftRight}
+      tone="feed"
+      size="md"
+      busy={saving}
+      footer={
+        sources.length > 0 ? (
+          <ModalFooterActions
+            onCancel={onClose}
+            submitType="button"
+            onConfirm={() => void handleSubmit()}
+            submitLabel="Transfer"
+            busyLabel="Transferring..."
+            busy={saving}
+            disabled={!sourceId}
+            icon={ArrowLeftRight}
+          />
         ) : (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500">Target balance</span>
-                <span className="font-medium tabular-nums">
-                  {target.availableQuantity} {target.unit}
-                </span>
-              </div>
-              {deficit > 0 ? (
-                <div className="mt-1 flex justify-between gap-2 text-amber-700">
-                  <span>Deficit</span>
-                  <span className="font-semibold tabular-nums">
-                    {deficit} {target.unit}
-                  </span>
-                </div>
-              ) : null}
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving} className="rounded-xl">
+            Cancel
+          </Button>
+        )
+      }
+    >
+      {!target ? null : sources.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-600">
+          No other positive stock batches of this feed type are available to transfer from.
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <div>
+              <p className="text-xs text-slate-500">Target balance</p>
+              <p className="font-semibold tabular-nums text-slate-900">
+                {target.availableQuantity} {target.unit}
+              </p>
             </div>
+            {deficit > 0 ? (
+              <div>
+                <p className="text-xs text-amber-600">Deficit</p>
+                <p className="font-semibold tabular-nums text-amber-700">
+                  {deficit} {target.unit}
+                </p>
+              </div>
+            ) : null}
+          </div>
 
-            <div className="space-y-2">
-              <Label>From inventory</Label>
+          <FormSection step={1} icon={Boxes} title="Source batch" description="Pick the batch to take stock from.">
+            <FormField label="From inventory">
               <Select value={sourceId} onValueChange={setSourceId}>
-                <SelectTrigger>
+                <SelectTrigger className={formInputClass()}>
                   <SelectValue placeholder="Select source batch" />
                 </SelectTrigger>
                 <SelectContent>
@@ -171,39 +185,29 @@ export default function TransferFeedInventoryModal({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
+          </FormSection>
 
-            <div className="space-y-2">
-              <Label>Quantity ({target.unit})</Label>
+          <FormSection step={2} icon={Scale} title="Amount" description="How much to move into the target batch.">
+            <FormField
+              label={`Quantity (${target.unit})`}
+              htmlFor="transfer-feed-qty"
+              hint={selectedSource ? `Available on source: ${sourceQty} ${target.unit}` : undefined}
+            >
               <Input
+                id="transfer-feed-qty"
                 type="number"
                 min={0.01}
                 step={0.01}
                 max={sourceQty}
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
+                className={formInputClass()}
               />
-              {selectedSource ? (
-                <p className="text-xs text-slate-500">
-                  Available on source: {sourceQty} {target.unit}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          {sources.length > 0 && (
-            <Button type="button" onClick={() => void handleSubmit()} disabled={saving || !sourceId}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {saving ? "Transferring..." : "Transfer"}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            </FormField>
+          </FormSection>
+        </>
+      )}
+    </FormModal>
   )
 }

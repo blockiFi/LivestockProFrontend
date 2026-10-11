@@ -1,8 +1,20 @@
 "use client"
 import React, { useMemo, useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  FormSummary,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Boxes, Building2, CalendarClock, Hash, PackagePlus, Scale, StickyNote, Wheat } from "lucide-react"
 import { toast } from "react-toastify"
+import { cn } from "@/lib/utils"
 import { createFeedInventory, GetToken, getFarm, getFeedTypes, getFeedProducts } from "@/lib/request"
 import { bagsToKg, FEED_BAG_KG, formatBagsFromKg } from "@/lib/feed-bags"
 
@@ -180,19 +192,39 @@ export default function AddFeedInventoryModal({
     }
   }
 
-  if (!isOpen) return null
+  const totalValue = quantityKg * unitCostPerKg
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <form onSubmit={handleSubmit} className="relative bg-white rounded-lg shadow-lg w-full max-w-lg p-6 z-10">
-        <h2 className="text-lg font-semibold mb-4">Add Feed Inventory</h2>
-        {formError && <p className="text-sm text-red-600 mb-2">{formError}</p>}
-        <div className="grid grid-cols-1 gap-3">
-          <div>
-            <label className="text-sm font-medium">Feed Type</label>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title="Add feed inventory"
+      description="Pick the feed and product, then record the stock you received."
+      icon={PackagePlus}
+      tone="feed"
+      size="lg"
+      busy={isSubmitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={onClose}
+          submitLabel="Add inventory"
+          busyLabel="Adding..."
+          busy={isSubmitting}
+        />
+      }
+    >
+      {formError && (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{formError}</p>
+      )}
+
+      <FormSection step={1} icon={Wheat} title="Feed" description="Which feed type and product is this stock for?">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Feed type">
             <Select value={selectedFeedType !== null ? String(selectedFeedType) : 'none'} onValueChange={(v) => setSelectedFeedType(v === 'none' ? null : Number(v))}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className={formInputClass()}>
                 <SelectValue placeholder="Select feed type" />
               </SelectTrigger>
               <SelectContent>
@@ -204,12 +236,11 @@ export default function AddFeedInventoryModal({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </FormField>
 
-          <div>
-            <label className="text-sm font-medium">Product</label>
+          <FormField label="Product">
             <Select value={selectedProduct !== null ? String(selectedProduct) : 'none'} onValueChange={(v) => setSelectedProduct(v === 'none' ? null : Number(v))}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className={formInputClass()}>
                 <SelectValue placeholder="Select product" />
               </SelectTrigger>
               <SelectContent>
@@ -227,109 +258,151 @@ export default function AddFeedInventoryModal({
                 )}
               </SelectContent>
             </Select>
-          </div>
+          </FormField>
 
-          <div>
-            <label className="text-sm font-medium">Manufacturer</label>
-            <input value={form.manufacturer} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} className="w-full border rounded px-3 py-2 mt-1" />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Enter by</label>
-            <div className="mt-1 grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={entryMode === "bag" ? "default" : "outline"}
-                className={entryMode === "bag" ? "bg-blue-600 hover:bg-blue-700" : ""}
-                onClick={() => setEntryMode("bag")}
-              >
-                Bags ({FEED_BAG_KG}kg)
-              </Button>
-              <Button
-                type="button"
-                variant={entryMode === "kg" ? "default" : "outline"}
-                className={entryMode === "kg" ? "bg-blue-600 hover:bg-blue-700" : ""}
-                onClick={() => setEntryMode("kg")}
-              >
-                Kilograms
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium">
-                {entryMode === "bag" ? `Bags (${FEED_BAG_KG}kg each)` : "Quantity (kg)"}
-              </label>
-              <input
-                value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                type="number"
-                min="0"
-                step={entryMode === "bag" ? "1" : "0.01"}
-                placeholder={entryMode === "bag" ? "e.g. 10" : "e.g. 250"}
-                className="w-full border rounded px-3 py-2 mt-1"
+          <FormField label="Manufacturer" htmlFor="feed-inv-mfr" className="sm:col-span-2">
+            <div className="relative">
+              <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="feed-inv-mfr"
+                value={form.manufacturer}
+                onChange={(e) => setForm({ ...form, manufacturer: e.target.value })}
+                className={formInputClass(false, "pl-9")}
               />
-              {quantityKg > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {entryMode === "bag"
-                    ? `Total: ${quantityKg} kg`
-                    : `Equals ${formatBagsFromKg(quantityKg)}`}
-                </p>
-              )}
             </div>
-            <div>
-              <label className="text-sm font-medium">
-                {entryMode === "bag" ? "Cost per bag" : "Cost per kg"}
-              </label>
-              <input
-                value={form.unit_cost}
-                onChange={(e) => setForm({ ...form, unit_cost: e.target.value })}
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder={entryMode === "bag" ? "e.g. 12500" : "e.g. 500"}
-                className="w-full border rounded px-3 py-2 mt-1"
-              />
-              {Number.isFinite(costValue) && costValue > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {entryMode === "bag"
-                    ? `≈ ₦${unitCostPerKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} / kg`
-                    : `≈ ₦${(costValue * FEED_BAG_KG).toLocaleString(undefined, { maximumFractionDigits: 2 })} / bag`}
-                </p>
+          </FormField>
+        </div>
+      </FormSection>
+
+      <FormSection
+        step={2}
+        icon={Scale}
+        title="Quantity & cost"
+        description="Enter stock in bags or kilograms."
+        action={
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setEntryMode("bag")}
+              className={cn(
+                "rounded-lg px-3 py-1.5 transition",
+                entryMode === "bag" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900",
               )}
-            </div>
+            >
+              Bags ({FEED_BAG_KG}kg)
+            </button>
+            <button
+              type="button"
+              onClick={() => setEntryMode("kg")}
+              className={cn(
+                "rounded-lg px-3 py-1.5 transition",
+                entryMode === "kg" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              Kilograms
+            </button>
           </div>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField
+            label={entryMode === "bag" ? `Bags (${FEED_BAG_KG}kg each)` : "Quantity (kg)"}
+            htmlFor="feed-inv-qty"
+            required
+            hint={
+              quantityKg > 0
+                ? entryMode === "bag"
+                  ? `Total: ${quantityKg} kg`
+                  : `Equals ${formatBagsFromKg(quantityKg)}`
+                : undefined
+            }
+          >
+            <Input
+              id="feed-inv-qty"
+              value={form.quantity}
+              onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+              type="number"
+              min="0"
+              step={entryMode === "bag" ? "1" : "0.01"}
+              placeholder={entryMode === "bag" ? "e.g. 10" : "e.g. 250"}
+              className={formInputClass()}
+            />
+          </FormField>
+
+          <FormField
+            label={entryMode === "bag" ? "Cost per bag" : "Cost per kg"}
+            htmlFor="feed-inv-cost"
+            hint={
+              Number.isFinite(costValue) && costValue > 0
+                ? entryMode === "bag"
+                  ? `≈ ₦${unitCostPerKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} / kg`
+                  : `≈ ₦${(costValue * FEED_BAG_KG).toLocaleString(undefined, { maximumFractionDigits: 2 })} / bag`
+                : undefined
+            }
+          >
+            <Input
+              id="feed-inv-cost"
+              value={form.unit_cost}
+              onChange={(e) => setForm({ ...form, unit_cost: e.target.value })}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder={entryMode === "bag" ? "e.g. 12500" : "e.g. 500"}
+              className={formInputClass()}
+            />
+          </FormField>
 
           {quantityKg > 0 && Number.isFinite(costValue) && costValue > 0 && (
-            <div className="rounded-md border bg-slate-50 px-3 py-2 text-xs text-muted-foreground">
-              Stocking {quantityKg} kg ({formatBagsFromKg(quantityKg)}) at ₦{unitCostPerKg.toLocaleString(undefined, { maximumFractionDigits: 2 })}/kg
-              {" · "}
-              Total value ₦{(quantityKg * unitCostPerKg).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </div>
+            <FormSummary
+              className="sm:col-span-2"
+              label={`${quantityKg} kg (${formatBagsFromKg(quantityKg)}) at ₦${unitCostPerKg.toLocaleString(undefined, { maximumFractionDigits: 2 })}/kg`}
+              value={`₦${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+            />
           )}
-
-          <div>
-            <label className="text-sm font-medium">Expiry Date</label>
-            <input value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} type="date" className="w-full border rounded px-3 py-2 mt-1" />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Batch Number</label>
-            <input value={form.batch_number} onChange={(e) => setForm({ ...form, batch_number: e.target.value })} className="w-full border rounded px-3 py-2 mt-1" />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Notes</label>
-            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full border rounded px-3 py-2 mt-1" />
-          </div>
         </div>
+      </FormSection>
 
-        <div className="flex items-center justify-end gap-2 mt-4">
-          <Button variant="outline" size="sm" type="button" onClick={onClose}>Cancel</Button>
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Adding...' : 'Add Inventory'}</Button>
+      <FormSection step={3} icon={Boxes} title="Batch details" description="Optional tracking details for this stock.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Batch number" htmlFor="feed-inv-batch">
+            <div className="relative">
+              <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="feed-inv-batch"
+                value={form.batch_number}
+                onChange={(e) => setForm({ ...form, batch_number: e.target.value })}
+                className={formInputClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
+
+          <FormField label="Expiry date" htmlFor="feed-inv-exp">
+            <div className="relative">
+              <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="feed-inv-exp"
+                type="date"
+                value={form.expiry_date}
+                onChange={(e) => setForm({ ...form, expiry_date: e.target.value })}
+                className={formInputClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
+
+          <FormField label="Notes" htmlFor="feed-inv-notes" className="sm:col-span-2">
+            <div className="relative">
+              <StickyNote className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <Textarea
+                id="feed-inv-notes"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Supplier, storage notes, etc."
+                className={formTextareaClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
         </div>
-      </form>
-    </div>
+      </FormSection>
+    </FormModal>
   )
 }

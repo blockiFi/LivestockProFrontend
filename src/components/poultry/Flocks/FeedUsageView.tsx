@@ -5,7 +5,7 @@ import { useMemo, useState } from "react"
 import { AlertTriangle, DollarSign, Factory, Package2, TrendingUp, Wheat, Plus, Trash2 } from "lucide-react"
 import { ExportDataButton } from "@/components/general/ExportDataButton"
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -391,26 +391,19 @@ const FeedUsageView  = ({
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-          </DialogHeader>
-          <div className="mt-2">
-            <p className="text-sm text-gray-700">
-              Are you sure you want to delete this feed usage record? This action cannot be undone.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleDeleteCancel}>
-              Cancel
-            </Button>
-            <Button onClick={handleDeleteConfirm} className="bg-red-600 text-white hover:bg-red-700">
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmModal
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (open) setDeleteDialogOpen(true)
+          else handleDeleteCancel()
+        }}
+        title="Confirm deletion"
+        description="Are you sure you want to delete this feed usage record? This action cannot be undone."
+        tone="danger"
+        confirmLabel="Delete"
+        confirmIcon={Trash2}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   )
 }

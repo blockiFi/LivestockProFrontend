@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { FormField, FormModal, FormSection, ModalFooterActions, formInputClass } from "@/components/ui/form-modal";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Layers, Percent, PieChart } from "lucide-react";
 import type { FeedComponent } from "@/lib/types";
 
 export default function AddFeedCompositionModal({
@@ -65,22 +64,35 @@ export default function AddFeedCompositionModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Add Component to Composition</DialogTitle>
-          <DialogDescription>
-            Current total: <span className="font-medium">{currentTotalPercent.toFixed(2)}%</span>. Aim for 100%.
-          </DialogDescription>
-        </DialogHeader>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Add component to composition"
+      description={
+        <>
+          Current total: <span className="font-semibold">{currentTotalPercent.toFixed(2)}%</span>. Aim for 100%.
+        </>
+      }
+      icon={Layers}
+      tone="feed"
+      size="md"
+      busy={isSaving}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions onCancel={onClose} submitLabel="Add" busyLabel="Adding..." busy={isSaving} />
+      }
+    >
+      {error && (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>
+      )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <div>
-            <Label>Component *</Label>
+      <FormSection icon={PieChart} title="Component share" description="Pick an ingredient and its share of the mix.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Component" required>
             <Select value={feedComponentId} onValueChange={setFeedComponentId}>
-              <SelectTrigger>
+              <SelectTrigger className={formInputClass()}>
                 <SelectValue placeholder="Select component" />
               </SelectTrigger>
               <SelectContent>
@@ -91,24 +103,24 @@ export default function AddFeedCompositionModal({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </FormField>
 
-          <div>
-            <Label>Percentage (%) *</Label>
-            <Input inputMode="decimal" value={percentage} onChange={(e) => setPercentage(e.target.value)} placeholder="e.g. 35" />
-          </div>
-
-          <DialogFooter className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700">
-              {isSaving ? "Adding..." : "Add"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          <FormField label="Percentage (%)" required htmlFor="composition-percentage">
+            <div className="relative">
+              <Percent className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="composition-percentage"
+                inputMode="decimal"
+                value={percentage}
+                onChange={(e) => setPercentage(e.target.value)}
+                placeholder="e.g. 35"
+                className={formInputClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
+        </div>
+      </FormSection>
+    </FormModal>
   );
 }
 
