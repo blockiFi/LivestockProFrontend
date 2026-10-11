@@ -1,18 +1,21 @@
 import { useState, useEffect, useMemo } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
-import { Label } from "../ui/label"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "../ui/form-modal"
 import { Input } from "../ui/input"
-import { Button } from "../ui/button"
 import { Textarea } from "../ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Calendar } from "../ui/calendar"
 import {
   CalendarIcon,
-  Loader2,
   Pill,
   User,
   Beaker,
-  Package,
   Syringe,
   StickyNote,
   ChevronDown,
@@ -350,255 +353,223 @@ const AddMedicationRecordModal = ({
   }, [productsForMedication, selectedProductId])
 
   return (
-    <Dialog
+    <FormModal
       open={isOpen}
       onOpenChange={(open) => {
         if (!open && !isSubmitting) handleClose()
       }}
+      title="Add Medication Record"
+      description="Choose medication type, product, then inventory batch. Fields marked with * are required."
+      icon={Pill}
+      tone="health"
+      size="xl"
+      busy={isSubmitting}
+      dismissible={false}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={handleClose}
+          submitLabel="Add Medication Record"
+          busyLabel="Adding..."
+          busy={isSubmitting}
+        />
+      }
     >
-      <DialogContent
-        className="max-w-4xl max-h-[90vh] overflow-y-auto p-0"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
-        <div className="bg-gradient-to-r from-purple-600 to-violet-600 px-6 py-5 rounded-t-lg">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl">Add Medication Record</DialogTitle>
-            <DialogDescription className="text-purple-100">
-              Choose medication type, product, then inventory batch. Fields marked with * are required.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
-          <div className="space-y-2 pt-2">
-            <Label className="text-sm font-semibold flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-purple-600" />
-              Administration Date <span className="text-red-500">*</span>
-            </Label>
-            <button
-              type="button"
-              onClick={() => setShowCalendar(!showCalendar)}
-              className={cn(
-                "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
-                errors.date ? "border-red-400 bg-red-50" : "border-gray-300",
-                showCalendar && "border-purple-500 ring-2 ring-purple-100",
-              )}
-            >
-              <span className={formData.date ? "text-gray-900 font-medium" : "text-gray-400"}>
+      <FormSection step={1} icon={CalendarIcon} title="Administration date" description="When was the medication given?">
+        <FormField label="Administration Date" required error={errors.date}>
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={cn(
+              formInputClass(!!errors.date),
+              "flex w-full items-center justify-between border px-3 text-sm transition-colors hover:bg-white",
+              showCalendar && "border-purple-500 ring-2 ring-purple-100",
+            )}
+          >
+            <span className="flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-slate-400" />
+              <span className={formData.date ? "font-medium text-slate-900" : "text-slate-400"}>
                 {formData.date
                   ? format(new Date(formData.date + "T12:00:00"), "EEEE, MMMM d, yyyy")
                   : "Select administration date"}
               </span>
-              {showCalendar ? (
-                <ChevronUp className="h-4 w-4 text-gray-500" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-gray-500" />
-              )}
-            </button>
-            {showCalendar && (
-              <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
-                <Calendar
-                  mode="single"
-                  selected={formData.date ? new Date(formData.date + "T12:00:00") : undefined}
-                  onSelect={handleDateChange}
-                />
-              </div>
+            </span>
+            {showCalendar ? (
+              <ChevronUp className="h-4 w-4 text-slate-500" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-500" />
             )}
-            {errors.date && <p className="text-xs text-red-500">{errors.date}</p>}
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Pill className="h-4 w-4 text-purple-500" />
-              Medication Details
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Pill className="h-3.5 w-3.5 text-purple-400" />
-                  Medication type *
-                </Label>
-                <Select
-                  value={formData.poultry_medication_id ? String(formData.poultry_medication_id) : undefined}
-                  onValueChange={handleMedicationTypeChange}
-                  disabled={catalogLoading && catalog.length === 0}
-                >
-                  <SelectTrigger className={cn("h-9 text-sm", errors.poultry_medication_id && "border-red-400")}>
-                    <SelectValue placeholder={catalogLoading ? "Loading types..." : "Select type"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {catalog.map((type) => {
-                      const inStock = type.products.filter((p) => p.totalStock > 0).length
-                      return (
-                        <SelectItem key={type.id} value={String(type.id)}>
-                          <div>
-                            <div className="font-medium">{type.name}</div>
-                            <div className="text-xs text-gray-500">
-                              {type.products.length
-                                ? `${inStock} of ${type.products.length} product${type.products.length === 1 ? "" : "s"} in stock`
-                                : "No products yet"}
-                            </div>
-                          </div>
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-                {errors.poultry_medication_id && (
-                  <p className="text-xs text-red-500">{errors.poultry_medication_id}</p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Package className="h-3.5 w-3.5 text-purple-400" />
-                  Medication product *
-                </Label>
-                <Select
-                  value={selectedProductId ? String(selectedProductId) : undefined}
-                  onValueChange={handleProductChange}
-                  disabled={!formData.poultry_medication_id}
-                >
-                  <SelectTrigger className={cn("h-9 text-sm", errors.medication_product_id && "border-red-400")}>
-                    <SelectValue
-                      placeholder={
-                        formData.poultry_medication_id
-                          ? productsForMedication.length
-                            ? "Select product"
-                            : "No products available"
-                          : "Select type first"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productsForMedication.map((product) => (
-                      <SelectItem
-                        key={product.id}
-                        value={String(product.id)}
-                        disabled={product.totalStock <= 0}
-                      >
-                        <div>
-                          <div className="font-medium">{product.name}</div>
-                          <div className="text-xs text-gray-500">
-                            {product.manufacturer}
-                            {" · "}
-                            {product.totalStock > 0
-                              ? `${product.totalStock} in stock (${product.batches.length} batch${product.batches.length === 1 ? "" : "es"})`
-                              : "Out of stock"}
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.medication_product_id && (
-                  <p className="text-xs text-red-500">{errors.medication_product_id}</p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Package className="h-3.5 w-3.5 text-purple-400" />
-                  Inventory batch *
-                </Label>
-                <Select
-                  value={
-                    formData.poultry_medication_inventory_id
-                      ? String(formData.poultry_medication_inventory_id)
-                      : undefined
-                  }
-                  onValueChange={handleInventoryChange}
-                  disabled={!selectedProductId}
-                >
-                  <SelectTrigger
-                    className={cn("h-9 text-sm", errors.poultry_medication_inventory_id && "border-red-400")}
-                  >
-                    <SelectValue
-                      placeholder={
-                        selectedProductId
-                          ? inventoriesForProduct.length
-                            ? "Select batch"
-                            : "No inventory for this product"
-                          : "Select product first"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {inventoriesForProduct.map((inventory) => {
-                      const qty = inventoryQty(inventory)
-                      return (
-                        <SelectItem key={inventory.id} value={String(inventory.id)}>
-                          <div>
-                            <div className="font-medium">Batch: {inventory.batch_number || "—"}</div>
-                            <div className="text-xs text-gray-500">
-                              {inventory.expiry_date
-                                ? `Exp: ${format(new Date(inventory.expiry_date), "MMM dd, yyyy")} | `
-                                : ""}
-                              Qty: {qty} | {inventory.manufacturer || selectedProduct?.manufacturer || ""}
-                            </div>
-                          </div>
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-                {errors.poultry_medication_inventory_id && (
-                  <p className="text-xs text-red-500">{errors.poultry_medication_inventory_id}</p>
-                )}
-              </div>
+          </button>
+          {showCalendar && (
+            <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+              <Calendar
+                mode="single"
+                selected={formData.date ? new Date(formData.date + "T12:00:00") : undefined}
+                onSelect={handleDateChange}
+              />
             </div>
-            {catalogError && <p className="text-xs text-amber-700">{catalogError}</p>}
-            {selectedType && productsForMedication.length === 0 && !catalogLoading && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                No products are registered under {selectedType.name}. Add one under Health → Medications first.
-              </p>
-            )}
-            {selectedProduct && inventoriesForProduct.length === 0 && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                {selectedProduct.name} has no usable stock (empty or expired). Add inventory before recording usage.
-              </p>
-            )}
-            {labelHint && labelHint !== "—" && (
-              <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
-                Label: {labelHint}
-              </p>
-            )}
-          </div>
+          )}
+        </FormField>
+      </FormSection>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <User className="h-4 w-4 text-blue-500" />
-              Administration Info
-            </h3>
-            <div className="space-y-1">
-              <Label htmlFor="administered_by" className="text-xs text-gray-600 flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5 text-blue-400" />
-                Administered By *
-              </Label>
+      <FormSection step={2} icon={Pill} title="Medication details" description="Pick the type, product and stock batch to draw from.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <FormField label="Medication type" required error={errors.poultry_medication_id}>
+            <Select
+              value={formData.poultry_medication_id ? String(formData.poultry_medication_id) : undefined}
+              onValueChange={handleMedicationTypeChange}
+              disabled={catalogLoading && catalog.length === 0}
+            >
+              <SelectTrigger className={formInputClass(!!errors.poultry_medication_id)}>
+                <SelectValue placeholder={catalogLoading ? "Loading types..." : "Select type"} />
+              </SelectTrigger>
+              <SelectContent>
+                {catalog.map((type) => {
+                  const inStock = type.products.filter((p) => p.totalStock > 0).length
+                  return (
+                    <SelectItem key={type.id} value={String(type.id)}>
+                      <div>
+                        <div className="font-medium">{type.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {type.products.length
+                            ? `${inStock} of ${type.products.length} product${type.products.length === 1 ? "" : "s"} in stock`
+                            : "No products yet"}
+                        </div>
+                      </div>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          <FormField label="Medication product" required error={errors.medication_product_id}>
+            <Select
+              value={selectedProductId ? String(selectedProductId) : undefined}
+              onValueChange={handleProductChange}
+              disabled={!formData.poultry_medication_id}
+            >
+              <SelectTrigger className={formInputClass(!!errors.medication_product_id)}>
+                <SelectValue
+                  placeholder={
+                    formData.poultry_medication_id
+                      ? productsForMedication.length
+                        ? "Select product"
+                        : "No products available"
+                      : "Select type first"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {productsForMedication.map((product) => (
+                  <SelectItem
+                    key={product.id}
+                    value={String(product.id)}
+                    disabled={product.totalStock <= 0}
+                  >
+                    <div>
+                      <div className="font-medium">{product.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {product.manufacturer}
+                        {" · "}
+                        {product.totalStock > 0
+                          ? `${product.totalStock} in stock (${product.batches.length} batch${product.batches.length === 1 ? "" : "es"})`
+                          : "Out of stock"}
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          <FormField label="Inventory batch" required error={errors.poultry_medication_inventory_id}>
+            <Select
+              value={
+                formData.poultry_medication_inventory_id
+                  ? String(formData.poultry_medication_inventory_id)
+                  : undefined
+              }
+              onValueChange={handleInventoryChange}
+              disabled={!selectedProductId}
+            >
+              <SelectTrigger className={formInputClass(!!errors.poultry_medication_inventory_id)}>
+                <SelectValue
+                  placeholder={
+                    selectedProductId
+                      ? inventoriesForProduct.length
+                        ? "Select batch"
+                        : "No inventory for this product"
+                      : "Select product first"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {inventoriesForProduct.map((inventory) => {
+                  const qty = inventoryQty(inventory)
+                  return (
+                    <SelectItem key={inventory.id} value={String(inventory.id)}>
+                      <div>
+                        <div className="font-medium">Batch: {inventory.batch_number || "—"}</div>
+                        <div className="text-xs text-gray-500">
+                          {inventory.expiry_date
+                            ? `Exp: ${format(new Date(inventory.expiry_date), "MMM dd, yyyy")} | `
+                            : ""}
+                          Qty: {qty} | {inventory.manufacturer || selectedProduct?.manufacturer || ""}
+                        </div>
+                      </div>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </FormField>
+        </div>
+        <div className="mt-3 space-y-2">
+          {catalogError && <p className="text-xs text-amber-700">{catalogError}</p>}
+          {selectedType && productsForMedication.length === 0 && !catalogLoading && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              No products are registered under {selectedType.name}. Add one under Health → Medications first.
+            </p>
+          )}
+          {selectedProduct && inventoriesForProduct.length === 0 && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {selectedProduct.name} has no usable stock (empty or expired). Add inventory before recording usage.
+            </p>
+          )}
+          {labelHint && labelHint !== "—" && (
+            <p className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs text-slate-600">
+              Label: {labelHint}
+            </p>
+          )}
+        </div>
+      </FormSection>
+
+      <FormSection step={3} icon={User} title="Administration info" description="Who gave it and how.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField label="Administered By" required htmlFor="administered_by" error={errors.administered_by}>
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="administered_by"
                 type="text"
                 value={formData.administered_by}
                 onChange={(e) => handleInputChange("administered_by", e.target.value)}
                 placeholder="e.g., Dr. Smith, Farm Manager"
-                className={cn("h-9 text-sm", errors.administered_by && "border-red-400")}
+                className={formInputClass(!!errors.administered_by, "pl-9")}
               />
-              {errors.administered_by && <p className="text-xs text-red-500">{errors.administered_by}</p>}
             </div>
+          </FormField>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                <Syringe className="h-3.5 w-3.5 text-blue-400" />
-                Administration Method *
-              </Label>
+          <FormField label="Administration Method" required error={errors.administration_method_id}>
+            <div className="relative">
               <Select
                 value={
                   formData.administration_method_id ? String(formData.administration_method_id) : undefined
                 }
                 onValueChange={(value) => handleInputChange("administration_method_id", Number.parseInt(value, 10))}
               >
-                <SelectTrigger className={cn("h-9 text-sm", errors.administration_method_id && "border-red-400")}>
+                <SelectTrigger className={formInputClass(!!errors.administration_method_id, "pl-9")}>
                   <SelectValue placeholder="Select method" />
                 </SelectTrigger>
                 <SelectContent>
@@ -614,112 +585,78 @@ const AddMedicationRecordModal = ({
                   ))}
                 </SelectContent>
               </Select>
-              {errors.administration_method_id && (
-                <p className="text-xs text-red-500">{errors.administration_method_id}</p>
-              )}
+              <Syringe className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             </div>
-          </div>
+          </FormField>
+        </div>
+      </FormSection>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Beaker className="h-4 w-4 text-green-500" />
-              Amount Used
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="dosage" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Beaker className="h-3.5 w-3.5 text-green-400" />
-                  Amount used *
-                </Label>
-                <Input
-                  id="dosage"
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  value={formData.dosage || ""}
-                  onChange={(e) => handleInputChange("dosage", Number.parseFloat(e.target.value) || 0)}
-                  placeholder="e.g. 10"
-                  className={cn("h-9 text-sm", errors.dosage && "border-red-400")}
-                />
-                {errors.dosage && <p className="text-xs text-red-500">{errors.dosage}</p>}
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs text-gray-600">Unit *</Label>
-                <Select
-                  value={formData.dosage_unit || undefined}
-                  onValueChange={(value) => handleInputChange("dosage_unit", value)}
-                >
-                  <SelectTrigger className={cn("h-9 text-sm", errors.dosage_unit && "border-red-400")}>
-                    <SelectValue placeholder="Select unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MEDICINE_UNITS.map((u) => (
-                      <SelectItem key={u.value} value={u.value}>
-                        {u.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.dosage_unit && <p className="text-xs text-red-500">{errors.dosage_unit}</p>}
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs text-gray-600">Purpose</Label>
-                <Select
-                  value={formData.purpose || "none"}
-                  onValueChange={(value) => handleInputChange("purpose", value === "none" ? "" : value)}
-                >
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Optional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Not specified</SelectItem>
-                    <SelectItem value="preventive">Preventive</SelectItem>
-                    <SelectItem value="treatment">Treatment</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      <FormSection step={4} icon={Beaker} title="Amount used" description="This amount is deducted from inventory.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <FormField label="Amount used" required htmlFor="dosage" error={errors.dosage}>
+            <div className="relative">
+              <Beaker className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="dosage"
+                type="number"
+                step="0.0001"
+                min="0"
+                value={formData.dosage || ""}
+                onChange={(e) => handleInputChange("dosage", Number.parseFloat(e.target.value) || 0)}
+                placeholder="e.g. 10"
+                className={formInputClass(!!errors.dosage, "pl-9")}
+              />
             </div>
-            <p className="text-xs text-gray-500">This amount is deducted from inventory.</p>
-          </div>
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-semibold flex items-center gap-2">
-              <StickyNote className="h-4 w-4 text-gray-500" />
-              Notes
-            </Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleInputChange("notes", e.target.value)}
-              placeholder="Additional notes about the medication administration..."
-              className="min-h-[80px] resize-none"
-            />
-          </div>
-
-          <DialogFooter className="pt-2 border-t">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white"
+          <FormField label="Unit" required error={errors.dosage_unit}>
+            <Select
+              value={formData.dosage_unit || undefined}
+              onValueChange={(value) => handleInputChange("dosage_unit", value)}
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Adding...
-                </>
-              ) : (
-                "Add Medication Record"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+              <SelectTrigger className={formInputClass(!!errors.dosage_unit)}>
+                <SelectValue placeholder="Select unit" />
+              </SelectTrigger>
+              <SelectContent>
+                {MEDICINE_UNITS.map((u) => (
+                  <SelectItem key={u.value} value={u.value}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          <FormField label="Purpose">
+            <Select
+              value={formData.purpose || "none"}
+              onValueChange={(value) => handleInputChange("purpose", value === "none" ? "" : value)}
+            >
+              <SelectTrigger className={formInputClass()}>
+                <SelectValue placeholder="Optional" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not specified</SelectItem>
+                <SelectItem value="preventive">Preventive</SelectItem>
+                <SelectItem value="treatment">Treatment</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+        </div>
+      </FormSection>
+
+      <FormSection icon={StickyNote} title="Notes" description="Anything else worth recording.">
+        <FormField label="Notes" htmlFor="notes">
+          <Textarea
+            id="notes"
+            value={formData.notes}
+            onChange={(e) => handleInputChange("notes", e.target.value)}
+            placeholder="Additional notes about the medication administration..."
+            className={formTextareaClass()}
+          />
+        </FormField>
+      </FormSection>
+    </FormModal>
   )
 }
 

@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Edit,
   Eye,
+  Info,
   Package,
   Plus,
   RefreshCw,
@@ -21,13 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormModal, FormSection } from "@/components/ui/form-modal"
 import {
   Table,
   TableBody,
@@ -469,24 +464,46 @@ export default function VaccinationProductsPage() {
       )}
 
 
-      <Dialog open={Boolean(detailProduct) && !formOpen} onOpenChange={(open) => !open && setDetailProduct(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <FormModal
+        open={Boolean(detailProduct) && !formOpen}
+        onOpenChange={(open) => !open && setDetailProduct(null)}
+        title={detailProduct?.product.name ?? "Vaccine product"}
+        description={
+          detailProduct ? `${detailProduct.vaccine.name} · ${detailProduct.product.manufacturer}` : undefined
+        }
+        icon={Syringe}
+        tone="health"
+        size="lg"
+        footer={
+          detailProduct ? (
+            <>
+              <Button variant="outline" asChild className="rounded-xl">
+                <Link to="/inventory/vaccination">Manage inventory</Link>
+              </Button>
+              <ActionGate anyOf={ACTIONS.vaccineProducts.update}>
+                <Button
+                  className="rounded-xl bg-purple-700 text-white hover:bg-purple-800"
+                  onClick={() => { setDetailProduct(null); openEdit(detailProduct.product) }}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit product
+                </Button>
+              </ActionGate>
+            </>
+          ) : null
+        }
+      >
           {detailProduct && (
             <>
-              <DialogHeader>
-                <DialogTitle>{detailProduct.product.name}</DialogTitle>
-                <DialogDescription>
-                  {detailProduct.vaccine.name} · {detailProduct.product.manufacturer}
-                </DialogDescription>
-              </DialogHeader>
-              <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                <div><dt className="text-muted-foreground">Withdrawal</dt><dd>{detailProduct.product.withdrawal_period ?? 0} {detailProduct.product.withdrawal_period_unit}</dd></div>
-                <div><dt className="text-muted-foreground">Min stock</dt><dd>{detailProduct.product.min_stock_level ?? 0}</dd></div>
-                <div><dt className="text-muted-foreground">Available</dt><dd>{availableStock(detailProduct.product)}</dd></div>
-                <div><dt className="text-muted-foreground">Stock value</dt><dd>{Naira}{formatCurrency(stockValue(detailProduct.product))}</dd></div>
-              </dl>
-              <div className="space-y-2">
-                <h4 className="font-medium">Inventory batches</h4>
+              <FormSection icon={Info} title="Product summary" description="Withdrawal, stock thresholds and value.">
+                <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <div><dt className="text-xs text-slate-500">Withdrawal</dt><dd className="font-medium text-slate-900">{detailProduct.product.withdrawal_period ?? 0} {detailProduct.product.withdrawal_period_unit}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Min stock</dt><dd className="font-medium text-slate-900">{detailProduct.product.min_stock_level ?? 0}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Available</dt><dd className="font-medium text-slate-900">{availableStock(detailProduct.product)}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Stock value</dt><dd className="font-medium text-slate-900">{Naira}{formatCurrency(stockValue(detailProduct.product))}</dd></div>
+                </dl>
+              </FormSection>
+              <FormSection icon={Package} title="Inventory batches" description="Stock currently recorded for this product.">
                 {getInventories(detailProduct.product).length === 0 ? (
                   <p className="text-sm text-muted-foreground">No stock recorded yet.</p>
                 ) : (
@@ -511,19 +528,10 @@ export default function VaccinationProductsPage() {
                     </TableBody>
                   </Table>
                 )}
-              </div>
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Button variant="outline" asChild>
-                  <Link to="/inventory/vaccination">Manage inventory</Link>
-                </Button>
-                <ActionGate anyOf={ACTIONS.vaccineProducts.update}>
-                  <Button onClick={() => { setDetailProduct(null); openEdit(detailProduct.product) }}>Edit product</Button>
-                </ActionGate>
-              </div>
+              </FormSection>
             </>
           )}
-        </DialogContent>
-      </Dialog>
+      </FormModal>
     </div>
   )
 }

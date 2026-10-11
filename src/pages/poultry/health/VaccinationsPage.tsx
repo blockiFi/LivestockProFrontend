@@ -1,14 +1,36 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { BarChart3, Settings, Plus, Search } from "lucide-react"
+import {
+  AlertTriangle,
+  BarChart3,
+  Beaker,
+  Building2,
+  CalendarClock,
+  Clock,
+  FolderPlus,
+  ImageIcon,
+  Package,
+  Plus,
+  Search,
+  Settings,
+  Syringe,
+  Tags,
+  Warehouse,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { VaccineData, AdministrationMethod } from "@/lib/types"
 import { useLoaderData, useRevalidator } from "react-router-dom"
-import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GetToken, getFarm, createVaccineProduct } from "@/lib/request"
 import { ToastContainer, toast } from "react-toastify"
@@ -111,101 +133,119 @@ function CreateVaccineModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add Vaccine Product</DialogTitle>
-          <DialogDescription>Create a new vaccine product for your inventory</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Vaccine *</Label>
-              <Select value={formData.poultry_vaccine_id == null ? undefined : String(formData.poultry_vaccine_id)} onValueChange={(v) => setFormData((p) => ({ ...p, poultry_vaccine_id: Number(v) }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vaccine" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vaccines.map((m) => (
-                    <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title="Add Vaccine Product"
+      description="Create a new vaccine product for your inventory"
+      icon={Syringe}
+      tone="health"
+      size="lg"
+      busy={submitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions onCancel={onClose} submitLabel="Add Vaccine" busyLabel="Adding..." busy={submitting} />
+      }
+    >
+      <FormSection icon={Package} title="Product identity" description="How this vaccine appears in inventory and records.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField label="Vaccine" required>
+            <Select value={formData.poultry_vaccine_id == null ? undefined : String(formData.poultry_vaccine_id)} onValueChange={(v) => setFormData((p) => ({ ...p, poultry_vaccine_id: Number(v) }))}>
+              <SelectTrigger className={formInputClass()}>
+                <SelectValue placeholder="Select vaccine" />
+              </SelectTrigger>
+              <SelectContent>
+                {vaccines.map((m) => (
+                  <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Administration Method" required>
+            <Select value={formData.administration_method_id == null ? undefined : String(formData.administration_method_id)} onValueChange={(v) => setFormData((p) => ({ ...p, administration_method_id: Number(v) }))}>
+              <SelectTrigger className={formInputClass()}>
+                <SelectValue placeholder="Select method" />
+              </SelectTrigger>
+              <SelectContent>
+                {adminMethods.map((m) => (
+                  <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Product Name" required htmlFor="vaccine-product-name">
+            <div className="relative">
+              <Syringe className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="vaccine-product-name" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} placeholder="e.g., ND Vaccine" className={formInputClass(false, "pl-9")} />
             </div>
-            <div>
-              <Label>Administration Method *</Label>
-              <Select value={formData.administration_method_id == null ? undefined : String(formData.administration_method_id)} onValueChange={(v) => setFormData((p) => ({ ...p, administration_method_id: Number(v) }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select method" />
-                </SelectTrigger>
-                <SelectContent>
-                  {adminMethods.map((m) => (
-                    <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          </FormField>
+          <FormField label="Manufacturer" required htmlFor="vaccine-product-mfr">
+            <div className="relative">
+              <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="vaccine-product-mfr" value={formData.manufacturer} onChange={(e) => setFormData((p) => ({ ...p, manufacturer: e.target.value }))} placeholder="e.g., VetLabs" className={formInputClass(false, "pl-9")} />
             </div>
-            <div>
-              <Label>Product Name *</Label>
-              <Input value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} placeholder="e.g., ND Vaccine" />
+          </FormField>
+        </div>
+      </FormSection>
+
+      <FormSection icon={Beaker} title="Dosage" description="Default dose from the product label.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField label="Dosage" htmlFor="vaccine-product-dosage">
+            <Input id="vaccine-product-dosage" type="number" step="0.01" value={formData.dosage ?? ''} onChange={(e) => setFormData((p) => ({ ...p, dosage: e.target.value === '' ? null : Number.parseFloat(e.target.value) }))} placeholder="e.g., 10" className={formInputClass()} />
+          </FormField>
+          <FormField label="Dosage Unit">
+            <Select value={formData.dosage_unit} onValueChange={(v) => setFormData((p) => ({ ...p, dosage_unit: v }))}>
+              <SelectTrigger className={formInputClass()}>
+                <SelectValue placeholder="Select unit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="g">Grams (g)</SelectItem>
+                <SelectItem value="mg">Milligrams (mg)</SelectItem>
+                <SelectItem value="ml">Milliliters (ml)</SelectItem>
+                <SelectItem value="tablet">Tablet</SelectItem>
+                <SelectItem value="unit">Unit</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+        </div>
+      </FormSection>
+
+      <FormSection icon={Warehouse} title="Stock & withdrawal" description="Inventory alerts and food-safety withdrawal period.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <FormField label="Withdrawal Period" htmlFor="vaccine-product-withdrawal">
+            <div className="relative">
+              <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="vaccine-product-withdrawal" type="number" value={formData.withdrawal_period} onChange={(e) => setFormData((p) => ({ ...p, withdrawal_period: Number.parseInt(e.target.value) || 0 }))} className={formInputClass(false, "pl-9")} />
             </div>
-            <div>
-              <Label>Manufacturer *</Label>
-              <Input value={formData.manufacturer} onChange={(e) => setFormData((p) => ({ ...p, manufacturer: e.target.value }))} placeholder="e.g., VetLabs" />
+          </FormField>
+          <FormField label="Withdrawal Unit">
+            <Select value={formData.withdrawal_period_unit} onValueChange={(v: "days" | "hours") => setFormData((p) => ({ ...p, withdrawal_period_unit: v }))}>
+              <SelectTrigger className={formInputClass()}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="days">Days</SelectItem>
+                <SelectItem value="hours">Hours</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Minimum Stock Level" htmlFor="vaccine-product-min-stock">
+            <div className="relative">
+              <AlertTriangle className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="vaccine-product-min-stock" type="number" value={formData.min_stock_level} onChange={(e) => setFormData((p) => ({ ...p, min_stock_level: Number.parseInt(e.target.value) || 0 }))} className={formInputClass(false, "pl-9")} />
             </div>
-            <div>
-              <Label>Dosage</Label>
-              <Input type="number" step="0.01" value={formData.dosage ?? ''} onChange={(e) => setFormData((p) => ({ ...p, dosage: e.target.value === '' ? null : Number.parseFloat(e.target.value) }))} placeholder="e.g., 10" />
+          </FormField>
+          <FormField label="Image URL" htmlFor="vaccine-product-image" hint="Optional product image link" className="md:col-span-3">
+            <div className="relative">
+              <ImageIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="vaccine-product-image" value={formData.image_url || ''} onChange={(e) => setFormData((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://..." className={formInputClass(false, "pl-9")} />
             </div>
-            <div>
-              <Label>Dosage Unit</Label>
-              <Select value={formData.dosage_unit} onValueChange={(v) => setFormData((p) => ({ ...p, dosage_unit: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="g">Grams (g)</SelectItem>
-                  <SelectItem value="mg">Milligrams (mg)</SelectItem>
-                  <SelectItem value="ml">Milliliters (ml)</SelectItem>
-                  <SelectItem value="tablet">Tablet</SelectItem>
-                  <SelectItem value="unit">Unit</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Withdrawal Period</Label>
-              <Input type="number" value={formData.withdrawal_period} onChange={(e) => setFormData((p) => ({ ...p, withdrawal_period: Number.parseInt(e.target.value) || 0 }))} />
-            </div>
-            <div>
-              <Label>Withdrawal Unit</Label>
-              <Select value={formData.withdrawal_period_unit} onValueChange={(v: "days" | "hours") => setFormData((p) => ({ ...p, withdrawal_period_unit: v }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="days">Days</SelectItem>
-                  <SelectItem value="hours">Hours</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Minimum Stock Level</Label>
-              <Input type="number" value={formData.min_stock_level} onChange={(e) => setFormData((p) => ({ ...p, min_stock_level: Number.parseInt(e.target.value) || 0 }))} />
-            </div>
-            <div className="md:col-span-2">
-              <Label>Image URL (optional)</Label>
-              <Input value={formData.image_url || ''} onChange={(e) => setFormData((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={submitting}>
-              {submitting ? "Adding..." : "Add Vaccine"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </FormField>
+        </div>
+      </FormSection>
+    </FormModal>
   )
 }
 
@@ -245,38 +285,47 @@ function CreateVaccineCategoryModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Add Vaccine</DialogTitle>
-          <DialogDescription>Create a new vaccine category</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Name *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Newcastle Disease" />
-          </div>
-          <div>
-            <Label>Description *</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Enter description" />
-          </div>
-          <div>
-            <Label>Administration Age (days) *</Label>
-            <Input
-              type="number"
-              min={1}
-              value={administrationAge}
-              onChange={(e) => setAdministrationAge(e.target.value === "" ? "" : Number(e.target.value))}
-              placeholder="e.g., 7"
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-            <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Add Vaccine"}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title="Add Vaccine"
+      description="Create a new vaccine category"
+      icon={FolderPlus}
+      tone="health"
+      size="md"
+      busy={submitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions onCancel={onClose} submitLabel="Add Vaccine" busyLabel="Saving..." busy={submitting} />
+      }
+    >
+      <FormSection icon={Tags} title="Vaccine details" description="Name, description and when it is given.">
+        <div className="space-y-4">
+          <FormField label="Name" required htmlFor="vaccine-cat-name">
+            <Input id="vaccine-cat-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Newcastle Disease" className={formInputClass()} />
+          </FormField>
+          <FormField label="Description" required htmlFor="vaccine-cat-desc">
+            <Textarea id="vaccine-cat-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Enter description" className={formTextareaClass()} />
+          </FormField>
+          <FormField label="Administration Age (days)" required htmlFor="vaccine-cat-age">
+            <div className="relative">
+              <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="vaccine-cat-age"
+                type="number"
+                min={1}
+                value={administrationAge}
+                onChange={(e) => setAdministrationAge(e.target.value === "" ? "" : Number(e.target.value))}
+                placeholder="e.g., 7"
+                className={formInputClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
+        </div>
+      </FormSection>
+    </FormModal>
   )
 }
 

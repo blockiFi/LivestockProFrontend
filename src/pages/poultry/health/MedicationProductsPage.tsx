@@ -32,7 +32,7 @@ import {
   formatMedicationDosage,
   productToDosageRatios,
 } from "@/lib/medicationDosage"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import AddMedicationProductModal, {
   type MedicationProductFormValues,
 } from "@/components/modals/AddMedicationProductModal"
@@ -783,30 +783,25 @@ function ProductCard({
         initialValues={editingInitialValues}
         idPrefix="products-page"
       />
-      <Dialog
+      <ConfirmModal
         open={!!deletingProduct}
         onOpenChange={(open) => {
           if (!open && !isDeleting) setDeletingProduct(undefined)
         }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete medication product?</DialogTitle>
-            <DialogDescription>
-              {deletingProduct?.name} and all of its inventory batches will be removed. Products already used in
-              medication records cannot be deleted.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeletingProduct(undefined)} disabled={isDeleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
-              {isDeleting ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Delete medication product?"
+        description={
+          <>
+            {deletingProduct?.name} and all of its inventory batches will be removed. Products already used in
+            medication records cannot be deleted.
+          </>
+        }
+        tone="danger"
+        confirmLabel="Delete"
+        busyLabel="Deleting..."
+        busy={isDeleting}
+        onConfirm={handleConfirmDelete}
+        confirmIcon={Trash2}
+      />
       <ToastContainer position="top-right" autoClose={3000} newestOnTop closeOnClick pauseOnHover draggable theme="colored" />
      </TooltipProvider>
     )

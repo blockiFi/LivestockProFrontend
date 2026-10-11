@@ -1,8 +1,19 @@
 "use client"
 import React, { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Boxes, Building2, CalendarClock, Hash, PackagePlus, StickyNote, Syringe } from "lucide-react"
 import { toast } from "react-toastify"
+import { Naira } from "@/lib/utils"
 import { createVaccineInventory, GetToken, getFarm } from "@/lib/request"
 import type { VaccineInventory } from "@/lib/types"
 
@@ -91,20 +102,38 @@ export default function AddVaccineInventoryModal({
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <form onSubmit={handleSubmit} className="relative bg-white rounded-lg shadow-lg w-full max-w-lg p-6 z-10">
-        <h2 className="text-lg font-semibold mb-4">Add Vaccine Inventory</h2>
-        {formError && <p className="text-sm text-red-600 mb-2">{formError}</p>}
-        <div className="grid grid-cols-1 gap-3">
-          <div>
-            <label className="text-sm font-medium">Product</label>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title="Add Vaccine Inventory"
+      description="Record a batch of vaccine received into stock."
+      icon={PackagePlus}
+      tone="inventory"
+      size="md"
+      busy={isSubmitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={onClose}
+          submitLabel="Add Inventory"
+          busyLabel="Adding..."
+          busy={isSubmitting}
+        />
+      }
+    >
+      {formError && (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{formError}</p>
+      )}
+
+      <FormSection step={1} icon={Syringe} title="Product" description="Which vaccine product is this stock for?">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Product" required htmlFor="vac-inv-product">
             {categories.length > 0 ? (
               <Select value={form.productName} onValueChange={(v) => setForm({ ...form, productName: v })}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="vac-inv-product" className={formInputClass()}>
                   <SelectValue placeholder="Select product" />
                 </SelectTrigger>
                 <SelectContent>
@@ -116,47 +145,89 @@ export default function AddVaccineInventoryModal({
                 </SelectContent>
               </Select>
             ) : (
-              <input value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} className="w-full border rounded px-3 py-2 mt-1" />
+              <Input
+                id="vac-inv-product"
+                value={form.productName}
+                onChange={(e) => setForm({ ...form, productName: e.target.value })}
+                className={formInputClass()}
+              />
             )}
-          </div>
+          </FormField>
 
-          <div>
-            <label className="text-sm font-medium">Manufacturer</label>
-            <input value={form.manufacturer} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} className="w-full border rounded px-3 py-2 mt-1" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium">Quantity</label>
-              <input value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} type="number" className="w-full border rounded px-3 py-2 mt-1" />
+          <FormField label="Manufacturer" htmlFor="vac-inv-mfr">
+            <div className="relative">
+              <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="vac-inv-mfr"
+                value={form.manufacturer}
+                onChange={(e) => setForm({ ...form, manufacturer: e.target.value })}
+                className={formInputClass(false, "pl-9")}
+              />
             </div>
-            <div>
-              <label className="text-sm font-medium">Unit Cost</label>
-              <input value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} type="number" className="w-full border rounded px-3 py-2 mt-1" />
+          </FormField>
+        </div>
+      </FormSection>
+
+      <FormSection step={2} icon={Boxes} title="Batch details" description="Quantity, cost and batch information.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Quantity" required htmlFor="vac-inv-qty">
+            <Input
+              id="vac-inv-qty"
+              value={form.quantity}
+              onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+              type="number"
+              className={formInputClass()}
+            />
+          </FormField>
+
+          <FormField label={`Unit Cost (${Naira})`} htmlFor="vac-inv-cost">
+            <Input
+              id="vac-inv-cost"
+              value={form.unit_cost}
+              onChange={(e) => setForm({ ...form, unit_cost: e.target.value })}
+              type="number"
+              className={formInputClass()}
+            />
+          </FormField>
+
+          <FormField label="Expiry Date" htmlFor="vac-inv-exp">
+            <div className="relative">
+              <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="vac-inv-exp"
+                value={form.expiry_date}
+                onChange={(e) => setForm({ ...form, expiry_date: e.target.value })}
+                type="date"
+                className={formInputClass(false, "pl-9")}
+              />
             </div>
-          </div>
+          </FormField>
 
-          <div>
-            <label className="text-sm font-medium">Expiry Date</label>
-            <input value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} type="date" className="w-full border rounded px-3 py-2 mt-1" />
-          </div>
+          <FormField label="Batch Number" htmlFor="vac-inv-batch">
+            <div className="relative">
+              <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="vac-inv-batch"
+                value={form.batch_number}
+                onChange={(e) => setForm({ ...form, batch_number: e.target.value })}
+                className={formInputClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
 
-          <div>
-            <label className="text-sm font-medium">Batch Number</label>
-            <input value={form.batch_number} onChange={(e) => setForm({ ...form, batch_number: e.target.value })} className="w-full border rounded px-3 py-2 mt-1" />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Notes</label>
-            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full border rounded px-3 py-2 mt-1" />
-          </div>
+          <FormField label="Notes" htmlFor="vac-inv-notes" className="sm:col-span-2">
+            <div className="relative">
+              <StickyNote className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <Textarea
+                id="vac-inv-notes"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className={formTextareaClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
         </div>
-
-        <div className="flex items-center justify-end gap-2 mt-4">
-          <Button variant="outline" size="sm" type="button" onClick={onClose}>Cancel</Button>
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Adding...' : 'Add Inventory'}</Button>
-        </div>
-      </form>
-    </div>
+      </FormSection>
+    </FormModal>
   )
 }

@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react"
-import { BarChart3, Settings, Plus, Search } from "lucide-react"
+import { BarChart3, Settings, Plus, Search, FolderPlus, Tags } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { MedicationData } from "@/lib/types"
 import { useLoaderData, useRevalidator } from "react-router-dom"
-import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GetToken, getFarm, createMedicationProduct, createMedication } from "@/lib/request"
 import { ToastContainer, toast } from "react-toastify"
@@ -52,52 +58,45 @@ function CreateMedicationCategoryModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg overflow-hidden border-0 p-0 sm:rounded-2xl">
-        <div className="bg-gradient-to-br from-slate-800 to-slate-700 px-6 py-5 text-white">
-          <DialogHeader className="text-left">
-            <DialogTitle className="text-white">Add medication type</DialogTitle>
-            <DialogDescription className="text-slate-300">
-              Create a category that products can belong to
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="med-cat-name" className="text-xs font-medium text-slate-600">
-              Name <span className="text-rose-500">*</span>
-            </Label>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      title="Add medication type"
+      description="Create a category that products can belong to"
+      icon={FolderPlus}
+      tone="health"
+      size="md"
+      busy={submitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions onCancel={onClose} submitLabel="Add type" busyLabel="Saving..." busy={submitting} />
+      }
+    >
+      <FormSection icon={Tags} title="Category details" description="Name and describe the medication type.">
+        <div className="space-y-4">
+          <FormField label="Name" required htmlFor="med-cat-name">
             <Input
               id="med-cat-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Antibiotics"
-              className="h-10 rounded-xl"
+              className={formInputClass()}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="med-cat-desc" className="text-xs font-medium text-slate-600">
-              Description
-            </Label>
+          </FormField>
+          <FormField label="Description" htmlFor="med-cat-desc">
             <Textarea
               id="med-cat-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
-              className="min-h-[88px] resize-none rounded-xl"
+              className={formTextareaClass()}
             />
-          </div>
-          <DialogFooter className="gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={submitting} className="rounded-xl">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting} className="rounded-xl bg-slate-800 hover:bg-slate-900">
-              {submitting ? "Saving..." : "Add type"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </FormField>
+        </div>
+      </FormSection>
+    </FormModal>
   )
 }
 

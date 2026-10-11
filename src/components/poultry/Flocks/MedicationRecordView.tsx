@@ -10,7 +10,7 @@ import { formatDate, Naira } from "@/lib/utils"
 import { isDateInRange } from "@/lib/dateRange"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import chicken from "@/assets/chicken.png"
 import AddMedicationRecordModal from "@/components/modals/AddMedicationRecordModal"
 import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRangeFilter"
@@ -446,43 +446,33 @@ const MedicationRecordView = ({
       />
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Medication Record</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this medication record? This action cannot be undone.
-              {recordToDelete && (
-                <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                  <p className="font-medium">{recordToDelete.medication?.name || 'Unknown Medication'}</p>
-                  <p className="text-sm text-gray-600">
-                    Date: {formatDate(recordToDelete.date)} | 
-                    Dosage: {recordToDelete.dosage || 0} {recordToDelete.dosage_unit || ''}
-                    {recordToDelete.purpose ? ` · ${recordToDelete.purpose}` : ''} | 
-                    Quantity: {Number(recordToDelete.quantity) || 0}
-                  </p>
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={handleDeleteCancel}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDeleteConfirm}
-              disabled={isDeleting}
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmModal
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (open) setIsDeleteDialogOpen(true)
+          else handleDeleteCancel()
+        }}
+        title="Delete Medication Record"
+        description="Are you sure you want to delete this medication record? This action cannot be undone."
+        tone="danger"
+        confirmLabel="Delete"
+        busyLabel="Deleting..."
+        busy={isDeleting}
+        onConfirm={handleDeleteConfirm}
+        confirmIcon={Trash2}
+      >
+        {recordToDelete && (
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <p className="font-medium text-slate-900">{recordToDelete.medication?.name || 'Unknown Medication'}</p>
+            <p className="text-sm text-slate-600">
+              Date: {formatDate(recordToDelete.date)} | 
+              Dosage: {recordToDelete.dosage || 0} {recordToDelete.dosage_unit || ''}
+              {recordToDelete.purpose ? ` · ${recordToDelete.purpose}` : ''} | 
+              Quantity: {Number(recordToDelete.quantity) || 0}
+            </p>
+          </div>
+        )}
+      </ConfirmModal>
     </div>
   )
 }

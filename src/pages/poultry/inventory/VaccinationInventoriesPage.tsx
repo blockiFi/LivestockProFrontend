@@ -547,17 +547,12 @@ export default function VaccinationInventoryPage() {
       </div>
 
       {/* Add Vaccination Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowAddModal(false)} />
-          <AddVaccineInventoryModal
-            isOpen={showAddModal}
-            onClose={() => setShowAddModal(false)}
-            existingItems={items}
-            onCreated={(item) => setItems((prev) => [item, ...prev])}
-          />
-        </div>
-      )}
+      <AddVaccineInventoryModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        existingItems={items}
+        onCreated={(item) => setItems((prev) => [item, ...prev])}
+      />
     </div>
   )
 }
