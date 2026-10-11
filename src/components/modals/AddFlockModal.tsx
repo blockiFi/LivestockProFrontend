@@ -1,12 +1,20 @@
 import { useState, useEffect, useCallback } from "react"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../ui/sheet"
-import { Label } from "../ui/label"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "../ui/form-modal"
 import { Input } from "../ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Button } from "../ui/button"
 import { Textarea } from "../ui/textarea"
 import { Calendar } from "../ui/calendar"
 import {
+  AlertTriangle,
+  CalendarCheck,
   CalendarIcon,
   Loader2,
   Bird,
@@ -472,171 +480,141 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit, editingFlock = null }: AddFl
   }
 
   return (
-    <Sheet open={isOpen} onOpenChange={(open) => {
-      if (!open && !isSubmitting) handleClose()
-    }}>
-      <SheetContent 
-        side="right"
-        className="!max-w-none w-full p-0 flex flex-col overflow-hidden"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
-        {/* Gradient Header */}
-        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-5 flex-shrink-0">
-          <SheetHeader>
-            <SheetTitle className="text-white text-xl">
-              {isEditMode ? "Edit Flock" : "Add New Flock"}
-            </SheetTitle>
-            <SheetDescription className="text-green-100">
-              {isEditMode
-                ? "Update flock details below. Schedules are managed separately on the flock schedule tab."
-                : "Create a new flock by filling in the details below. Fields marked with * are required."}
-            </SheetDescription>
-          </SheetHeader>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 pb-6 space-y-5">
-          {/* ── Basic Info Section ── */}
-          <div className="space-y-3 pt-2">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Bird className="h-4 w-4 text-green-500" />
-              Basic Information
-            </h3>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) handleClose()
+      }}
+      title={isEditMode ? "Edit Flock" : "Add New Flock"}
+      description={
+        isEditMode
+          ? "Update flock details below. Schedules are managed separately on the flock schedule tab."
+          : "Create a new flock by filling in the details below. Fields marked with * are required."
+      }
+      icon={Bird}
+      tone="flock"
+      size="full"
+      busy={isSubmitting}
+      dismissible={false}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={handleClose}
+          submitLabel={isEditMode ? "Save Changes" : "Create Flock"}
+          busyLabel={isEditMode ? "Saving..." : "Creating..."}
+          busy={isSubmitting}
+        />
+      }
+    >
+          <FormSection step={1} icon={Bird} title="Basic Information" description="Name, breed, origin and size of the flock.">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {isEditMode && editingFlock?.batch_number ? (
-                <div className="space-y-1 md:col-span-2">
-                  <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                    <Hash className="h-3.5 w-3.5 text-green-400" />
-                    Batch Number
-                  </Label>
-                  <Input value={editingFlock.batch_number} disabled className="h-9 text-sm bg-gray-50" />
-                </div>
+                <FormField label="Batch Number" className="md:col-span-2">
+                  <div className="relative">
+                    <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input value={editingFlock.batch_number} disabled className={formInputClass(false, "pl-9")} />
+                  </div>
+                </FormField>
               ) : null}
-              <div className="space-y-1">
-                <Label htmlFor="name" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Bird className="h-3.5 w-3.5 text-green-400" />
-                  Flock Name *
-                </Label>
-                <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Enter flock name" className={cn("h-9 text-sm", errors.name && "border-red-400")} />
-                {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
-              </div>
+              <FormField label="Flock Name" required htmlFor="name" error={errors.name}>
+                <div className="relative">
+                  <Bird className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Enter flock name" className={formInputClass(!!errors.name, "pl-9")} />
+                </div>
+              </FormField>
 
-              <div className="space-y-1">
-                <Label htmlFor="breed" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Dna className="h-3.5 w-3.5 text-green-400" />
-                  Breed *
-                </Label>
-                <Input id="breed" value={formData.breed} onChange={(e) => handleInputChange("breed", e.target.value)} placeholder="Enter breed" className={cn("h-9 text-sm", errors.breed && "border-red-400")} />
-                {errors.breed && <p className="text-xs text-red-500">{errors.breed}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="source" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-green-400" />
-                  Source *
-                </Label>
-                <Input id="source" value={formData.source} onChange={(e) => handleInputChange("source", e.target.value)} placeholder="Enter source" className={cn("h-9 text-sm", errors.source && "border-red-400")} />
-                {errors.source && <p className="text-xs text-red-500">{errors.source}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="quantity" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Package className="h-3.5 w-3.5 text-green-400" />
-                  Quantity *
-                </Label>
-                <Input id="quantity" type="number" min="1" value={formData.quantity} onChange={(e) => handleInputChange("quantity", parseInt(e.target.value) || 0)} placeholder="Enter quantity" className={cn("h-9 text-sm", errors.quantity && "border-red-400")} />
-                {errors.quantity && <p className="text-xs text-red-500">{errors.quantity}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="arrival_age_days" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-green-400" />
-                  Arrival Age (Days)
-                </Label>
-                <Input id="arrival_age_days" type="number" min="0" value={formData.arrival_age_days} onChange={(e) => handleInputChange("arrival_age_days", parseInt(e.target.value) || 0)} placeholder="Enter arrival age in days" className={cn("h-9 text-sm", errors.arrival_age_days && "border-red-400")} />
-                {errors.arrival_age_days && <p className="text-xs text-red-500">{errors.arrival_age_days}</p>}
-              </div>
+              <FormField label="Breed" required htmlFor="breed" error={errors.breed}>
+                <div className="relative">
+                  <Dna className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input id="breed" value={formData.breed} onChange={(e) => handleInputChange("breed", e.target.value)} placeholder="Enter breed" className={formInputClass(!!errors.breed, "pl-9")} />
+                </div>
+              </FormField>
+              <FormField label="Source" required htmlFor="source" error={errors.source}>
+                <div className="relative">
+                  <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input id="source" value={formData.source} onChange={(e) => handleInputChange("source", e.target.value)} placeholder="Enter source" className={formInputClass(!!errors.source, "pl-9")} />
+                </div>
+              </FormField>
+              <FormField label="Quantity" required htmlFor="quantity" error={errors.quantity}>
+                <div className="relative">
+                  <Package className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input id="quantity" type="number" min="1" value={formData.quantity} onChange={(e) => handleInputChange("quantity", parseInt(e.target.value) || 0)} placeholder="Enter quantity" className={formInputClass(!!errors.quantity, "pl-9")} />
+                </div>
+              </FormField>
+              <FormField label="Arrival Age (Days)" htmlFor="arrival_age_days" error={errors.arrival_age_days}>
+                <div className="relative">
+                  <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input id="arrival_age_days" type="number" min="0" value={formData.arrival_age_days} onChange={(e) => handleInputChange("arrival_age_days", parseInt(e.target.value) || 0)} placeholder="Enter arrival age in days" className={formInputClass(!!errors.arrival_age_days, "pl-9")} />
+                </div>
+              </FormField>
             </div>
-          </div>
+          </FormSection>
 
-          {/* ── Date Section ── */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-blue-500" />
-              Dates
-            </h3>
+          <FormSection step={2} icon={CalendarIcon} title="Dates" description="When the flock arrived and when you expect it to end.">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Arrival Date */}
-              <div className="space-y-2">
-                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <CalendarIcon className="h-3.5 w-3.5 text-blue-400" />
-                  Arrival Date *
-                </Label>
+              <FormField label="Arrival Date" required error={errors.arrival_date}>
                 <button
                   type="button"
                   onClick={() => { setShowArrivalCalendar(!showArrivalCalendar); setShowEndCalendar(false) }}
                   className={cn(
-                    "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
-                    errors.arrival_date ? "border-red-400 bg-red-50" : "border-gray-300",
-                    showArrivalCalendar && "border-green-500 ring-2 ring-green-100"
+                    formInputClass(!!errors.arrival_date),
+                    "flex w-full items-center justify-between border px-3 text-sm hover:bg-white",
+                    showArrivalCalendar && "border-sky-500 ring-2 ring-sky-100"
                   )}
                 >
-                  <span className={formData.arrival_date ? "text-gray-900 font-medium" : "text-gray-400"}>
+                  <span className={formData.arrival_date ? "font-medium text-slate-900" : "text-slate-400"}>
                     {formData.arrival_date ? format(new Date(formData.arrival_date + 'T12:00:00'), "EEEE, MMMM d, yyyy") : "Select arrival date"}
                   </span>
-                  {showArrivalCalendar ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                  {showArrivalCalendar ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
                 </button>
                 {showArrivalCalendar && (
-                  <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
+                  <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
                     <Calendar mode="single" selected={formData.arrival_date ? new Date(formData.arrival_date + 'T12:00:00') : undefined} onSelect={(date) => handleDateChange("arrival_date", date)} />
                   </div>
                 )}
-                {errors.arrival_date && <p className="text-xs text-red-500">{errors.arrival_date}</p>}
-              </div>
+              </FormField>
 
-              {/* Expected End Date */}
-              <div className="space-y-2">
-                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <CalendarIcon className="h-3.5 w-3.5 text-blue-400" />
-                  Expected End Date *
-                </Label>
+              <FormField
+                label="Expected End Date"
+                required
+                error={
+                  errors.expected_end_date && !errors.expected_end_date.startsWith('Warning:')
+                    ? errors.expected_end_date
+                    : undefined
+                }
+                hint={
+                  errors.expected_end_date?.startsWith('Warning:') ? (
+                    <span className="text-amber-600">{errors.expected_end_date}</span>
+                  ) : undefined
+                }
+              >
                 <button
                   type="button"
                   onClick={() => { setShowEndCalendar(!showEndCalendar); setShowArrivalCalendar(false) }}
                   className={cn(
-                    "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
-                    errors.expected_end_date ? (errors.expected_end_date.startsWith('Warning:') ? "border-yellow-400 bg-yellow-50" : "border-red-400 bg-red-50") : "border-gray-300",
-                    showEndCalendar && "border-green-500 ring-2 ring-green-100"
+                    formInputClass(!!errors.expected_end_date && !errors.expected_end_date.startsWith('Warning:')),
+                    "flex w-full items-center justify-between border px-3 text-sm hover:bg-white",
+                    errors.expected_end_date?.startsWith('Warning:') && "border-amber-300 bg-amber-50",
+                    showEndCalendar && "border-sky-500 ring-2 ring-sky-100"
                   )}
                 >
-                  <span className={formData.expected_end_date ? "text-gray-900 font-medium" : "text-gray-400"}>
+                  <span className={formData.expected_end_date ? "font-medium text-slate-900" : "text-slate-400"}>
                     {formData.expected_end_date ? format(new Date(formData.expected_end_date + 'T12:00:00'), "EEEE, MMMM d, yyyy") : "Select expected end date"}
                   </span>
-                  {showEndCalendar ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                  {showEndCalendar ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
                 </button>
                 {showEndCalendar && (
-                  <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
+                  <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
                     <Calendar mode="single" selected={formData.expected_end_date ? new Date(formData.expected_end_date + 'T12:00:00') : undefined} onSelect={(date) => handleDateChange("expected_end_date", date)} />
                   </div>
                 )}
-                {errors.expected_end_date && (
-                  <p className={`text-xs ${errors.expected_end_date.startsWith('Warning:') ? 'text-yellow-600' : 'text-red-500'}`}>
-                    {errors.expected_end_date}
-                  </p>
-                )}
-              </div>
+              </FormField>
             </div>
-          </div>
+          </FormSection>
 
-          {/* ── Classification Section ── */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Layers className="h-4 w-4 text-purple-500" />
-              Classification &amp; Housing
-            </h3>
+          <FormSection step={3} icon={Layers} title="Classification & Housing" description="Poultry type, growth stage and the house it lives in.">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-purple-400" />
-                  Poultry Type *
-                </Label>
+              <FormField label="Poultry Type" required error={errors.poultry_type_id}>
                 <Select
                   value={formData.poultry_type_id ? formData.poultry_type_id.toString() : ""}
                   onValueChange={(value) => {
@@ -645,7 +623,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit, editingFlock = null }: AddFl
                     handleInputChange("house_id", 0)
                   }}
                 >
-                  <SelectTrigger className={cn("h-9 text-sm", errors.poultry_type_id && "border-red-400")}>
+                  <SelectTrigger className={formInputClass(!!errors.poultry_type_id)}>
                     <SelectValue placeholder="Select poultry type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -654,20 +632,15 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit, editingFlock = null }: AddFl
                     )) : []}
                   </SelectContent>
                 </Select>
-                {errors.poultry_type_id && <p className="text-xs text-red-500">{errors.poultry_type_id}</p>}
-              </div>
+              </FormField>
 
-              <div className="space-y-1">
-                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-purple-400" />
-                  Flock Stage *
-                </Label>
+              <FormField label="Flock Stage" required error={errors.flock_stage_id}>
                 <Select
                   value={formData.flock_stage_id ? formData.flock_stage_id.toString() : ""}
                   onValueChange={(value) => handleInputChange("flock_stage_id", parseInt(value))}
                   disabled={!Array.isArray(filteredStages) || filteredStages.length === 0}
                 >
-                  <SelectTrigger className={cn("h-9 text-sm", errors.flock_stage_id && "border-red-400")}>
+                  <SelectTrigger className={formInputClass(!!errors.flock_stage_id)}>
                     <SelectValue placeholder="Select flock stage" />
                   </SelectTrigger>
                   <SelectContent>
@@ -676,21 +649,19 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit, editingFlock = null }: AddFl
                     )) : []}
                   </SelectContent>
                 </Select>
-                {errors.flock_stage_id && <p className="text-xs text-red-500">{errors.flock_stage_id}</p>}
-              </div>
+              </FormField>
 
-              <div className="space-y-1 md:col-span-2">
-                <Label className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Home className="h-3.5 w-3.5 text-purple-400" />
-                  Poultry House *
-                </Label>
+              <FormField label="Poultry House" required error={errors.house_id} className="md:col-span-2">
                 <Select
                   value={formData.house_id ? formData.house_id.toString() : ""}
                   onValueChange={(value) => handleInputChange("house_id", parseInt(value))}
                   disabled={!Array.isArray(filteredHouses) || filteredHouses.length === 0}
                 >
-                  <SelectTrigger className={cn("h-9 text-sm", errors.house_id && "border-red-400")}>
-                    <SelectValue placeholder="Select poultry house" />
+                  <SelectTrigger className={formInputClass(!!errors.house_id)}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Home className="h-4 w-4 shrink-0 text-slate-400" />
+                      <SelectValue placeholder="Select poultry house" />
+                    </div>
                   </SelectTrigger>
                   <SelectContent>
                     {Array.isArray(filteredHouses) ? filteredHouses.map((house) => (
@@ -704,23 +675,18 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit, editingFlock = null }: AddFl
                     )) : []}
                   </SelectContent>
                 </Select>
-                {errors.house_id && <p className="text-xs text-red-500">{errors.house_id}</p>}
-              </div>
+              </FormField>
             </div>
-          </div>
+          </FormSection>
 
-          {/* ── Schedule Selection Section ── */}
           {!isEditMode && formData.poultry_type_id > 0 && (
-            <div className="space-y-4">
-              <div className="border-b pb-3">
-                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <CalendarIcon className="h-4 w-4 text-indigo-500" />
-                  Schedule Assignment
-                  {schedulesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400 ml-1" />}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">Assign schedules to this flock. Select one per category. Click the info icon to preview items.</p>
-              </div>
-
+            <FormSection
+              step={4}
+              icon={CalendarCheck}
+              title="Schedule Assignment"
+              description="Assign schedules to this flock. Select one per category and expand a card to preview its items."
+              action={schedulesLoading ? <Loader2 className="h-4 w-4 animate-spin text-sky-500" /> : undefined}
+            >
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* ── Medication Column ── */}
@@ -1048,39 +1014,36 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit, editingFlock = null }: AddFl
                 </div>
 
               </div>
-            </div>
+            </FormSection>
           )}
 
-          {/* ── Notes Section ── */}
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-semibold flex items-center gap-2">
-              <StickyNote className="h-4 w-4 text-gray-500" />
-              Notes
-            </Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleInputChange("notes", e.target.value)}
-              placeholder="Enter any additional notes about this flock"
-              rows={3}
-              className="resize-none"
-            />
-          </div>
+          <FormSection
+            step={isEditMode || formData.poultry_type_id <= 0 ? 4 : 5}
+            icon={StickyNote}
+            title="Notes"
+            description="Anything else worth recording about this flock."
+          >
+            <FormField label="Notes" htmlFor="notes">
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => handleInputChange("notes", e.target.value)}
+                placeholder="Enter any additional notes about this flock"
+                rows={3}
+                className={formTextareaClass()}
+              />
+            </FormField>
+          </FormSection>
 
-          {/* Warning Confirmation */}
           {Object.values(errors).some(message => message.startsWith('Warning:')) && !warningsConfirmed && (
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
               <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                </div>
+                <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
                 <div className="flex-1">
-                  <h3 className="text-sm font-medium text-yellow-800">Warning Confirmation Required</h3>
-                  <p className="mt-1 text-sm text-yellow-700">Please review the warnings above and confirm to proceed.</p>
+                  <h3 className="text-sm font-medium text-amber-800">Warning Confirmation Required</h3>
+                  <p className="mt-1 text-sm text-amber-700">Please review the warnings above and confirm to proceed.</p>
                   <div className="mt-3">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setWarningsConfirmed(true)} className="bg-yellow-100 border-yellow-300 text-yellow-800 hover:bg-yellow-200">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setWarningsConfirmed(true)} className="rounded-xl border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200">
                       I understand and want to proceed
                     </Button>
                   </div>
@@ -1088,30 +1051,7 @@ const AddFlockModal = ({ isOpen, onClose, onSubmit, editingFlock = null }: AddFl
               </div>
             </div>
           )}
-
-          {/* ── Footer ── */}
-          <div className="sticky bottom-0 bg-white border-t pt-4 pb-2 flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
-            >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting
-                ? isEditMode
-                  ? "Saving..."
-                  : "Creating..."
-                : isEditMode
-                  ? "Save Changes"
-                  : "Create Flock"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+    </FormModal>
   )
 }
 

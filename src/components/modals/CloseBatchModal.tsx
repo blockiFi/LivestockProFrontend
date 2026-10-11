@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+} from "@/components/ui/form-modal"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -17,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { AlertTriangle, Archive, CalendarDays, ClipboardCheck } from "lucide-react"
 import { updateFlockStatus } from "@/lib/request"
 import { toast } from "react-toastify"
 
@@ -83,29 +80,43 @@ const CloseBatchModal = ({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !isSubmitting && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Close Batch</DialogTitle>
-          <DialogDescription>
-            End the active batch for <strong>{flockName}</strong>. This updates the flock status and records the actual end date.
-          </DialogDescription>
-        </DialogHeader>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Close Batch"
+      description={
+        <>
+          End the active batch for <strong>{flockName}</strong>. This updates the flock status and records the actual end date.
+        </>
+      }
+      icon={Archive}
+      tone="danger"
+      size="sm"
+      busy={isSubmitting}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Close Batch"
+          busy={isSubmitting}
+          submitType="button"
+          onConfirm={handleSubmit}
+        />
+      }
+    >
+      {liveBirdCount > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            This flock still has <strong>{liveBirdCount.toLocaleString()}</strong> live birds. Closing the batch will not change headcount automatically.
+          </span>
+        </div>
+      )}
 
-        <div className="space-y-4 py-2">
-          {liveBirdCount > 0 && (
-            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>
-                This flock still has <strong>{liveBirdCount.toLocaleString()}</strong> live birds. Closing the batch will not change headcount automatically.
-              </span>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <Label htmlFor="close-status">Close reason</Label>
+      <FormSection icon={ClipboardCheck} title="Closing details" description="Why and when this batch ended.">
+        <div className="space-y-4">
+          <FormField label="Close reason" htmlFor="close-status" required>
             <Select value={status} onValueChange={(value) => setStatus(value as "completed" | "sold" | "culled")}>
-              <SelectTrigger id="close-status">
+              <SelectTrigger id="close-status" className={formInputClass()}>
                 <SelectValue placeholder="Select reason" />
               </SelectTrigger>
               <SelectContent>
@@ -114,35 +125,23 @@ const CloseBatchModal = ({
                 <SelectItem value="culled">Culled</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </FormField>
 
-          <div className="space-y-1">
-            <Label htmlFor="close-end-date">Actual end date</Label>
-            <Input
-              id="close-end-date"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
+          <FormField label="Actual end date" htmlFor="close-end-date" required>
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="close-end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={formInputClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="bg-amber-600 hover:bg-amber-700 text-white"
-          >
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Close Batch
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </FormSection>
+    </FormModal>
   )
 }
 

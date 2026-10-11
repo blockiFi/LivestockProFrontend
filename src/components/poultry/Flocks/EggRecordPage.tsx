@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { formatDate } from "@/lib/utils"
@@ -608,24 +608,17 @@ const EggRecordPage = ({
         />
       )}
 
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Egg Report</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this egg report? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={() => void confirmDelete()}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmModal
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Delete Egg Report"
+        description="Are you sure you want to delete this egg report? This action cannot be undone."
+        icon={Trash2}
+        tone="danger"
+        confirmLabel="Delete"
+        confirmIcon={Trash2}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   )
 }

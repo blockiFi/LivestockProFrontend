@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
-import { Label } from "../ui/label"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  FormSummary,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "../ui/form-modal"
 import { Input } from "../ui/input"
-import { Button } from "../ui/button"
 import { Textarea } from "../ui/textarea"
 import { Calendar } from "../ui/calendar"
 import {
@@ -10,7 +16,6 @@ import {
   ChevronDown,
   ChevronUp,
   Egg,
-  Loader2,
   Percent,
   StickyNote,
   Weight,
@@ -167,161 +172,132 @@ const AddEggRecordModal = ({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && !isSubmitting) handleClose()
-    }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        <div className="bg-gradient-to-r from-emerald-600 to-amber-600 px-6 py-5 rounded-t-lg">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl">
-              {isEditMode ? "Edit Egg Report" : "Add Egg Report"}
-            </DialogTitle>
-            <DialogDescription className="text-emerald-100">
-              Record daily egg collection for this flock. Fields marked with * are required.
-            </DialogDescription>
-          </DialogHeader>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) handleClose()
+      }}
+      title={isEditMode ? "Edit Egg Report" : "Add Egg Report"}
+      description="Record daily egg collection for this flock. Fields marked with * are required."
+      icon={Egg}
+      tone="flock"
+      size="lg"
+      busy={isSubmitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={handleClose}
+          submitLabel={isEditMode ? "Update Report" : "Create Report"}
+          busyLabel="Saving..."
+          busy={isSubmitting}
+        />
+      }
+    >
+      <FormSection step={1} icon={CalendarIcon} title="Report date" description="The day these eggs were collected.">
+        <FormField label="Report Date" required error={errors.date}>
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={cn(
+              formInputClass(!!errors.date),
+              "flex w-full items-center justify-between border px-3 text-sm hover:bg-white",
+              showCalendar && "border-sky-500 ring-2 ring-sky-100"
+            )}
+          >
+            <span className={formData.date ? "font-medium text-slate-900" : "text-slate-400"}>
+              {formData.date
+                ? format(new Date(`${formData.date}T12:00:00`), "EEEE, MMMM d, yyyy")
+                : "Select date"}
+            </span>
+            {showCalendar ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+          </button>
+          {showCalendar && (
+            <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+              <Calendar
+                mode="single"
+                selected={formData.date ? new Date(`${formData.date}T12:00:00`) : undefined}
+                onSelect={handleDateChange}
+                disabled={(date) => date > new Date()}
+              />
+            </div>
+          )}
+        </FormField>
+      </FormSection>
+
+      <FormSection step={2} icon={Egg} title="Production" description="Eggs collected, broken and their average weight.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <FormField label="Eggs Collected" required htmlFor="eggs_collected" error={errors.eggs_collected}>
+            <div className="relative">
+              <Egg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="eggs_collected"
+                type="number"
+                min="0"
+                value={formData.eggs_collected}
+                onChange={(e) => handleInputChange("eggs_collected", parseInt(e.target.value, 10) || 0)}
+                placeholder="0"
+                className={formInputClass(!!errors.eggs_collected, "pl-9")}
+              />
+            </div>
+          </FormField>
+          <FormField label="Broken Eggs" htmlFor="eggs_broken" error={errors.eggs_broken}>
+            <div className="relative">
+              <AlertTriangle className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="eggs_broken"
+                type="number"
+                min="0"
+                value={formData.eggs_broken}
+                onChange={(e) => handleInputChange("eggs_broken", parseInt(e.target.value, 10) || 0)}
+                placeholder="0"
+                className={formInputClass(!!errors.eggs_broken, "pl-9")}
+              />
+            </div>
+          </FormField>
+          <FormField label="Avg Egg Weight (g)" htmlFor="average_egg_weight" error={errors.average_egg_weight}>
+            <div className="relative">
+              <Weight className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="average_egg_weight"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.average_egg_weight}
+                onChange={(e) => handleInputChange("average_egg_weight", parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+                className={formInputClass(!!errors.average_egg_weight, "pl-9")}
+              />
+            </div>
+          </FormField>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
-          <div className="space-y-2 pt-2">
-            <Label className="text-sm font-semibold flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-emerald-600" />
-              Report Date <span className="text-red-500">*</span>
-            </Label>
-            <button
-              type="button"
-              onClick={() => setShowCalendar(!showCalendar)}
-              className={cn(
-                "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
-                errors.date ? "border-red-400 bg-red-50" : "border-gray-300",
-                showCalendar && "border-emerald-500 ring-2 ring-emerald-100"
-              )}
-            >
-              <span className={formData.date ? "text-gray-900 font-medium" : "text-gray-400"}>
-                {formData.date
-                  ? format(new Date(`${formData.date}T12:00:00`), "EEEE, MMMM d, yyyy")
-                  : "Select date"}
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <FormSummary label="Bird count on date" value={birdCount.toLocaleString()} />
+          <FormSummary
+            label={
+              <span className="inline-flex items-center gap-1">
+                <Percent className="h-3 w-3" />
+                Hen-day production
               </span>
-              {showCalendar ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
-            </button>
-            {showCalendar && (
-              <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
-                <Calendar
-                  mode="single"
-                  selected={formData.date ? new Date(`${formData.date}T12:00:00`) : undefined}
-                  onSelect={handleDateChange}
-                  disabled={(date) => date > new Date()}
-                />
-              </div>
-            )}
-            {errors.date && <p className="text-xs text-red-500">{errors.date}</p>}
-          </div>
+            }
+            value={`${previewProductionPct.toFixed(2)}%`}
+          />
+        </div>
+      </FormSection>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Egg className="h-4 w-4 text-amber-500" />
-              Production
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="eggs_collected" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Egg className="h-3.5 w-3.5 text-amber-400" />
-                  Eggs Collected *
-                </Label>
-                <Input
-                  id="eggs_collected"
-                  type="number"
-                  min="0"
-                  value={formData.eggs_collected}
-                  onChange={(e) => handleInputChange("eggs_collected", parseInt(e.target.value, 10) || 0)}
-                  placeholder="0"
-                  className={cn("h-9 text-sm", errors.eggs_collected && "border-red-400")}
-                />
-                {errors.eggs_collected && <p className="text-xs text-red-500">{errors.eggs_collected}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="eggs_broken" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
-                  Broken Eggs
-                </Label>
-                <Input
-                  id="eggs_broken"
-                  type="number"
-                  min="0"
-                  value={formData.eggs_broken}
-                  onChange={(e) => handleInputChange("eggs_broken", parseInt(e.target.value, 10) || 0)}
-                  placeholder="0"
-                  className={cn("h-9 text-sm", errors.eggs_broken && "border-red-400")}
-                />
-                {errors.eggs_broken && <p className="text-xs text-red-500">{errors.eggs_broken}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="average_egg_weight" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Weight className="h-3.5 w-3.5 text-emerald-400" />
-                  Avg Egg Weight (g)
-                </Label>
-                <Input
-                  id="average_egg_weight"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.average_egg_weight}
-                  onChange={(e) => handleInputChange("average_egg_weight", parseFloat(e.target.value) || 0)}
-                  placeholder="0.00"
-                  className={cn("h-9 text-sm", errors.average_egg_weight && "border-red-400")}
-                />
-                {errors.average_egg_weight && <p className="text-xs text-red-500">{errors.average_egg_weight}</p>}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-4 py-3">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs text-gray-500">Bird count on date</p>
-                <p className="text-lg font-semibold text-gray-900">{birdCount.toLocaleString()}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-500 flex items-center justify-end gap-1">
-                  <Percent className="h-3 w-3" />
-                  Hen-day production
-                </p>
-                <p className="text-lg font-semibold text-emerald-700">{previewProductionPct.toFixed(2)}%</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-semibold flex items-center gap-2">
-              <StickyNote className="h-4 w-4 text-gray-500" />
-              Notes
-            </Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleInputChange("notes", e.target.value)}
-              placeholder="Optional notes about this collection"
-              rows={3}
-              className="resize-none"
-            />
-          </div>
-
-          <DialogFooter className="pt-2 border-t">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-gradient-to-r from-emerald-600 to-amber-600 hover:from-emerald-700 hover:to-amber-700 text-white"
-            >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Saving..." : isEditMode ? "Update Report" : "Create Report"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <FormSection step={3} icon={StickyNote} title="Notes" description="Anything worth remembering about this collection.">
+        <FormField label="Notes" htmlFor="notes">
+          <Textarea
+            id="notes"
+            value={formData.notes}
+            onChange={(e) => handleInputChange("notes", e.target.value)}
+            placeholder="Optional notes about this collection"
+            rows={3}
+            className={formTextareaClass()}
+          />
+        </FormField>
+      </FormSection>
+    </FormModal>
   )
 }
 

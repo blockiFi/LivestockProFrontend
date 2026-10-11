@@ -24,12 +24,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "react-toastify";
-import { Copy, Filter, Home, Info, MapPin, MoreVertical, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react";
+import { Copy, Filter, Home, Info, Layers, MapPin, MoreVertical, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react";
 import AddHouseModal from "@/components/modals/AddHouseModal";
 import Pagination from "@/components/general/Pagination";
 import { formatDate } from "@/lib/utils";
-import { AlertDialog } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal, FormModal, FormSection } from "@/components/ui/form-modal";
 import type { HouseCapacityRule } from "@/lib/request";
 import { ActionGate } from "@/components/general/ActionGate";
 import { ACTIONS } from "@/lib/actionPermissions";
@@ -583,100 +582,102 @@ const HousingManagementPage = () => {
           onCapacityRulesSaved={fetchHouses}
         />
 
-        <Dialog
+        <FormModal
           open={isDetailsOpen}
           onOpenChange={(open) => {
             setIsDetailsOpen(open);
             if (!open) setOpenHouseMenuId(null);
           }}
+          title="House details"
+          description={detailsHouse ? detailsHouse.name : undefined}
+          icon={Home}
+          tone="flock"
+          size="lg"
         >
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>House details</DialogTitle>
-            </DialogHeader>
-            {!detailsHouse ? (
-              <div className="text-sm text-muted-foreground">No house selected.</div>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Name</div>
-                    <div className="font-medium">{detailsHouse.name}</div>
+          {!detailsHouse ? (
+            <div className="text-sm text-muted-foreground">No house selected.</div>
+          ) : (
+            <>
+              <FormSection icon={Info} title="Overview" description="Basic information about this house.">
+                <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <dt className="text-xs text-slate-500">Name</dt>
+                    <dd className="font-medium text-slate-900">{detailsHouse.name}</dd>
                   </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Default capacity</div>
-                    <div className="font-medium">{detailsHouse.capacity}</div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <dt className="text-xs text-slate-500">Default capacity</dt>
+                    <dd className="font-medium text-slate-900">{detailsHouse.capacity}</dd>
                   </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Status</div>
-                    <div className="font-medium">{detailsHouse.status}</div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <dt className="text-xs text-slate-500">Status</dt>
+                    <dd className="font-medium text-slate-900">{detailsHouse.status}</dd>
                   </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Poultry type</div>
-                    <div className="font-medium">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <dt className="text-xs text-slate-500">Poultry type</dt>
+                    <dd className="font-medium text-slate-900">
                       {poultryTypeMap[detailsHouse.poultry_type_id] ||
                         detailsHouse.poultry_type?.name ||
                         `ID: ${detailsHouse.poultry_type_id}`}
+                    </dd>
+                  </div>
+                </dl>
+              </FormSection>
+
+              <FormSection
+                icon={Layers}
+                title="Capacity rules"
+                description={rulesLoading ? "Loading preloaded rules…" : "Age-based capacity bands for this house."}
+                action={
+                  <ActionGate anyOf={ACTIONS.houses.update}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      onClick={() => {
+                        if (!detailsHouse) return;
+                        setEditHouse(detailsHouse);
+                        setIsEditModalOpen(true);
+                        setIsDetailsOpen(false);
+                      }}
+                    >
+                      Edit rules
+                    </Button>
+                  </ActionGate>
+                }
+              >
+                <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                  {(houseRulesMap[detailsHouse.id] || []).length === 0 ? (
+                    <div className="p-3 text-sm text-muted-foreground">
+                      No capacity rules set. Default capacity applies.
                     </div>
-                  </div>
+                  ) : (
+                    (houseRulesMap[detailsHouse.id] || [])
+                      .slice()
+                      .sort((a, b) => a.min_age_days - b.min_age_days)
+                      .map((r) => (
+                        <div key={r.id ?? `${r.min_age_days}-${r.max_age_days}-${r.capacity}`} className="p-3 flex items-center justify-between text-sm">
+                          <div className="font-medium">{formatRuleRange(r)}</div>
+                          <div className="text-muted-foreground">Capacity: {r.capacity}</div>
+                        </div>
+                      ))
+                  )}
                 </div>
+              </FormSection>
+            </>
+          )}
+        </FormModal>
 
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold">Capacity rules</div>
-                      <div className="text-xs text-muted-foreground">
-                        {rulesLoading ? "Loading preloaded rules…" : "Age-based capacity bands for this house."}
-                      </div>
-                    </div>
-                    <ActionGate anyOf={ACTIONS.houses.update}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (!detailsHouse) return;
-                          setEditHouse(detailsHouse);
-                          setIsEditModalOpen(true);
-                          setIsDetailsOpen(false);
-                        }}
-                      >
-                        Edit rules
-                      </Button>
-                    </ActionGate>
-                  </div>
-
-                  <div className="mt-2 border rounded-md divide-y">
-                    {(houseRulesMap[detailsHouse.id] || []).length === 0 ? (
-                      <div className="p-3 text-sm text-muted-foreground">
-                        No capacity rules set. Default capacity applies.
-                      </div>
-                    ) : (
-                      (houseRulesMap[detailsHouse.id] || [])
-                        .slice()
-                        .sort((a, b) => a.min_age_days - b.min_age_days)
-                        .map((r) => (
-                          <div key={r.id ?? `${r.min_age_days}-${r.max_age_days}-${r.capacity}`} className="p-3 flex items-center justify-between text-sm">
-                            <div className="font-medium">{formatRuleRange(r)}</div>
-                            <div className="text-muted-foreground">Capacity: {r.capacity}</div>
-                          </div>
-                        ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        <AlertDialog
-          isOpen={isDeleteConfirmOpen}
-          onClose={() => setIsDeleteConfirmOpen(false)}
+        <ConfirmModal
+          open={isDeleteConfirmOpen}
+          onOpenChange={(open) => !open && setIsDeleteConfirmOpen(false)}
           title="Delete poultry house?"
           description="Are you sure you want to delete this poultry house? This action cannot be undone."
-          type="error"
-          confirmText="Delete"
-          showCancel
+          icon={Trash2}
+          tone="danger"
+          confirmLabel="Delete"
+          confirmIcon={Trash2}
           onConfirm={async () => {
+            setIsDeleteConfirmOpen(false);
             if (confirmDeleteId != null) {
               await handleDeleteHouse(confirmDeleteId);
               setConfirmDeleteId(null);

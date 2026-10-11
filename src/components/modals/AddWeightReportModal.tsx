@@ -1,13 +1,18 @@
 import { useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
-import { Label } from "../ui/label"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "../ui/form-modal"
 import { Input } from "../ui/input"
-import { Button } from "../ui/button"
 import { Textarea } from "../ui/textarea"
 import { Calendar } from "../ui/calendar"
 import {
   CalendarIcon,
-  Loader2,
+  Scale,
   Weight,
   Bird,
   Ruler,
@@ -169,136 +174,114 @@ const AddWeightReportModal = ({ isOpen, onClose, onSubmit, flock }: AddWeightRep
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && !isSubmitting) handleClose()
-    }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Gradient Header */}
-        <div className="bg-gradient-to-r from-orange-600 to-amber-600 px-6 py-5 rounded-t-lg">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl">Add Weight Report</DialogTitle>
-            <DialogDescription className="text-orange-100">
-              Record weight data for this flock. Fields marked with * are required.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
-          {/* ── Date Picker (inline calendar) ── */}
-          <div className="space-y-2 pt-2">
-            <Label className="text-sm font-semibold flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-orange-600" />
-              Report Date <span className="text-red-500">*</span>
-            </Label>
-            <button
-              type="button"
-              onClick={() => setShowCalendar(!showCalendar)}
-              className={cn(
-                "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
-                errors.report_date ? "border-red-400 bg-red-50" : "border-gray-300",
-                showCalendar && "border-orange-500 ring-2 ring-orange-100"
-              )}
-            >
-              <span className={formData.report_date ? "text-gray-900 font-medium" : "text-gray-400"}>
-                {formData.report_date
-                  ? format(new Date(formData.report_date + 'T12:00:00'), "EEEE, MMMM d, yyyy")
-                  : "Select date"}
-              </span>
-              {showCalendar ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
-            </button>
-            {showCalendar && (
-              <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
-                <Calendar
-                  mode="single"
-                  selected={formData.report_date ? new Date(formData.report_date + 'T12:00:00') : undefined}
-                  onSelect={handleDateChange}
-                />
-              </div>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) handleClose()
+      }}
+      title="Add Weight Report"
+      description="Record weight data for this flock. Fields marked with * are required."
+      icon={Scale}
+      tone="flock"
+      size="lg"
+      busy={isSubmitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={handleClose}
+          submitLabel="Create Report"
+          busyLabel="Creating..."
+          busy={isSubmitting}
+        />
+      }
+    >
+      <FormSection step={1} icon={CalendarIcon} title="Report date" description="The day the birds were weighed.">
+        <FormField label="Report Date" required error={errors.report_date}>
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={cn(
+              formInputClass(!!errors.report_date),
+              "flex w-full items-center justify-between border px-3 text-sm hover:bg-white",
+              showCalendar && "border-sky-500 ring-2 ring-sky-100"
             )}
-            {errors.report_date && <p className="text-xs text-red-500">{errors.report_date}</p>}
-          </div>
-
-          {/* ── Weight Measurements Section ── */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Weight className="h-4 w-4 text-orange-500" />
-              Weight Measurements
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="min_weight" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Ruler className="h-3.5 w-3.5 text-blue-400" />
-                  Min Weight (kg) *
-                </Label>
-                <Input id="min_weight" type="number" step="0.01" min="0.01" value={formData.min_weight} onChange={(e) => handleInputChange("min_weight", parseFloat(e.target.value) || 0)} placeholder="0.00" className={cn("h-9 text-sm", errors.min_weight && "border-red-400")} />
-                {errors.min_weight && <p className="text-xs text-red-500">{errors.min_weight}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="max_weight" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Ruler className="h-3.5 w-3.5 text-red-400" />
-                  Max Weight (kg) *
-                </Label>
-                <Input id="max_weight" type="number" step="0.01" min="0.01" value={formData.max_weight} onChange={(e) => handleInputChange("max_weight", parseFloat(e.target.value) || 0)} placeholder="0.00" className={cn("h-9 text-sm", errors.max_weight && "border-red-400")} />
-                {errors.max_weight && <p className="text-xs text-red-500">{errors.max_weight}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="average_weight" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Weight className="h-3.5 w-3.5 text-orange-400" />
-                  Average Weight (kg) *
-                </Label>
-                <Input id="average_weight" type="number" step="0.01" min="0.01" value={formData.average_weight} onChange={(e) => handleInputChange("average_weight", parseFloat(e.target.value) || 0)} placeholder="0.00" className={cn("h-9 text-sm", errors.average_weight && "border-red-400")} />
-                {errors.average_weight && <p className="text-xs text-red-500">{errors.average_weight}</p>}
-              </div>
+          >
+            <span className={formData.report_date ? "font-medium text-slate-900" : "text-slate-400"}>
+              {formData.report_date
+                ? format(new Date(formData.report_date + 'T12:00:00'), "EEEE, MMMM d, yyyy")
+                : "Select date"}
+            </span>
+            {showCalendar ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+          </button>
+          {showCalendar && (
+            <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+              <Calendar
+                mode="single"
+                selected={formData.report_date ? new Date(formData.report_date + 'T12:00:00') : undefined}
+                onSelect={handleDateChange}
+              />
             </div>
-          </div>
+          )}
+        </FormField>
+      </FormSection>
 
-          {/* ── Sampling Section ── */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Bird className="h-4 w-4 text-blue-500" />
-              Sampling Info
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="sample_size" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Bird className="h-3.5 w-3.5 text-blue-400" />
-                  Sample Size *
-                </Label>
-                <Input id="sample_size" type="number" min="1" max={formData.number_of_birds} value={formData.sample_size} onChange={(e) => handleInputChange("sample_size", parseInt(e.target.value) || 0)} placeholder="Enter sample size" className={cn("h-9 text-sm", errors.sample_size && "border-red-400")} />
-                {errors.sample_size && <p className="text-xs text-red-500">{errors.sample_size}</p>}
-                <p className="text-xs text-gray-500">Birds weighed (max: {formData.number_of_birds})</p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="number_of_birds" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Bird className="h-3.5 w-3.5 text-green-400" />
-                  Current Bird Count
-                </Label>
-                <Input id="number_of_birds" type="number" value={formData.number_of_birds} disabled className="h-9 text-sm bg-gray-50" />
-                <p className="text-xs text-gray-500">Original: {flock?.quantity || 0}, after mortality: {currentBirdCount}</p>
-              </div>
+      <FormSection step={2} icon={Weight} title="Weight Measurements" description="Lightest, heaviest and average weight of the sample.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <FormField label="Min Weight (kg)" required htmlFor="min_weight" error={errors.min_weight}>
+            <div className="relative">
+              <Ruler className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="min_weight" type="number" step="0.01" min="0.01" value={formData.min_weight} onChange={(e) => handleInputChange("min_weight", parseFloat(e.target.value) || 0)} placeholder="0.00" className={formInputClass(!!errors.min_weight, "pl-9")} />
             </div>
-          </div>
+          </FormField>
+          <FormField label="Max Weight (kg)" required htmlFor="max_weight" error={errors.max_weight}>
+            <div className="relative">
+              <Ruler className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="max_weight" type="number" step="0.01" min="0.01" value={formData.max_weight} onChange={(e) => handleInputChange("max_weight", parseFloat(e.target.value) || 0)} placeholder="0.00" className={formInputClass(!!errors.max_weight, "pl-9")} />
+            </div>
+          </FormField>
+          <FormField label="Average Weight (kg)" required htmlFor="average_weight" error={errors.average_weight}>
+            <div className="relative">
+              <Weight className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="average_weight" type="number" step="0.01" min="0.01" value={formData.average_weight} onChange={(e) => handleInputChange("average_weight", parseFloat(e.target.value) || 0)} placeholder="0.00" className={formInputClass(!!errors.average_weight, "pl-9")} />
+            </div>
+          </FormField>
+        </div>
+      </FormSection>
 
-          {/* ── Notes ── */}
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-semibold flex items-center gap-2">
-              <StickyNote className="h-4 w-4 text-gray-500" />
-              Notes
-            </Label>
-            <Textarea id="notes" value={formData.notes} onChange={(e) => handleInputChange("notes", e.target.value)} placeholder="Enter any additional notes about this weight report" rows={3} className="resize-none" />
-          </div>
+      <FormSection step={3} icon={Bird} title="Sampling Info" description="How many birds were weighed out of the flock.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField
+            label="Sample Size"
+            required
+            htmlFor="sample_size"
+            error={errors.sample_size}
+            hint={`Birds weighed (max: ${formData.number_of_birds})`}
+          >
+            <div className="relative">
+              <Bird className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="sample_size" type="number" min="1" max={formData.number_of_birds} value={formData.sample_size} onChange={(e) => handleInputChange("sample_size", parseInt(e.target.value) || 0)} placeholder="Enter sample size" className={formInputClass(!!errors.sample_size, "pl-9")} />
+            </div>
+          </FormField>
+          <FormField
+            label="Current Bird Count"
+            htmlFor="number_of_birds"
+            error={errors.number_of_birds}
+            hint={`Original: ${flock?.quantity || 0}, after mortality: ${currentBirdCount}`}
+          >
+            <div className="relative">
+              <Bird className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input id="number_of_birds" type="number" value={formData.number_of_birds} disabled className={formInputClass(!!errors.number_of_birds, "pl-9")} />
+            </div>
+          </FormField>
+        </div>
+      </FormSection>
 
-          {/* ── Footer ── */}
-          <DialogFooter className="pt-2 border-t">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>Cancel</Button>
-            <Button type="submit" disabled={isSubmitting} className="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white">
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Creating..." : "Create Report"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <FormSection step={4} icon={StickyNote} title="Notes" description="Uniformity, health or feeding observations.">
+        <FormField label="Notes" htmlFor="notes">
+          <Textarea id="notes" value={formData.notes} onChange={(e) => handleInputChange("notes", e.target.value)} placeholder="Enter any additional notes about this weight report" rows={3} className={formTextareaClass()} />
+        </FormField>
+      </FormSection>
+    </FormModal>
   )
 }
 

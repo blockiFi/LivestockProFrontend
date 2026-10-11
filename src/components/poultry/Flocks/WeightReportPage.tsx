@@ -6,7 +6,7 @@ import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/
 import type { WeightReport, FlockRecord } from "@/lib/types"
 import { Scale, TrendingDown, TrendingUp, Plus, Trash2 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import chicken from "@/assets/chicken.png"
 import { formatDate } from "@/lib/utils"
 import AddWeightReportModal from "@/components/modals/AddWeightReportModal"
@@ -223,24 +223,17 @@ const WeightReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: Weigh
 
       {/* Delete Confirmation Dialog */}
       {onDeleteRecord && (
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Delete Weight Report</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete this weight report? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={cancelDelete}>
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={confirmDelete}>
-                Delete
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ConfirmModal
+          open={isDeleteDialogOpen}
+          onOpenChange={(open) => (open ? setIsDeleteDialogOpen(true) : cancelDelete())}
+          title="Delete Weight Report"
+          description="Are you sure you want to delete this weight report? This action cannot be undone."
+          icon={Trash2}
+          tone="danger"
+          confirmLabel="Delete"
+          confirmIcon={Trash2}
+          onConfirm={confirmDelete}
+        />
       )}
     </div>
   )

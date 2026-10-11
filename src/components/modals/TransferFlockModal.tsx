@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FormField, FormModal, FormSection, ModalFooterActions, formInputClass } from "@/components/ui/form-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "react-toastify"
-import { Plus, Trash2 } from "lucide-react"
+import { ArrowRightLeft, CalendarDays, Hash, Home, Plus, StickyNote, Trash2 } from "lucide-react"
 import type { PoultryHouse } from "@/lib/types"
 import { createFlockTransfer, getPoultryHouses } from "@/lib/request"
 
@@ -129,22 +129,35 @@ export default function TransferFlockModal(props: {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Transfer birds</DialogTitle>
-        </DialogHeader>
-
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Transfer birds"
+      description="Move, split or merge birds between houses for this flock."
+      icon={ArrowRightLeft}
+      tone="flock"
+      size="md"
+      busy={isSubmitting}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Apply transfer"
+          busyLabel="Applying..."
+          busy={isSubmitting}
+          submitType="button"
+          onConfirm={submit}
+        />
+      }
+    >
+      <FormSection step={1} icon={CalendarDays} title="Transfer details" description="When it happens and what kind of transfer.">
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Transfer date</Label>
-              <Input type="date" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Mode</Label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Transfer date" required>
+              <Input type="date" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} className={formInputClass()} />
+            </FormField>
+            <FormField label="Mode" required>
               <Select value={mode} onValueChange={(v) => resetForMode(v as Mode)}>
-                <SelectTrigger>
+                <SelectTrigger className={formInputClass()}>
                   <SelectValue placeholder="Select mode" />
                 </SelectTrigger>
                 <SelectContent>
@@ -153,19 +166,24 @@ export default function TransferFlockModal(props: {
                   <SelectItem value="merge">Merge</SelectItem>
                 </SelectContent>
               </Select>
+            </FormField>
+          </div>
+
+          <FormField label="Note (optional)">
+            <div className="relative">
+              <StickyNote className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason or context..." className={formInputClass(false, "pl-9")} />
             </div>
-          </div>
+          </FormField>
+        </div>
+      </FormSection>
 
-          <div className="space-y-2">
-            <Label>Note (optional)</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason or context..." />
-          </div>
-
+      <FormSection step={2} icon={Home} title="Houses" description="Choose where birds come from and where they go.">
+        <div className="space-y-4">
           {(mode === "move" || mode === "split") && (
-            <div className="space-y-2">
-              <Label>From house</Label>
+            <FormField label="From house" required>
               <Select value={fromHouseId} onValueChange={setFromHouseId}>
-                <SelectTrigger>
+                <SelectTrigger className={formInputClass()}>
                   <SelectValue placeholder="Select source house" />
                 </SelectTrigger>
                 <SelectContent>
@@ -176,14 +194,13 @@ export default function TransferFlockModal(props: {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
           )}
 
           {(mode === "move" || mode === "merge") && (
-            <div className="space-y-2">
-              <Label>To house</Label>
+            <FormField label="To house" required>
               <Select value={toHouseId} onValueChange={setToHouseId}>
-                <SelectTrigger>
+                <SelectTrigger className={formInputClass()}>
                   <SelectValue placeholder="Select destination house" />
                 </SelectTrigger>
                 <SelectContent>
@@ -194,25 +211,27 @@ export default function TransferFlockModal(props: {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
           )}
 
           {mode === "move" && (
-            <div className="space-y-2">
-              <Label>Quantity</Label>
-              <Input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="e.g. 250" />
-            </div>
+            <FormField label="Quantity" required>
+              <div className="relative">
+                <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="e.g. 250" className={formInputClass(false, "pl-9")} />
+              </div>
+            </FormField>
           )}
 
           {mode === "split" && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Split lines</Label>
+                <Label className="text-xs font-medium text-slate-600">Split lines</Label>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-2"
+                  className="gap-2 rounded-xl"
                   onClick={() => setSplitLines((p) => [...p, { to_house_id: "", quantity: "" }])}
                 >
                   <Plus className="h-4 w-4" />
@@ -228,7 +247,7 @@ export default function TransferFlockModal(props: {
                         setSplitLines((p) => p.map((x, i) => (i === idx ? { ...x, to_house_id: v } : x)))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={formInputClass()}>
                         <SelectValue placeholder="Destination" />
                       </SelectTrigger>
                       <SelectContent>
@@ -245,11 +264,13 @@ export default function TransferFlockModal(props: {
                         setSplitLines((p) => p.map((x, i) => (i === idx ? { ...x, quantity: e.target.value } : x)))
                       }
                       placeholder="Qty"
+                      className={formInputClass()}
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
+                      className="h-10 w-10 rounded-xl"
                       onClick={() => setSplitLines((p) => p.filter((_, i) => i !== idx))}
                       disabled={splitLines.length === 1}
                     >
@@ -264,12 +285,12 @@ export default function TransferFlockModal(props: {
           {mode === "merge" && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Merge lines</Label>
+                <Label className="text-xs font-medium text-slate-600">Merge lines</Label>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-2"
+                  className="gap-2 rounded-xl"
                   onClick={() => setMergeLines((p) => [...p, { from_house_id: "", quantity: "" }])}
                 >
                   <Plus className="h-4 w-4" />
@@ -285,7 +306,7 @@ export default function TransferFlockModal(props: {
                         setMergeLines((p) => p.map((x, i) => (i === idx ? { ...x, from_house_id: v } : x)))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={formInputClass()}>
                         <SelectValue placeholder="Source" />
                       </SelectTrigger>
                       <SelectContent>
@@ -302,11 +323,13 @@ export default function TransferFlockModal(props: {
                         setMergeLines((p) => p.map((x, i) => (i === idx ? { ...x, quantity: e.target.value } : x)))
                       }
                       placeholder="Qty"
+                      className={formInputClass()}
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
+                      className="h-10 w-10 rounded-xl"
                       onClick={() => setMergeLines((p) => p.filter((_, i) => i !== idx))}
                       disabled={mergeLines.length === 1}
                     >
@@ -317,18 +340,9 @@ export default function TransferFlockModal(props: {
               </div>
             </div>
           )}
-
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button className="flex-1" disabled={isSubmitting} onClick={submit}>
-              {isSubmitting ? "Applying..." : "Apply transfer"}
-            </Button>
-          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </FormSection>
+    </FormModal>
   )
 }
 

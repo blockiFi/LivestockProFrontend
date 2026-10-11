@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import type { MortalityReport, FlockRecord, DetailedFlockRecord } from "@/lib/types"
 import { formatDate } from "@/lib/utils"
 import { getBirdCountOnDate } from "@/lib/flock-birds"
@@ -301,24 +301,17 @@ const MortalityReportPage = ({ reports, flock, onAddRecord, onDeleteRecord }: {
 
       {/* Delete Confirmation Dialog */}
       {onDeleteRecord && (
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete Mortality Record</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this mortality record? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={cancelDelete}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmModal
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => (open ? setIsDeleteDialogOpen(true) : cancelDelete())}
+        title="Delete Mortality Record"
+        description="Are you sure you want to delete this mortality record? This action cannot be undone."
+        icon={Trash2}
+        tone="danger"
+        confirmLabel="Delete"
+        confirmIcon={Trash2}
+        onConfirm={confirmDelete}
+      />
       )}
     </div>
   )

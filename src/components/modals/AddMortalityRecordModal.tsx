@@ -1,13 +1,17 @@
 import { useState, useEffect, useMemo } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
-import { Label } from "../ui/label"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "../ui/form-modal"
 import { Input } from "../ui/input"
-import { Button } from "../ui/button"
 import { Textarea } from "../ui/textarea"
 import { Calendar } from "../ui/calendar"
 import {
   CalendarIcon,
-  Loader2,
   Skull,
   Weight,
   Bird,
@@ -179,182 +183,155 @@ const AddMortalityRecordModal = ({ isOpen, onClose, onSubmit, flock, mortalityRe
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && !isSubmitting) handleClose()
-    }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Gradient Header */}
-        <div className="bg-gradient-to-r from-red-600 to-rose-600 px-6 py-5 rounded-t-lg">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl">Add Mortality Record</DialogTitle>
-            <DialogDescription className="text-red-100">
-              Record mortality data for this flock. Fields marked with * are required.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
-          {/* ── Date Picker (inline calendar, no Popover) ── */}
-          <div className="space-y-2 pt-2">
-            <Label className="text-sm font-semibold flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-red-600" />
-              Date <span className="text-red-500">*</span>
-            </Label>
-            <button
-              type="button"
-              onClick={() => setShowCalendar(!showCalendar)}
-              className={cn(
-                "w-full flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm transition-colors hover:bg-gray-50",
-                errors.date ? "border-red-400 bg-red-50" : "border-gray-300",
-                showCalendar && "border-red-500 ring-2 ring-red-100"
-              )}
-            >
-              <span className={formData.date ? "text-gray-900 font-medium" : "text-gray-400"}>
-                {formData.date
-                  ? format(new Date(formData.date + 'T12:00:00'), "EEEE, MMMM d, yyyy")
-                  : "Select date"}
-              </span>
-              {showCalendar
-                ? <ChevronUp className="h-4 w-4 text-gray-500" />
-                : <ChevronDown className="h-4 w-4 text-gray-500" />
-              }
-            </button>
-            {showCalendar && (
-              <div className="flex justify-center border rounded-lg p-2 bg-white shadow-sm">
-                <Calendar
-                  mode="single"
-                  selected={formData.date ? new Date(formData.date + 'T12:00:00') : undefined}
-                  onSelect={handleDateChange}
-                />
-              </div>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) handleClose()
+      }}
+      title="Add Mortality Record"
+      description="Record mortality data for this flock. Fields marked with * are required."
+      icon={Skull}
+      tone="flock"
+      size="lg"
+      busy={isSubmitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={handleClose}
+          submitLabel="Create Record"
+          busyLabel="Creating..."
+          busy={isSubmitting}
+        />
+      }
+    >
+      <FormSection step={1} icon={CalendarIcon} title="Date" description="When the losses were recorded.">
+        <FormField label="Date" required error={errors.date}>
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={cn(
+              formInputClass(!!errors.date),
+              "flex w-full items-center justify-between border px-3 text-sm hover:bg-white",
+              showCalendar && "border-sky-500 ring-2 ring-sky-100"
             )}
-            {errors.date && <p className="text-xs text-red-500">{errors.date}</p>}
-          </div>
-
-          {/* ── Mortality Section ── */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Skull className="h-4 w-4 text-red-500" />
-              Mortality Details
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="mortality_count" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Skull className="h-3.5 w-3.5 text-red-400" />
-                  Mortality Count *
-                </Label>
-                <Input
-                  id="mortality_count"
-                  type="number"
-                  min="1"
-                  max={birdCountOnDate > 0 ? birdCountOnDate : undefined}
-                  value={formData.mortality_count}
-                  onChange={(e) => handleInputChange("mortality_count", parseInt(e.target.value) || 0)}
-                  placeholder={`Enter mortality count (max: ${birdCountOnDate})`}
-                  className={cn("h-9 text-sm", errors.mortality_count && "border-red-400")}
-                />
-                {errors.mortality_count && <p className="text-xs text-red-500">{errors.mortality_count}</p>}
-                {birdCountOnDate > 0 && (
-                  <p className="text-xs text-gray-500">Maximum on this date: {birdCountOnDate}</p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="average_weight" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Weight className="h-3.5 w-3.5 text-orange-400" />
-                  Average Weight (kg) *
-                </Label>
-                <Input
-                  id="average_weight"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={formData.average_weight}
-                  onChange={(e) => handleInputChange("average_weight", parseFloat(e.target.value) || 0)}
-                  placeholder="Enter average weight"
-                  className={cn("h-9 text-sm", errors.average_weight && "border-red-400")}
-                />
-                {errors.average_weight && <p className="text-xs text-red-500">{errors.average_weight}</p>}
-              </div>
+          >
+            <span className={formData.date ? "font-medium text-slate-900" : "text-slate-400"}>
+              {formData.date
+                ? format(new Date(formData.date + 'T12:00:00'), "EEEE, MMMM d, yyyy")
+                : "Select date"}
+            </span>
+            {showCalendar
+              ? <ChevronUp className="h-4 w-4 text-slate-500" />
+              : <ChevronDown className="h-4 w-4 text-slate-500" />
+            }
+          </button>
+          {showCalendar && (
+            <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+              <Calendar
+                mode="single"
+                selected={formData.date ? new Date(formData.date + 'T12:00:00') : undefined}
+                onSelect={handleDateChange}
+              />
             </div>
-          </div>
+          )}
+        </FormField>
+      </FormSection>
 
-          {/* ── Flock Info Section ── */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 flex items-center gap-2">
-              <Bird className="h-4 w-4 text-blue-500" />
-              Flock Information
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="bird_count" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <Bird className="h-3.5 w-3.5 text-blue-400" />
-                  Bird Count on Date
-                </Label>
-                <Input
-                  id="bird_count"
-                  type="number"
-                  value={birdCountOnDate}
-                  disabled
-                  className="h-9 text-sm bg-gray-50"
-                />
-                <p className="text-xs text-gray-500">
-                  Arrival ({flock?.quantity || 0}) minus mortality/culls before {formData.date}
-                </p>
-                {errors.bird_count && <p className="text-xs text-red-500">{errors.bird_count}</p>}
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="mortality_percentage" className="text-xs text-gray-600 flex items-center gap-1.5">
-                  <TrendingDown className="h-3.5 w-3.5 text-red-400" />
-                  Mortality Percentage
-                </Label>
-                <Input
-                  id="mortality_percentage"
-                  type="number"
-                  step="0.01"
-                  value={formData.mortality_percentage.toFixed(2)}
-                  disabled
-                  className="h-9 text-sm bg-gray-50"
-                />
-                <p className="text-xs text-gray-500">Auto-calculated from count &amp; bird count on date</p>
-              </div>
+      <FormSection step={2} icon={Skull} title="Mortality Details" description="How many birds were lost and their average weight.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField
+            label="Mortality Count"
+            required
+            htmlFor="mortality_count"
+            error={errors.mortality_count}
+            hint={birdCountOnDate > 0 ? `Maximum on this date: ${birdCountOnDate}` : undefined}
+          >
+            <div className="relative">
+              <Skull className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="mortality_count"
+                type="number"
+                min="1"
+                max={birdCountOnDate > 0 ? birdCountOnDate : undefined}
+                value={formData.mortality_count}
+                onChange={(e) => handleInputChange("mortality_count", parseInt(e.target.value) || 0)}
+                placeholder={`Enter mortality count (max: ${birdCountOnDate})`}
+                className={formInputClass(!!errors.mortality_count, "pl-9")}
+              />
             </div>
-          </div>
+          </FormField>
 
-          {/* ── Notes Section ── */}
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-semibold flex items-center gap-2">
-              <StickyNote className="h-4 w-4 text-gray-500" />
-              Notes
-            </Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleInputChange("notes", e.target.value)}
-              placeholder="Enter any additional notes about this mortality record"
-              rows={3}
-              className="resize-none"
-            />
-          </div>
+          <FormField label="Average Weight (kg)" required htmlFor="average_weight" error={errors.average_weight}>
+            <div className="relative">
+              <Weight className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="average_weight"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={formData.average_weight}
+                onChange={(e) => handleInputChange("average_weight", parseFloat(e.target.value) || 0)}
+                placeholder="Enter average weight"
+                className={formInputClass(!!errors.average_weight, "pl-9")}
+              />
+            </div>
+          </FormField>
+        </div>
+      </FormSection>
 
-          {/* ── Footer ── */}
-          <DialogFooter className="pt-2 border-t">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white"
-            >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Creating..." : "Create Record"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <FormSection step={3} icon={Bird} title="Flock Information" description="Calculated from the flock's history up to this date.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField
+            label="Bird Count on Date"
+            htmlFor="bird_count"
+            error={errors.bird_count}
+            hint={`Arrival (${flock?.quantity || 0}) minus mortality/culls before ${formData.date}`}
+          >
+            <div className="relative">
+              <Bird className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="bird_count"
+                type="number"
+                value={birdCountOnDate}
+                disabled
+                className={formInputClass(!!errors.bird_count, "pl-9")}
+              />
+            </div>
+          </FormField>
+
+          <FormField
+            label="Mortality Percentage"
+            htmlFor="mortality_percentage"
+            hint="Auto-calculated from count & bird count on date"
+          >
+            <div className="relative">
+              <TrendingDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="mortality_percentage"
+                type="number"
+                step="0.01"
+                value={formData.mortality_percentage.toFixed(2)}
+                disabled
+                className={formInputClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
+        </div>
+      </FormSection>
+
+      <FormSection step={4} icon={StickyNote} title="Notes" description="Suspected cause, symptoms or other observations.">
+        <FormField label="Notes" htmlFor="notes">
+          <Textarea
+            id="notes"
+            value={formData.notes}
+            onChange={(e) => handleInputChange("notes", e.target.value)}
+            placeholder="Enter any additional notes about this mortality record"
+            rows={3}
+            className={formTextareaClass()}
+          />
+        </FormField>
+      </FormSection>
+    </FormModal>
   )
 }
 

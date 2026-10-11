@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
+import { FormModal, FormSection, ModalFooterActions } from "../ui/form-modal"
 import { Button } from "../ui/button"
-import { Loader2, Plus } from "lucide-react"
+import { CalendarDays, ClipboardList, Plus } from "lucide-react"
 import type { FeedInventoryType, FeedType, PoultryDailyReport } from "@/lib/types"
 import DailyRecordEntryRow from "./DailyRecordEntryRow"
 import {
@@ -235,89 +235,90 @@ const AddDailyRecordModal = ({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open && !isSubmitting) handleClose()
-    }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 rounded-t-lg">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl">
-              {isEditMode ? "Edit Daily Record" : "Add Daily Records"}
-            </DialogTitle>
-            <DialogDescription className="text-blue-100">
-              {isEditMode
-                ? "Update the metrics for this daily record."
-                : "Add one or more daily records. Each row is a different date. Records are saved oldest-first."}
-            </DialogDescription>
-          </DialogHeader>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) handleClose()
+      }}
+      title={isEditMode ? "Edit Daily Record" : "Add Daily Records"}
+      description={
+        isEditMode
+          ? "Update the metrics for this daily record."
+          : "Add one or more daily records. Each row is a different date. Records are saved oldest-first."
+      }
+      icon={ClipboardList}
+      tone="flock"
+      size="xl"
+      busy={isSubmitting}
+      onSubmit={handleSubmit}
+      footer={
+        <ModalFooterActions
+          onCancel={handleClose}
+          submitLabel={
+            isEditMode
+              ? "Update Record"
+              : entries.length > 1
+                ? `Save all ${entries.length} records`
+                : "Save Record"
+          }
+          busyLabel="Saving..."
+          busy={isSubmitting}
+        />
+      }
+    >
+      <FormSection
+        icon={CalendarDays}
+        title={isEditMode ? "Daily record" : "Daily entries"}
+        description={
+          isEditMode
+            ? "Feed, water, mortality and other metrics for this date."
+            : `${entries.length} ${entries.length === 1 ? "date" : "dates"} in this batch`
+        }
+      >
+        <div className="space-y-3">
+          {entries.map((entry, index) => (
+            <DailyRecordEntryRow
+              key={index}
+              rowIndex={index}
+              data={entry}
+              errors={entryErrors[index] ?? {}}
+              submitError={submitErrors[index]}
+              onChange={(patch) => handleEntryChange(index, patch)}
+              onClearError={(field) => handleClearError(index, field)}
+              flockId={flockId}
+              flockQuantity={flockQuantity}
+              farmId={farmId}
+              token={token}
+              poultryType={poultryType}
+              poultryTypeId={poultryTypeId}
+              flockArrivalDate={flockArrivalDate}
+              flockArrivalAgeDays={flockArrivalAgeDays}
+              feedInventories={feedInventories}
+              feedTypes={feedTypes}
+              isActive={isOpen}
+              expanded={expandedRows[index] ?? false}
+              onToggleExpand={() => setExpandedRows((prev) => ({ ...prev, [index]: !prev[index] }))}
+              onRemove={() => handleRemoveEntry(index)}
+              canRemove={!isEditMode && entries.length > 1}
+              skipAutoFill={isEditMode}
+            />
+          ))}
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
-          <div className="space-y-3 pt-2">
-            {entries.map((entry, index) => (
-              <DailyRecordEntryRow
-                key={index}
-                rowIndex={index}
-                data={entry}
-                errors={entryErrors[index] ?? {}}
-                submitError={submitErrors[index]}
-                onChange={(patch) => handleEntryChange(index, patch)}
-                onClearError={(field) => handleClearError(index, field)}
-                flockId={flockId}
-                flockQuantity={flockQuantity}
-                farmId={farmId}
-                token={token}
-                poultryType={poultryType}
-                poultryTypeId={poultryTypeId}
-                flockArrivalDate={flockArrivalDate}
-                flockArrivalAgeDays={flockArrivalAgeDays}
-                feedInventories={feedInventories}
-                feedTypes={feedTypes}
-                isActive={isOpen}
-                expanded={expandedRows[index] ?? false}
-                onToggleExpand={() => setExpandedRows((prev) => ({ ...prev, [index]: !prev[index] }))}
-                onRemove={() => handleRemoveEntry(index)}
-                canRemove={!isEditMode && entries.length > 1}
-                skipAutoFill={isEditMode}
-              />
-            ))}
-          </div>
-
-          {!isEditMode && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleAddEntry}
-              className="w-full border-dashed"
-              disabled={isSubmitting}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add another date
-            </Button>
-          )}
-
-          <DialogFooter className="pt-2 border-t">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
-            >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting
-                ? "Saving..."
-                : isEditMode
-                  ? "Update Record"
-                  : entries.length > 1
-                    ? `Save all ${entries.length} records`
-                    : "Save Record"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        {!isEditMode && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleAddEntry}
+            className="mt-3 w-full rounded-xl border-dashed"
+            disabled={isSubmitting}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add another date
+          </Button>
+        )}
+      </FormSection>
+    </FormModal>
   )
 }
 

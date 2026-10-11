@@ -1,15 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FormField, FormModal, FormSection, ModalFooterActions, formInputClass } from "@/components/ui/form-modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import type { PoultryHouse } from "@/lib/types";
 import type { PoultryType } from "@/lib/types";
 import { toast } from "react-toastify";
 import type { HouseCapacityRule } from "@/lib/request";
 import { getHouseCapacityRules, updateHouseCapacityRules, getPoultryTypes, getLiterTypes } from "@/lib/request";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  Activity,
+  CalendarDays,
+  Home,
+  Layers,
+  Plus,
+  Ruler,
+  StickyNote,
+  Tag,
+  Trash2,
+  Users,
+  Warehouse,
+  Wrench,
+} from "lucide-react";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import {
@@ -305,31 +317,50 @@ const AddHouseModal = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-xl md:max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{initialData ? "Edit House" : "Add House"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => handleChange("name", e.target.value)}
-            />
-            {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-          </div>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={initialData ? "Edit House" : "Add House"}
+      description="Set up the house details, capacity and age-based stocking limits."
+      icon={Warehouse}
+      tone="flock"
+      size="lg"
+      busy={isSubmitting}
+      footer={
+        <ModalFooterActions
+          onCancel={onClose}
+          submitLabel="Save"
+          busyLabel="Saving..."
+          busy={isSubmitting}
+          submitType="button"
+          onConfirm={handleSubmit}
+        />
+      }
+    >
+      <FormSection step={1} icon={Home} title="House details" description="Name and the kind of birds and litter it holds.">
+        <div className="space-y-4">
+          <FormField label="Name" htmlFor="name" required error={errors.name}>
+            <div className="relative">
+              <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleChange("name", e.target.value)}
+                className={formInputClass(!!errors.name, "pl-9")}
+              />
+            </div>
+          </FormField>
 
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label>Poultry Type</Label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Poultry Type" required error={errors.poultry_type_id}>
               <Select
                 value={formData.poultry_type_id}
                 onValueChange={(value) => handleChange("poultry_type_id", value)}
                 disabled={typesLoading}
               >
-                <SelectTrigger className="w-full min-w-0">
+                <SelectTrigger className={formInputClass(!!errors.poultry_type_id, "w-full min-w-0")}>
                   <SelectValue
                     placeholder={
                       typesLoading
@@ -351,19 +382,15 @@ const AddHouseModal = ({
                   ))}
                 </SelectContent>
               </Select>
-              {errors.poultry_type_id && (
-                <p className="text-xs text-red-500 mt-1">{errors.poultry_type_id}</p>
-              )}
-            </div>
+            </FormField>
 
-            <div className="space-y-1">
-              <Label>Litter Type</Label>
+            <FormField label="Litter Type" required error={errors.liter_type_id}>
               <Select
                 value={formData.liter_type_id}
                 onValueChange={(value) => handleChange("liter_type_id", value)}
                 disabled={typesLoading}
               >
-                <SelectTrigger className="w-full min-w-0">
+                <SelectTrigger className={formInputClass(!!errors.liter_type_id, "w-full min-w-0")}>
                   <SelectValue
                     placeholder={
                       typesLoading ? "Loading litter types..." : "Select litter type"
@@ -383,189 +410,195 @@ const AddHouseModal = ({
                   ))}
                 </SelectContent>
               </Select>
-              {errors.liter_type_id && (
-                <p className="text-xs text-red-500 mt-1">{errors.liter_type_id}</p>
-              )}
-            </div>
+            </FormField>
           </div>
+        </div>
+      </FormSection>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="capacity">Capacity</Label>
+      <FormSection step={2} icon={Ruler} title="Size & status" description="Capacity, dimensions and maintenance history.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Capacity" htmlFor="capacity" required error={errors.capacity}>
+            <div className="relative">
+              <Users className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="capacity"
                 type="number"
                 value={formData.capacity}
                 onChange={(e) => handleChange("capacity", e.target.value)}
+                className={formInputClass(!!errors.capacity, "pl-9")}
               />
-              {errors.capacity && (
-                <p className="text-xs text-red-500 mt-1">{errors.capacity}</p>
-              )}
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="dimensions">Dimensions</Label>
+          </FormField>
+          <FormField label="Dimensions" htmlFor="dimensions">
+            <div className="relative">
+              <Ruler className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="dimensions"
                 placeholder="e.g. 10m x 20m"
                 value={formData.dimensions}
                 onChange={(e) => handleChange("dimensions", e.target.value)}
+                className={formInputClass(false, "pl-9")}
               />
             </div>
-          </div>
+          </FormField>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="construction_date">Construction Date</Label>
+          <FormField label="Construction Date" htmlFor="construction_date">
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="construction_date"
                 type="date"
                 value={formData.construction_date}
                 onChange={(e) => handleChange("construction_date", e.target.value)}
+                className={formInputClass(false, "pl-9")}
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="last_maintenance_date">Last Maintenance</Label>
+          </FormField>
+          <FormField label="Last Maintenance" htmlFor="last_maintenance_date">
+            <div className="relative">
+              <Wrench className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="last_maintenance_date"
                 type="date"
                 value={formData.last_maintenance_date || ""}
                 onChange={(e) => handleChange("last_maintenance_date", e.target.value)}
+                className={formInputClass(false, "pl-9")}
               />
             </div>
-          </div>
+          </FormField>
 
-          <div className="space-y-1">
-            <Label htmlFor="status">Status</Label>
-            <Input
-              id="status"
-              value={formData.status}
-              onChange={(e) => handleChange("status", e.target.value)}
-              placeholder="active | inactive | maintenance | empty"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="notes">Notes</Label>
-            <Input
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleChange("notes", e.target.value)}
-            />
-          </div>
-
-          {/* Age-based capacity rules */}
-          <div className="space-y-2 pt-2">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Age-based capacity rules</Label>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() =>
-                    setCapacityRules((p) => [...p, { min_age_days: "", max_age_days: "", capacity: "", openEnded: false }])
-                  }
-                >
-                  <Plus className="h-4 w-4" />
-                  Add band
-                </Button>
-              </div>
-
-              {errors.capacity_rules && (
-                <p className="text-xs text-red-500">{errors.capacity_rules}</p>
-              )}
-
-              <div className="space-y-2">
-                {capacityRules.map((r, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_110px_40px] gap-2 items-end">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Min age (days)</Label>
-                      <Input
-                        type="number"
-                        value={r.min_age_days}
-                        onChange={(e) =>
-                          setCapacityRules((p) =>
-                            p.map((x, i) => (i === idx ? { ...x, min_age_days: e.target.value } : x))
-                          )
-                        }
-                        placeholder="7"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Max age (days)</Label>
-                      <Input
-                        type="number"
-                        value={r.max_age_days}
-                        onChange={(e) =>
-                          setCapacityRules((p) =>
-                            p.map((x, i) => (i === idx ? { ...x, max_age_days: e.target.value } : x))
-                          )
-                        }
-                        placeholder="14"
-                        disabled={r.openEnded}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Capacity (birds)</Label>
-                      <Input
-                        type="number"
-                        value={r.capacity}
-                        onChange={(e) =>
-                          setCapacityRules((p) =>
-                            p.map((x, i) => (i === idx ? { ...x, capacity: e.target.value } : x))
-                          )
-                        }
-                        placeholder="200"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 pb-2">
-                      <Checkbox
-                        checked={r.openEnded}
-                        onCheckedChange={(checked) => {
-                          const isChecked = Boolean(checked);
-                          setCapacityRules((p) =>
-                            p.map((x, i) =>
-                              i === idx
-                                ? { ...x, openEnded: isChecked, max_age_days: isChecked ? "" : x.max_age_days }
-                                : x
-                            )
-                          );
-                        }}
-                      />
-                      <span className="text-xs text-gray-600 select-none">∞</span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setCapacityRules((p) => p.filter((_, i) => i !== idx))}
-                      disabled={capacityRules.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              {isEdit && !rulesLoaded && (
-                <p className="text-xs text-muted-foreground">Loading rules…</p>
-              )}
+          <FormField label="Status" htmlFor="status">
+            <div className="relative">
+              <Activity className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="status"
+                value={formData.status}
+                onChange={(e) => handleChange("status", e.target.value)}
+                placeholder="active | inactive | maintenance | empty"
+                className={formInputClass(false, "pl-9")}
+              />
             </div>
-          </div>
+          </FormField>
+
+          <FormField label="Notes" htmlFor="notes">
+            <div className="relative">
+              <StickyNote className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => handleChange("notes", e.target.value)}
+                className={formInputClass(false, "pl-9")}
+              />
+            </div>
+          </FormField>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancel
+      </FormSection>
+
+      <FormSection
+        step={3}
+        icon={Layers}
+        title="Age-based capacity rules"
+        description="Optional stocking limits by bird age. Leave blank to use the house capacity."
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 rounded-xl"
+            onClick={() =>
+              setCapacityRules((p) => [...p, { min_age_days: "", max_age_days: "", capacity: "", openEnded: false }])
+            }
+          >
+            <Plus className="h-4 w-4" />
+            Add band
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        }
+      >
+        <div className="space-y-3">
+          {errors.capacity_rules && (
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{errors.capacity_rules}</p>
+          )}
+
+          {capacityRules.map((r, idx) => (
+            <div
+              key={idx}
+              className="grid grid-cols-[1fr_1fr_1fr_60px_40px] items-end gap-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3"
+            >
+              <FormField label="Min age (days)">
+                <Input
+                  type="number"
+                  value={r.min_age_days}
+                  onChange={(e) =>
+                    setCapacityRules((p) =>
+                      p.map((x, i) => (i === idx ? { ...x, min_age_days: e.target.value } : x))
+                    )
+                  }
+                  placeholder="7"
+                  className={formInputClass(false, "bg-white")}
+                />
+              </FormField>
+              <FormField label="Max age (days)">
+                <Input
+                  type="number"
+                  value={r.max_age_days}
+                  onChange={(e) =>
+                    setCapacityRules((p) =>
+                      p.map((x, i) => (i === idx ? { ...x, max_age_days: e.target.value } : x))
+                    )
+                  }
+                  placeholder="14"
+                  disabled={r.openEnded}
+                  className={formInputClass(false, "bg-white")}
+                />
+              </FormField>
+              <FormField label="Capacity (birds)">
+                <Input
+                  type="number"
+                  value={r.capacity}
+                  onChange={(e) =>
+                    setCapacityRules((p) =>
+                      p.map((x, i) => (i === idx ? { ...x, capacity: e.target.value } : x))
+                    )
+                  }
+                  placeholder="200"
+                  className={formInputClass(false, "bg-white")}
+                />
+              </FormField>
+              <label className="flex h-10 items-center gap-2">
+                <Checkbox
+                  checked={r.openEnded}
+                  onCheckedChange={(checked) => {
+                    const isChecked = Boolean(checked);
+                    setCapacityRules((p) =>
+                      p.map((x, i) =>
+                        i === idx
+                          ? { ...x, openEnded: isChecked, max_age_days: isChecked ? "" : x.max_age_days }
+                          : x
+                      )
+                    );
+                  }}
+                />
+                <span className="select-none text-sm text-slate-600">∞</span>
+              </label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-xl"
+                onClick={() => setCapacityRules((p) => p.filter((_, i) => i !== idx))}
+                disabled={capacityRules.length === 1}
+              >
+                <Trash2 className="h-4 w-4 text-slate-500" />
+              </Button>
+            </div>
+          ))}
+
+          {isEdit && !rulesLoaded && (
+            <p className="text-xs text-muted-foreground">Loading rules…</p>
+          )}
+        </div>
+      </FormSection>
+    </FormModal>
   );
 };
 

@@ -20,14 +20,7 @@ import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRange
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useRecordsDateRange } from "@/hooks/useRecordsDateRange"
@@ -417,33 +410,26 @@ const DailyRecord = ({
       )}
 
       {onDelete && (
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Delete Daily Record</DialogTitle>
-              <DialogDescription>
-                {recordToDelete
-                  ? `Are you sure you want to delete the daily record for ${formatDate(recordToDelete.date)}? This action cannot be undone.`
-                  : "Are you sure you want to delete this daily record? This action cannot be undone."}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsDeleteDialogOpen(false)
-                  setRecordToDelete(null)
-                }}
-                disabled={isDeleting}
-              >
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={() => void confirmDelete()} disabled={isDeleting}>
-                {isDeleting ? "Deleting..." : "Delete"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ConfirmModal
+          open={isDeleteDialogOpen}
+          onOpenChange={(open) => {
+            setIsDeleteDialogOpen(open)
+            if (!open) setRecordToDelete(null)
+          }}
+          title="Delete Daily Record"
+          description={
+            recordToDelete
+              ? `Are you sure you want to delete the daily record for ${formatDate(recordToDelete.date)}? This action cannot be undone.`
+              : "Are you sure you want to delete this daily record? This action cannot be undone."
+          }
+          icon={Trash2}
+          tone="danger"
+          confirmLabel="Delete"
+          busyLabel="Deleting..."
+          busy={isDeleting}
+          confirmIcon={Trash2}
+          onConfirm={() => void confirmDelete()}
+        />
       )}
     </div>
   )
