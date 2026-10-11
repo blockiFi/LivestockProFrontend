@@ -167,7 +167,8 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
     setForm((prev) => ({ ...prev, [key]: value }))
     setErrors((prev) => {
       if (!(key in prev)) return prev
-      const { [key]: _removed, ...rest } = prev
+      const rest = { ...prev }
+      delete rest[key]
       return rest
     })
   }
@@ -190,7 +191,8 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
     const product = products.find((p) => p.id === id)
     setForm((prev) => ({ ...prev, medication_product_id: id, manufacturer: product?.manufacturer ?? "" }))
     setErrors((prev) => {
-      const { medication_product_id: _removed, ...rest } = prev
+      const rest = { ...prev }
+      delete rest.medication_product_id
       return rest
     })
   }
@@ -312,7 +314,7 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
         {selectedType && products.length === 0 ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-800">
             No products are registered under {selectedType.name}.{" "}
-            <Link to="/health/medication-products" className="font-semibold underline" onClick={onClose}>
+            <Link to="/dashboard/poultry/health/medication-products" className="font-semibold underline" onClick={onClose}>
               Add a product
             </Link>{" "}
             first, then come back to add stock.

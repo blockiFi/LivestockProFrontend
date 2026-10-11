@@ -550,7 +550,6 @@ export default function VaccinationInventoryPage() {
       <AddVaccineInventoryModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
-        existingItems={items}
         onCreated={(item) => setItems((prev) => [item, ...prev])}
       />
     </div>
