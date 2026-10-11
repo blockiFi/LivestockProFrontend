@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Calculator, CalendarDays, Package, ShoppingCart, StickyNote, UserRound, Wallet } from "lucide-react";
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  FormSummary,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -67,9 +74,10 @@ const defaultFormData = (flockId?: number | null) => ({
     customer_name: "",
     customer_phone: "",
   } as CustomerSelection,
-  payment_method: "",
+  payment_method: "cash",
   payment_status: "paid" as ProductSaleFormPayload["payment_status"],
   payment_mode: "cash" as PaymentMode,
+  amount_paid: "",
   account_amount: "",
   other_amount: "",
   other_payment_method: "cash" as NonNullable<ProductSaleFormPayload["other_payment_method"]>,
@@ -111,6 +119,11 @@ const AddProductSaleModal = ({
   const accountBalance = Number(account?.balance ?? 0);
   const accountAmount = Number(formData.account_amount) || 0;
   const otherAmount = Number(formData.other_amount) || 0;
+  const amountPaidInput = Number(formData.amount_paid) || 0;
+  const balanceDue =
+    formData.payment_mode === "partial" && totalAmount > 0
+      ? Math.max(0, totalAmount - amountPaidInput)
+      : 0;
   const usesAccount =
     formData.payment_mode === "customer_account" || formData.payment_mode === "account_and_other";
   const requiredFromAccount =
@@ -190,9 +203,18 @@ const AddProductSaleModal = ({
           customer_name: editing.customer_name || editing.customer?.name || "",
           customer_phone: editing.customer_phone || "",
         },
-        payment_method: editing.payment_method || "",
+        payment_method: editing.payment_method || "cash",
         payment_status: (editing.payment_status as ProductSaleFormPayload["payment_status"]) || "paid",
-        payment_mode: "cash",
+        payment_mode:
+          editing.payment_status === "partial"
+            ? "partial"
+            : editing.payment_status === "pending"
+              ? "pending"
+              : ((editing.payment_method as PaymentMode) || "cash"),
+        amount_paid:
+          editing.payment_status === "partial"
+            ? String(editing.amount_paid ?? "")
+            : "",
         notes: editing.notes || "",
       });
     } else {
@@ -271,6 +293,16 @@ const AddProductSaleModal = ({
         next.other_payment_method = "Select method for remaining amount";
       }
     }
+    if (formData.payment_mode === "partial") {
+      if (!formData.amount_paid || amountPaidInput <= 0) {
+        next.amount_paid = "Enter the amount paid";
+      } else if (amountPaidInput >= totalAmount && totalAmount > 0) {
+        next.amount_paid = "Partial payment must be less than the total — use a full payment method instead";
+      }
+      if (!formData.payment_method) {
+        next.payment_method = "Select how the partial amount was paid";
+      }
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -294,6 +326,10 @@ const AddProductSaleModal = ({
 
       if (formData.payment_mode === "pending") {
         payload.payment_status = "pending";
+      } else if (formData.payment_mode === "partial") {
+        payload.payment_status = "partial";
+        payload.amount_paid = amountPaidInput;
+        payload.payment_method = formData.payment_method || "cash";
       } else if (formData.payment_mode === "customer_account") {
         payload.payment_method = "customer_account";
         payload.payment_status = "paid";
@@ -314,37 +350,31 @@ const AddProductSaleModal = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
-        onPointerDownOutside={(e) => {
-          const target = e.target as HTMLElement | null;
-          if (
-            target?.closest(
-              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
-            )
-          ) {
-            e.preventDefault();
-          }
-        }}
-        onInteractOutside={(e) => {
-          const target = e.target as HTMLElement | null;
-          if (
-            target?.closest(
-              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
-            )
-          ) {
-            e.preventDefault();
-          }
-        }}
-      >
-        <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-4 pr-12">
-          <DialogTitle>{editing ? "Edit product sale" : "Record product sale"}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-          <div className="space-y-1.5">
-            <Label>Product type</Label>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      title={editing ? "Edit product sale" : "Record product sale"}
+      description="Log an egg, meat or manure sale with the customer and payment details."
+      icon={ShoppingCart}
+      tone="sales"
+      size="lg"
+      busy={isSubmitting}
+      dismissible={false}
+      footer={
+        <ModalFooterActions
+          onCancel={onClose}
+          submitType="button"
+          onConfirm={() => void handleSubmit()}
+          submitLabel={editing ? "Update sale" : "Record sale"}
+          busyLabel="Saving..."
+          busy={isSubmitting}
+          disabled={accountBlocked}
+        />
+      }
+    >
+      <FormSection step={1} icon={Package} title="Product" description="What was sold, from which flock and when.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Product type" required error={errors.type}>
             <Select
               value={formData.type}
               onValueChange={(value) =>
@@ -356,7 +386,7 @@ const AddProductSaleModal = ({
                 }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className={formInputClass(!!errors.type)}>
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
@@ -365,18 +395,42 @@ const AddProductSaleModal = ({
                 <SelectItem value="manure">Manure</SelectItem>
               </SelectContent>
             </Select>
-            {errors.type && <p className="text-xs text-rose-600">{errors.type}</p>}
-          </div>
+          </FormField>
+
+          <FormField
+            label="Sale date"
+            required
+            htmlFor="date"
+            error={errors.date}
+            hint={isEgg ? "Available stock is calculated from eggs collected on or before this date." : undefined}
+          >
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+                className={formInputClass(!!errors.date, "pl-9")}
+              />
+            </div>
+          </FormField>
 
           {requiresFlock && (
-            <div className="space-y-1.5">
-              <Label htmlFor="flock_id">Flock {lockFlock ? "(fixed)" : ""}</Label>
+            <FormField
+              label={`Flock ${lockFlock ? "(fixed)" : ""}`}
+              required
+              htmlFor="flock_id"
+              error={errors.flock_id}
+              className="sm:col-span-2"
+            >
               {lockFlock ? (
                 <Input
                   id="flock_id"
                   value={selectedFlockLabel || (formData.flock_id ? `Flock #${formData.flock_id}` : "")}
                   disabled
                   readOnly
+                  className={formInputClass(!!errors.flock_id)}
                 />
               ) : (
                 <Select
@@ -384,7 +438,7 @@ const AddProductSaleModal = ({
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, flock_id: value }))}
                   disabled={flocksLoading}
                 >
-                  <SelectTrigger id="flock_id">
+                  <SelectTrigger id="flock_id" className={formInputClass(!!errors.flock_id)}>
                     <SelectValue
                       placeholder={
                         flocksLoading
@@ -411,111 +465,110 @@ const AddProductSaleModal = ({
                 </Select>
               )}
               {flocksError && !lockFlock && (
-                <p className="text-xs text-amber-700">{flocksError}</p>
+                <p className="text-[11px] text-amber-700">{flocksError}</p>
               )}
-              {errors.flock_id && <p className="text-xs text-rose-600">{errors.flock_id}</p>}
-            </div>
+            </FormField>
           )}
+        </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="date">Sale date</Label>
-            <Input
-              id="date"
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
-            />
-            {errors.date && <p className="text-xs text-rose-600">{errors.date}</p>}
-            {isEgg && (
-              <p className="text-xs text-slate-500">
-                Available stock is calculated from eggs collected on or before this date.
-              </p>
+        {isEgg && formData.flock_id ? (
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            {eggStockLoading ? (
+              <span>Checking available egg stock…</span>
+            ) : eggStock ? (
+              <>
+                <span className="font-semibold">{formatEggsWithCrates(eggStock.available)}</span>{" "}
+                available as of {eggStock.as_of}
+                <span className="mt-0.5 block text-xs text-emerald-800/80">
+                  Sold {formatEggsWithCrates(eggStock.sold)} · Broken {formatEggsWithCrates(eggStock.broken)} ·
+                  Collected {formatEggsWithCrates(eggStock.produced)}
+                </span>
+                <span className="mt-0.5 block text-[11px] text-emerald-800/60">
+                  1 crate = {EGGS_PER_CRATE} eggs
+                </span>
+              </>
+            ) : (
+              <span className="text-amber-800">Could not load egg stock for this flock/date.</span>
             )}
           </div>
+        ) : null}
+      </FormSection>
 
-          {isEgg && formData.flock_id ? (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              {eggStockLoading ? (
-                <span>Checking available egg stock…</span>
-              ) : eggStock ? (
-                <>
-                  <span className="font-semibold">{formatEggsWithCrates(eggStock.available)}</span>{" "}
-                  available as of {eggStock.as_of}
-                  <span className="mt-0.5 block text-xs text-emerald-800/80">
-                    Sold {formatEggsWithCrates(eggStock.sold)} · Broken {formatEggsWithCrates(eggStock.broken)} ·
-                    Collected {formatEggsWithCrates(eggStock.produced)}
-                  </span>
-                  <span className="mt-0.5 block text-[11px] text-emerald-800/60">
-                    1 crate = {EGGS_PER_CRATE} eggs
-                  </span>
-                </>
-              ) : (
-                <span className="text-amber-800">Could not load egg stock for this flock/date.</span>
-              )}
-            </div>
-          ) : null}
+      <FormSection step={2} icon={Calculator} title="Quantity & price" description="How much was sold and at what price.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField
+            label={isEgg ? "Quantity (crates)" : "Quantity"}
+            required
+            htmlFor="quantity"
+            error={errors.quantity}
+            hint={isEgg && quantityInput > 0 ? `= ${formatEggsWithCrates(quantityEggs)}` : undefined}
+          >
+            <Input
+              id="quantity"
+              type="number"
+              min={0}
+              step={isEgg ? "1" : "0.01"}
+              value={formData.quantity}
+              onChange={(e) => setFormData((prev) => ({ ...prev, quantity: e.target.value }))}
+              placeholder={isEgg ? "e.g. 10" : undefined}
+              className={formInputClass(!!errors.quantity)}
+            />
+          </FormField>
+          <FormField
+            label={isEgg ? "Price per crate" : "Unit price"}
+            required
+            htmlFor="unit_price"
+            error={errors.unit_price}
+          >
+            <Input
+              id="unit_price"
+              type="number"
+              min={0}
+              step="0.01"
+              value={formData.unit_price}
+              onChange={(e) => setFormData((prev) => ({ ...prev, unit_price: e.target.value }))}
+              placeholder={isEgg ? "Price for 30 eggs" : undefined}
+              className={formInputClass(!!errors.unit_price)}
+            />
+          </FormField>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="quantity">{isEgg ? "Quantity (crates)" : "Quantity"}</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min={0}
-                step={isEgg ? "1" : "0.01"}
-                value={formData.quantity}
-                onChange={(e) => setFormData((prev) => ({ ...prev, quantity: e.target.value }))}
-                placeholder={isEgg ? "e.g. 10" : undefined}
-              />
-              {isEgg && quantityInput > 0 ? (
-                <p className="text-xs text-slate-500">
-                  = {formatEggsWithCrates(quantityEggs)}
-                </p>
-              ) : null}
-              {errors.quantity && <p className="text-xs text-rose-600">{errors.quantity}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="unit_price">{isEgg ? "Price per crate" : "Unit price"}</Label>
-              <Input
-                id="unit_price"
-                type="number"
-                min={0}
-                step="0.01"
-                value={formData.unit_price}
-                onChange={(e) => setFormData((prev) => ({ ...prev, unit_price: e.target.value }))}
-                placeholder={isEgg ? "Price for 30 eggs" : undefined}
-              />
-              {errors.unit_price && <p className="text-xs text-rose-600">{errors.unit_price}</p>}
-            </div>
-          </div>
-
-          <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            Total:{" "}
-            <span className="font-semibold">
-              {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </span>
+          <div className="space-y-1 sm:col-span-2">
+            <FormSummary
+              label="Total"
+              value={totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            />
             {isEgg && quantityInput > 0 ? (
-              <span className="mt-0.5 block text-xs text-slate-500">
+              <p className="px-1 text-[11px] text-slate-500">
                 {quantityInput.toLocaleString()} crate{quantityInput === 1 ? "" : "s"} ×{" "}
                 {priceInput.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
+              </p>
             ) : null}
           </div>
+        </div>
+      </FormSection>
 
-          <CustomerPicker
-            value={formData.customer}
-            onChange={(customer) => setFormData((prev) => ({ ...prev, customer }))}
-          />
-          {errors.customer ? <p className="text-xs text-rose-600">{errors.customer}</p> : null}
+      <FormSection step={3} icon={UserRound} title="Customer" description="Link a saved customer or enter a walk-in buyer.">
+        <CustomerPicker
+          value={formData.customer}
+          onChange={(customer) => setFormData((prev) => ({ ...prev, customer }))}
+        />
+        {errors.customer ? <p className="mt-1.5 text-[11px] text-rose-600">{errors.customer}</p> : null}
+      </FormSection>
 
-          <div className="space-y-2">
-            <Label>Payment method</Label>
+      <FormSection step={4} icon={Wallet} title="Payment" description="How the customer paid for this sale.">
+        <div className="space-y-4">
+          <FormField label="Payment method" error={errors.payment_mode}>
             <Select
               value={formData.payment_mode}
               onValueChange={(value) =>
                 setFormData((prev) => ({
                   ...prev,
                   payment_mode: value as PaymentMode,
+                  payment_method:
+                    value === "partial"
+                      ? prev.payment_method || "cash"
+                      : prev.payment_method,
+                  amount_paid: value === "partial" ? prev.amount_paid : "",
                   account_amount:
                     value === "account_and_other" && totalAmount > 0
                       ? String(Math.min(accountBalance, totalAmount))
@@ -527,7 +580,7 @@ const AddProductSaleModal = ({
                 }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className={formInputClass(!!errors.payment_mode)}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -535,16 +588,54 @@ const AddProductSaleModal = ({
                 <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                 <SelectItem value="pos">POS</SelectItem>
                 <SelectItem value="other">Other</SelectItem>
+                <SelectItem value="partial">Partial payment</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="customer_account">Customer Account</SelectItem>
                 <SelectItem value="account_and_other">Account + Other Payment</SelectItem>
               </SelectContent>
             </Select>
-            {errors.payment_mode ? <p className="text-xs text-rose-600">{errors.payment_mode}</p> : null}
-          </div>
+          </FormField>
+
+          {formData.payment_mode === "partial" ? (
+            <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormField label="Amount paid" required htmlFor="amount_paid" error={errors.amount_paid}>
+                  <Input
+                    id="amount_paid"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={formData.amount_paid}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, amount_paid: e.target.value }))}
+                    placeholder="0.00"
+                    className={formInputClass(!!errors.amount_paid, "bg-white")}
+                  />
+                </FormField>
+                <FormField label="Paid via" required error={errors.payment_method}>
+                  <Select
+                    value={formData.payment_method || "cash"}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, payment_method: value }))
+                    }
+                  >
+                    <SelectTrigger className={formInputClass(!!errors.payment_method, "bg-white")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="pos">POS</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              </div>
+              <FormSummary label="Balance due" value={formatCurrency(balanceDue)} className="bg-white" />
+            </div>
+          ) : null}
 
           {usesAccount ? (
-            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
               <div className="flex justify-between">
                 <span>Customer Account Balance</span>
                 <span className="font-semibold">{formatCurrency(accountBalance)}</span>
@@ -560,7 +651,7 @@ const AddProductSaleModal = ({
                 </div>
               ) : null}
               {deficit > 0 && formData.payment_mode === "customer_account" ? (
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-amber-900">
                   <p className="font-semibold">Insufficient Balance</p>
                   <p>Available: {formatCurrency(accountBalance)}</p>
                   <p>Required: {formatCurrency(totalAmount)}</p>
@@ -571,30 +662,28 @@ const AddProductSaleModal = ({
           ) : null}
 
           {formData.payment_mode === "account_and_other" ? (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Account amount</Label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label="Account amount" error={errors.account_amount}>
                 <Input
                   type="number"
                   min={0}
                   step="0.01"
                   value={formData.account_amount}
                   onChange={(e) => setFormData((prev) => ({ ...prev, account_amount: e.target.value }))}
+                  className={formInputClass(!!errors.account_amount)}
                 />
-                {errors.account_amount ? <p className="text-xs text-rose-600">{errors.account_amount}</p> : null}
-              </div>
-              <div className="space-y-1.5">
-                <Label>Other amount</Label>
+              </FormField>
+              <FormField label="Other amount">
                 <Input
                   type="number"
                   min={0}
                   step="0.01"
                   value={formData.other_amount}
                   onChange={(e) => setFormData((prev) => ({ ...prev, other_amount: e.target.value }))}
+                  className={formInputClass()}
                 />
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label>Other payment method</Label>
+              </FormField>
+              <FormField label="Other payment method" error={errors.other_payment_method} className="sm:col-span-2">
                 <Select
                   value={formData.other_payment_method}
                   onValueChange={(value) =>
@@ -604,7 +693,7 @@ const AddProductSaleModal = ({
                     }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={formInputClass(!!errors.other_payment_method)}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -614,38 +703,24 @@ const AddProductSaleModal = ({
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
-                {errors.other_payment_method ? (
-                  <p className="text-xs text-rose-600">{errors.other_payment_method}</p>
-                ) : null}
-              </div>
+              </FormField>
             </div>
           ) : null}
-
-          <div className="space-y-1.5">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-              rows={2}
-            />
-          </div>
         </div>
+      </FormSection>
 
-        <DialogFooter className="shrink-0 border-t border-slate-200 bg-slate-50/60 px-6 py-4">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void handleSubmit()}
-            disabled={isSubmitting || accountBlocked}
-          >
-            {isSubmitting ? "Saving..." : editing ? "Update sale" : "Record sale"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <FormSection step={5} icon={StickyNote} title="Notes" description="Anything else worth remembering about this sale.">
+        <FormField label="Notes" htmlFor="notes">
+          <Textarea
+            id="notes"
+            value={formData.notes}
+            onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+            rows={2}
+            className={formTextareaClass()}
+          />
+        </FormField>
+      </FormSection>
+    </FormModal>
   );
 };
 

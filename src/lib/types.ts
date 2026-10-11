@@ -1241,6 +1241,7 @@ export type SalesRecord = {
   customer_phone: string | null;
   payment_method: string | null;
   payment_status: 'pending' | 'paid' | 'partial' | string;
+  amount_paid?: number | null;
   notes: string | null;
   created_by?: number | null;
   created_at?: string;
