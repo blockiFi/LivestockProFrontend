@@ -1,18 +1,10 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Check } from "lucide-react"
+import { Check, KeyRound, Loader2, ShieldPlus, Tag } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { FormField, FormModal, FormSection, formInputClass, modalTone } from "@/components/ui/form-modal"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import type { PermissionGroup } from "@/lib/types"
 import { GetToken, createRole } from "@/lib/request"
 import { toast } from 'react-toastify'
@@ -20,6 +12,7 @@ import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
+import { cn } from "@/lib/utils"
 
 
 interface CreateRoleModalProps {
@@ -96,80 +89,95 @@ export function CreateRoleModal({ open, onOpenChange, GroupPermissions, onSucces
     }
   }
 
+  const totalPermissions = groupedPermissions.flatMap((g) => g.permissions ?? []).length
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create New Role</DialogTitle>
-          <DialogDescription>
-            Create a new role and assign permissions. Currently {selectedPermissions.length} of{" "}
-            {groupedPermissions.flatMap((g) => g.permissions ?? []).length} permissions selected.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-6 py-4">
-          {/* Role Name Input */}
-          <div className="space-y-2">
-            <Label htmlFor="role-name">Role Name</Label>
-            <Input
-              id="role-name"
-              placeholder="Enter role name (e.g., Manager, Worker)"
-              value={roleName}
-              onChange={(e) => setRoleName(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          {/* Permissions Selection */}
-          <div className="space-y-4">
-            <Label>Select Permissions</Label>
-            <div className="space-y-6">
-              {groupedPermissions.map((group) => (
-                <div key={group.id} className="space-y-3">
-                  <h3 className="font-semibold text-foreground text-sm uppercase tracking-wide">
-                    {(group as any).module ?? group.name}
-                  </h3>
-                  <div className="space-y-2 pl-4 border-l-2 border-blue-200">
-                    {(group.permissions ?? []).map((permission) => (
-                      <label
-                        key={permission.id}
-                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted cursor-pointer transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedPermissions.includes(permission.id)}
-                          onChange={() => togglePermission(permission.id)}
-                          disabled={loading}
-                          className="mt-1 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <div className="flex-1">
-                          <p className="font-medium text-sm text-foreground">{permission.name}</p>
-                        </div>
-                        {selectedPermissions.includes(permission.id) && (
-                          <Check className="w-4 h-4 text-green-600 mt-1 flex-shrink-0" />
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create New Role"
+      description={
+        <>
+          Create a new role and assign permissions. Currently {selectedPermissions.length} of {totalPermissions}{" "}
+          permissions selected.
+        </>
+      }
+      icon={ShieldPlus}
+      tone="settings"
+      size="xl"
+      busy={loading}
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading} className="rounded-xl">
             Cancel
           </Button>
           <ActionGate anyOf={ACTIONS.roles.create}>
-            <Button onClick={handleCreate} disabled={loading || !roleName.trim() || selectedPermissions.length === 0} className="gap-2">
+            <Button
+              onClick={handleCreate}
+              disabled={loading || !roleName.trim() || selectedPermissions.length === 0}
+              className={cn("gap-2 rounded-xl text-white", modalTone("settings").button)}
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               {loading ? "Creating..." : "Create Role"}
             </Button>
           </ActionGate>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <FormSection step={1} icon={Tag} title="Role details" description="Give the role a clear, recognisable name.">
+        <FormField label="Role Name" htmlFor="role-name" required>
+          <Input
+            id="role-name"
+            placeholder="Enter role name (e.g., Manager, Worker)"
+            value={roleName}
+            onChange={(e) => setRoleName(e.target.value)}
+            disabled={loading}
+            className={formInputClass()}
+          />
+        </FormField>
+      </FormSection>
+
+      <FormSection
+        step={2}
+        icon={KeyRound}
+        title="Select Permissions"
+        description="Choose what members with this role can do."
+        action={
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+            {selectedPermissions.length}/{totalPermissions}
+          </span>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {groupedPermissions.map((group) => (
+            <div key={group.id} className="rounded-xl border border-slate-200 bg-white p-3">
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-700">
+                {(group as any).module ?? group.name}
+              </h4>
+              <div className="space-y-1">
+                {(group.permissions ?? []).map((permission) => (
+                  <label
+                    key={permission.id}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg p-2 transition-colors hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedPermissions.includes(permission.id)}
+                      onChange={() => togglePermission(permission.id)}
+                      disabled={loading}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-800 focus:ring-slate-500"
+                    />
+                    <p className="flex-1 text-sm font-medium text-slate-800">{permission.name}</p>
+                    {selectedPermissions.includes(permission.id) && (
+                      <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </FormSection>
+    </FormModal>
   )
 }
-
-

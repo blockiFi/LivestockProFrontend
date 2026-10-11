@@ -2,14 +2,8 @@ import { Link } from "react-router-dom"
 import { Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormModal, modalTone } from "@/components/ui/form-modal"
+import { cn } from "@/lib/utils"
 
 const COPY: Record<string, { title: string; body: string }> = {
   plan_user_limit_reached: {
@@ -42,30 +36,33 @@ export function UpgradeModal({ open, onOpenChange, code, message }: UpgradeModal
     title: "Upgrade this farm",
     body: message || "This action is not included in the current plan.",
   }
+  const showMessage = !!message && !!COPY[code ?? ""]
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-emerald-600" />
-            {copy.title}
-          </DialogTitle>
-          <DialogDescription>{copy.body}</DialogDescription>
-        </DialogHeader>
-        {message && COPY[code ?? ""] && (
-          <p className="text-sm text-muted-foreground">{message}</p>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={copy.title}
+      description={copy.body}
+      icon={Sparkles}
+      tone="settings"
+      size="sm"
+      bodyClassName={showMessage ? undefined : "hidden"}
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">
             Not now
           </Button>
-          <Button asChild>
+          <Button asChild className={cn("rounded-xl text-white", modalTone("settings").button)}>
             <Link to="/dashboard/settings/billing">View plans</Link>
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      {showMessage && (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{message}</p>
+      )}
+    </FormModal>
   )
 }
 

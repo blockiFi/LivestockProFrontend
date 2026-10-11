@@ -8,22 +8,24 @@ import { LoadFarmPermissions } from "@/lib/loader";
 import { setActiveFarm, setUser } from "@/store/AuthenticationSlice";
 import { useNavigate } from "react-router-dom";
 import {
+  Building2,
   Calendar,
   ChevronRight,
   Fish,
   Layers,
   Loader2,
   MapPin,
+  Phone,
   PiggyBank,
   Plus,
   Search,
+  Tag,
   Users,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { FormField, FormModal, FormSection, ModalFooterActions, formInputClass } from "@/components/ui/form-modal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import TopBar from "@/components/navigation/TopBar";
@@ -280,63 +282,100 @@ function FarmSelection() {
               Quickly register a new farm and start tracking flocks, inventory, and health programs with
               Farm Central’s guided setup.
             </p>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full gap-2 rounded-xl bg-emerald-500 text-sm font-semibold text-white shadow-md hover:bg-emerald-600">
-                  <Plus className="h-4 w-4" />
-                  New farm
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Create new farm</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="farm-name">Farm name</Label>
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="w-full gap-2 rounded-xl bg-emerald-500 text-sm font-semibold text-white shadow-md hover:bg-emerald-600"
+            >
+              <Plus className="h-4 w-4" />
+              New farm
+            </Button>
+            <FormModal
+              open={isCreateDialogOpen}
+              onOpenChange={setIsCreateDialogOpen}
+              title="Create new farm"
+              description="Register a farm to start tracking flocks, inventory, and health programs."
+              icon={Building2}
+              tone="settings"
+              size="lg"
+              busy={isCreatingFarm}
+              footer={
+                <ModalFooterActions
+                  onCancel={() => setIsCreateDialogOpen(false)}
+                  submitType="button"
+                  onConfirm={handleCreateFarm}
+                  submitLabel="Create farm"
+                  busyLabel="Creating..."
+                  busy={isCreatingFarm}
+                />
+              }
+            >
+              <FormSection step={1} icon={Tag} title="Farm details" description="Name and size of the farm.">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField label="Farm name" htmlFor="farm-name" required className="sm:col-span-2">
                     <Input
                       id="farm-name"
                       placeholder="Enter farm name"
                       value={createForm.name}
                       onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+                      className={formInputClass()}
                     />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="farm-address">Address</Label>
+                  </FormField>
+                  <FormField label="Farm size (hectares)" htmlFor="farm-size">
+                    <Input
+                      id="farm-size"
+                      placeholder="e.g., 25"
+                      value={createForm.size_hectares}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, size_hectares: e.target.value }))}
+                      className={formInputClass()}
+                    />
+                  </FormField>
+                  <FormField label="Established date" htmlFor="farm-established">
+                    <Input
+                      id="farm-established"
+                      type="date"
+                      value={createForm.established_date}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, established_date: e.target.value }))}
+                      className={formInputClass()}
+                    />
+                  </FormField>
+                </div>
+              </FormSection>
+
+              <FormSection step={2} icon={MapPin} title="Location" description="Where the farm is based.">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField label="Address" htmlFor="farm-address" required className="sm:col-span-2">
                     <Input
                       id="farm-address"
                       placeholder="Street / area"
                       value={createForm.address}
                       onChange={(e) => setCreateForm((p) => ({ ...p, address: e.target.value }))}
+                      className={formInputClass()}
                     />
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="farm-city">City</Label>
-                      <Input
-                        id="farm-city"
-                        placeholder="City"
-                        value={createForm.city}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, city: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="farm-state">State</Label>
-                      <Input
-                        id="farm-state"
-                        placeholder="State"
-                        value={createForm.state}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, state: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="farm-country">Country</Label>
+                  </FormField>
+                  <FormField label="City" htmlFor="farm-city" required>
+                    <Input
+                      id="farm-city"
+                      placeholder="City"
+                      value={createForm.city}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, city: e.target.value }))}
+                      className={formInputClass()}
+                    />
+                  </FormField>
+                  <FormField label="State" htmlFor="farm-state" required>
+                    <Input
+                      id="farm-state"
+                      placeholder="State"
+                      value={createForm.state}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, state: e.target.value }))}
+                      className={formInputClass()}
+                    />
+                  </FormField>
+                  <FormField label="Country" htmlFor="farm-country" required>
                     <Select
                       value={createForm.country_id}
                       onValueChange={(v) => setCreateForm((p) => ({ ...p, country_id: v }))}
                     >
-                      <SelectTrigger id="farm-country">
+                      <SelectTrigger id="farm-country" className={formInputClass()}>
                         <SelectValue placeholder="Select country" />
                       </SelectTrigger>
                       <SelectContent>
@@ -347,95 +386,61 @@ function FarmSelection() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="farm-size">Farm size (hectares)</Label>
-                      <Input
-                        id="farm-size"
-                        placeholder="e.g., 25"
-                        value={createForm.size_hectares}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, size_hectares: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="farm-established">Established date</Label>
-                      <Input
-                        id="farm-established"
-                        type="date"
-                        value={createForm.established_date}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, established_date: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="farm-phone">Phone (optional)</Label>
-                      <Input
-                        id="farm-phone"
-                        placeholder="+234..."
-                        value={createForm.phone}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="farm-email">Email (optional)</Label>
-                      <Input
-                        id="farm-email"
-                        type="email"
-                        placeholder="farm@email.com"
-                        value={createForm.email}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="farm-postal">Postal code (optional)</Label>
-                      <Input
-                        id="farm-postal"
-                        placeholder="Postal code"
-                        value={createForm.postal_code}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, postal_code: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="farm-website">Website (optional)</Label>
-                      <Input
-                        id="farm-website"
-                        placeholder="https://"
-                        value={createForm.website}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, website: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="farm-reg">Registration number (optional)</Label>
+                  </FormField>
+                  <FormField label="Postal code" htmlFor="farm-postal" hint="Optional">
+                    <Input
+                      id="farm-postal"
+                      placeholder="Postal code"
+                      value={createForm.postal_code}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, postal_code: e.target.value }))}
+                      className={formInputClass()}
+                    />
+                  </FormField>
+                </div>
+              </FormSection>
+
+              <FormSection step={3} icon={Phone} title="Contact & registration" description="Optional details for invoices and records.">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField label="Phone" htmlFor="farm-phone" hint="Optional">
+                    <Input
+                      id="farm-phone"
+                      placeholder="+234..."
+                      value={createForm.phone}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
+                      className={formInputClass()}
+                    />
+                  </FormField>
+                  <FormField label="Email" htmlFor="farm-email" hint="Optional">
+                    <Input
+                      id="farm-email"
+                      type="email"
+                      placeholder="farm@email.com"
+                      value={createForm.email}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
+                      className={formInputClass()}
+                    />
+                  </FormField>
+                  <FormField label="Website" htmlFor="farm-website" hint="Optional">
+                    <Input
+                      id="farm-website"
+                      placeholder="https://"
+                      value={createForm.website}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, website: e.target.value }))}
+                      className={formInputClass()}
+                    />
+                  </FormField>
+                  <FormField label="Registration number" htmlFor="farm-reg" hint="Optional">
                     <Input
                       id="farm-reg"
                       placeholder="Optional registration number"
                       value={createForm.registration_number}
                       onChange={(e) => setCreateForm((p) => ({ ...p, registration_number: e.target.value }))}
+                      className={formInputClass()}
                     />
-                  </div>
-                  <div className="flex gap-2 pt-4">
-                    <Button
-                      className="flex-1 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600"
-                      onClick={handleCreateFarm}
-                      disabled={isCreatingFarm}
-                    >
-                      {isCreatingFarm ? "Creating..." : "Create farm"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsCreateDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
+                  </FormField>
                 </div>
-              </DialogContent>
-            </Dialog>
+              </FormSection>
+            </FormModal>
           </div>
         </div>
 

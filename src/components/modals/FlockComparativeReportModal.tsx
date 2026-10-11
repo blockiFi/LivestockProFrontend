@@ -4,13 +4,7 @@ import type { RootState } from "@/store"
 import type { DetailedFlockRecord, FlockComparativeReport } from "@/lib/types"
 import { getFlockComparativeMetrics, refreshFlockComparativeMetrics } from "@/lib/request"
 import { useSubscription } from "@/hooks/useSubscription"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormModal } from "@/components/ui/form-modal"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -205,54 +199,59 @@ export default function FlockComparativeReportModal({
   const allRows = report ? [report.target_flock, ...report.peers] : []
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        showCloseButton
-        className="flex max-h-[92vh] w-[min(100vw-1.5rem,80rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none"
-      >
-        <div className="border-b border-slate-200 bg-white px-6 py-4 pr-14">
-          <DialogHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between sm:text-left">
-            <div className="space-y-2">
-              <DialogTitle className="text-xl">Detailed Batch Comparison</DialogTitle>
-              <DialogDescription>
-                {flock.name} (Batch {flock.batch_number}) compared to completed {report?.poultry_type ?? "same-type"} batches
-              </DialogDescription>
-              {report && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{report.peer_count} peer batches</Badge>
-                  {report.cached && <Badge variant="secondary">Cached</Badge>}
-                  {report.generated_at && (
-                    <span className="text-xs text-slate-500">
-                      Generated {new Date(report.generated_at).toLocaleString()}
-                    </span>
-                  )}
-                </div>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Detailed Batch Comparison"
+      description={
+        <>
+          {flock.name} (Batch {flock.batch_number}) compared to completed {report?.poultry_type ?? "same-type"} batches
+        </>
+      }
+      icon={BarChart3}
+      tone="report"
+      size="full"
+      bodyClassName="space-y-6"
+      footer={
+        <>
+          <div className="mr-auto flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadReport(true)}
+              disabled={loading || refreshing}
+              className="rounded-xl"
+            >
+              {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={handlePrint} disabled={!report} className="rounded-xl">
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={!report} className="rounded-xl">
+              <FileDown className="h-4 w-4 mr-2" />
+              Export PDF
+            </Button>
+          </div>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">
+            Close
+          </Button>
+        </>
+      }
+    >
+          {report && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="bg-white">{report.peer_count} peer batches</Badge>
+              {report.cached && <Badge variant="secondary">Cached</Badge>}
+              {report.generated_at && (
+                <span className="text-xs text-slate-500">
+                  Generated {new Date(report.generated_at).toLocaleString()}
+                </span>
               )}
             </div>
-            <div className="flex flex-wrap gap-2 sm:justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void loadReport(true)}
-                disabled={loading || refreshing}
-                className="bg-white"
-              >
-                {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Refresh
-              </Button>
-              <Button variant="outline" size="sm" onClick={handlePrint} disabled={!report} className="bg-white">
-                <Printer className="h-4 w-4 mr-2" />
-                Print
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={!report} className="bg-white">
-                <FileDown className="h-4 w-4 mr-2" />
-                Export PDF
-              </Button>
-            </div>
-          </DialogHeader>
-        </div>
+          )}
 
-        <div className="overflow-y-auto px-6 py-5 space-y-6">
           {loading && (
             <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -445,8 +444,6 @@ export default function FlockComparativeReportModal({
               )}
             </>
           )}
-        </div>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   )
 }

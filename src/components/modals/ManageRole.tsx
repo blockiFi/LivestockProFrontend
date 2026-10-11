@@ -1,17 +1,10 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Check, Search } from "lucide-react"
+import { Check, KeyRound, Loader2, Search, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { FormModal, FormSection, formInputClass, modalTone } from "@/components/ui/form-modal"
 import type { PermissionGroup, Role } from "@/lib/types"
 import { GetToken, updateRolePermissions, removePermissionFromRole } from "@/lib/request"
 import { toast } from 'react-toastify'
@@ -20,6 +13,7 @@ import type { RootState } from "@/store"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
 import { usePermissions } from "@/hooks/usePermissions"
+import { cn } from "@/lib/utils"
 
 
 interface ManageRolePermissionsModalProps {
@@ -149,55 +143,89 @@ export function ManageRolePermissionsModal({ role, open, onOpenChange, GroupPerm
 
   if (!role) return null
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Manage Permissions - {role.name}</DialogTitle>
-          <DialogDescription>
-            Select permissions to assign to this role. Currently {selectedPermissions.length} of{" "}
-            {groupedPermissions.flatMap((g) => g.permissions ?? []).length} permissions selected.
-          </DialogDescription>
-        </DialogHeader>
+  const totalPermissions = groupedPermissions.flatMap((g) => g.permissions ?? []).length
 
-        <div className="relative mt-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+  return (
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Manage Permissions - ${role.name}`}
+      description={
+        <>
+          Select permissions to assign to this role. Currently {selectedPermissions.length} of {totalPermissions}{" "}
+          permissions selected.
+        </>
+      }
+      icon={ShieldCheck}
+      tone="settings"
+      size="xl"
+      busy={loading}
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading} className="rounded-xl">
+            Cancel
+          </Button>
+          <ActionGate anyOf={ACTIONS.roles.manage}>
+            <Button
+              onClick={handleSave}
+              disabled={loading}
+              className={cn("gap-2 rounded-xl text-white", modalTone("settings").button)}
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading ? "Saving..." : "Save Permissions"}
+            </Button>
+          </ActionGate>
+        </>
+      }
+    >
+      <FormSection
+        icon={KeyRound}
+        title="Permissions"
+        description="Changes are saved as you toggle each permission."
+        action={
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+            {selectedPermissions.length}/{totalPermissions}
+          </span>
+        }
+      >
+        <div className="relative mb-4">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
             value={permissionSearch}
             onChange={(e) => setPermissionSearch(e.target.value)}
             placeholder="Search permissions…"
-            className="pl-9"
+            className={formInputClass(false, "pl-9")}
           />
         </div>
 
-        <div className="space-y-6 py-4">
-          {filteredGroupedPermissions.length === 0 ? (
-            <div className="text-sm text-gray-500 py-6 text-center">
-              No permissions match “{permissionSearch}”.
-            </div>
-          ) : null}
+        {filteredGroupedPermissions.length === 0 ? (
+          <div className="py-6 text-center text-sm text-slate-500">
+            No permissions match “{permissionSearch}”.
+          </div>
+        ) : null}
 
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {filteredGroupedPermissions.map((group) => (
-            <div key={group.id} className="space-y-3">
-              <h3 className="font-semibold text-foreground text-sm uppercase tracking-wide">{(group as any).module ?? group.name}</h3>
-              <div className="space-y-2 pl-4 border-l-2 border-blue-200">
+            <div key={group.id} className="rounded-xl border border-slate-200 bg-white p-3">
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-700">
+                {(group as any).module ?? group.name}
+              </h4>
+              <div className="space-y-1">
                 {(group.permissions ?? []).map((permission) => (
                   <label
                     key={permission.id}
-                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted cursor-pointer transition-colors"
+                    className="flex cursor-pointer items-start gap-3 rounded-lg p-2 transition-colors hover:bg-slate-50"
                   >
                     <input
                       type="checkbox"
                       checked={selectedPermissions.includes(permission.id)}
                       onChange={() => togglePermission(permission.id)}
                       disabled={!canManage}
-                      className="mt-1 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-800 focus:ring-slate-500"
                     />
-                    <div className="flex-1">
-                      <p className="font-medium text-sm text-foreground">{permission.name}</p>
-                    </div>
+                    <p className="flex-1 text-sm font-medium text-slate-800">{permission.name}</p>
                     {selectedPermissions.includes(permission.id) && (
-                      <Check className="w-4 h-4 text-green-600 mt-1 flex-shrink-0" />
+                      <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
                     )}
                   </label>
                 ))}
@@ -205,18 +233,7 @@ export function ManageRolePermissionsModal({ role, open, onOpenChange, GroupPerm
             </div>
           ))}
         </div>
-
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancel
-          </Button>
-          <ActionGate anyOf={ACTIONS.roles.manage}>
-            <Button onClick={handleSave} disabled={loading} className="gap-2">
-              {loading ? "Saving..." : "Save Permissions"}
-            </Button>
-          </ActionGate>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </FormSection>
+    </FormModal>
   )
 }

@@ -1,17 +1,11 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Check, Shield, Users } from "lucide-react"
+import { Check, KeyRound, Loader2, Shield, UserRound, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { FormModal, FormSection, modalTone } from "@/components/ui/form-modal"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import type { Role, FarmUserRoleSummary } from "@/lib/types"
 import { syncUserRoles } from "@/lib/request"
 import { toast } from "react-toastify"
@@ -116,50 +110,68 @@ export function ManageUserRolesModal({
   if (!user) return null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Manage Roles for {user.name}
-          </DialogTitle>
-          <DialogDescription>
-            Assign or remove roles for this user. Changes will affect their permissions immediately.
-          </DialogDescription>
-        </DialogHeader>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Manage Roles for ${user.name}`}
+      description="Assign or remove roles for this user. Changes will affect their permissions immediately."
+      icon={Users}
+      tone="settings"
+      size="lg"
+      busy={loading}
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading} className="rounded-xl">
+            Cancel
+          </Button>
+          <ActionGate anyOf={ACTIONS.users.manage}>
+            <Button
+              onClick={handleSave}
+              disabled={loading || !hasChanges}
+              className={cn("gap-2 rounded-xl text-white", modalTone("settings").button)}
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading ? "Saving..." : "Save Changes"}
+            </Button>
+          </ActionGate>
+        </>
+      }
+    >
+      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+          <UserRound className="h-5 w-5 text-slate-700" />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate font-medium text-slate-900">{user.name}</p>
+          <p className="truncate text-sm text-slate-500">{user.email}</p>
+        </div>
+      </div>
 
-        <div className="space-y-6 py-4">
-          {/* User Info */}
-          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <Users className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">{user.name}</p>
-                <p className="text-sm text-gray-500">{user.email}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Roles Selection */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Available Roles</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+      <FormSection
+        icon={Shield}
+        title="Available Roles"
+        description="Select every role this user should hold."
+        action={
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+            {selectedRoleIds.length} selected
+          </span>
+        }
+      >
+            <div className="space-y-2 max-h-64 overflow-y-auto">
               {allRoles.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">No roles available</p>
+                <p className="text-sm text-slate-500 text-center py-4">No roles available</p>
               ) : (
                 allRoles.map((role) => {
                   const isSelected = selectedRoleIds.includes(role.id)
                   return (
                     <div
                       key={role.id}
-                      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
                         canManage ? "cursor-pointer" : "cursor-default"
                       } ${
                         isSelected
-                          ? "bg-green-50 border-green-300"
-                          : "bg-white border-gray-200 hover:bg-gray-50"
+                          ? "bg-emerald-50 border-emerald-300"
+                          : "bg-white border-slate-200 hover:bg-slate-50"
                       }`}
                       onClick={() => toggleRole(role.id)}
                     >
@@ -188,44 +200,27 @@ export function ManageUserRolesModal({
                 })
               )}
             </div>
+      </FormSection>
+
+      {effectivePermissions.length > 0 && (
+        <FormSection
+          icon={KeyRound}
+          title={`Effective Permissions (${effectivePermissions.length})`}
+          description="Combined permissions granted by the selected roles."
+        >
+          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+            {effectivePermissions.map((perm, idx) => (
+              <Badge
+                key={idx}
+                variant="secondary"
+                className="bg-slate-100 text-slate-700 border-slate-200 text-xs"
+              >
+                {perm}
+              </Badge>
+            ))}
           </div>
-
-          {/* Effective Permissions Preview */}
-          {effectivePermissions.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">
-                Effective Permissions ({effectivePermissions.length})
-              </h3>
-              <div className="flex flex-wrap gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200 max-h-40 overflow-y-auto">
-                {effectivePermissions.map((perm, idx) => (
-                  <Badge
-                    key={idx}
-                    variant="secondary"
-                    className="bg-blue-100 text-blue-700 border-blue-200 text-xs"
-                  >
-                    {perm}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancel
-          </Button>
-          <ActionGate anyOf={ACTIONS.users.manage}>
-            <Button
-              onClick={handleSave}
-              disabled={loading || !hasChanges}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {loading ? "Saving..." : "Save Changes"}
-            </Button>
-          </ActionGate>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </FormSection>
+      )}
+    </FormModal>
   )
 }
