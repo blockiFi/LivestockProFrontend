@@ -8,8 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Trash2 } from "lucide-react"
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  FormSummary,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
+import { Calculator, CalendarDays, FileText, ListOrdered, Plus, StickyNote, Trash2, UserRound } from "lucide-react"
 import { formatCurrency } from "@/lib/currency"
 import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker"
 import { createInvoice, getCustomer } from "@/lib/crmRequest"
@@ -136,184 +144,178 @@ export function CreateInvoiceModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
-        onPointerDownOutside={(e) => {
-          const target = e.target as HTMLElement | null
-          if (
-            target?.closest(
-              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
-            )
-          ) {
-            e.preventDefault()
-          }
-        }}
-        onInteractOutside={(e) => {
-          const target = e.target as HTMLElement | null
-          if (
-            target?.closest(
-              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
-            )
-          ) {
-            e.preventDefault()
-          }
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle>Create New Invoice</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-6">
-          <div className="rounded-lg bg-blue-50 p-4">
-            <p className="text-sm text-muted-foreground">Invoice number</p>
-            <p className="text-lg font-semibold text-blue-600">Assigned automatically on save</p>
-          </div>
-
-          <div className="space-y-4 border-b pb-4">
-            <h3 className="font-semibold text-foreground">Client information</h3>
-            <CustomerPicker value={customer} onChange={setCustomer} />
-            <Input type="date" placeholder="Due date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
-
-          <div className="space-y-4 border-b pb-4">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-semibold text-foreground">Line items</h3>
-              <Button variant="outline" size="sm" onClick={addItem} className="gap-2 bg-transparent">
-                <Plus className="w-4 h-4" />
-                Add item
-              </Button>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create New Invoice"
+      description="Bill a customer for goods or services. The invoice number is assigned automatically on save."
+      icon={FileText}
+      tone="sales"
+      size="xl"
+      busy={submitting}
+      dismissible={false}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitType="button"
+          onConfirm={() => void handleCreate()}
+          submitLabel="Create invoice"
+          busyLabel="Creating..."
+          busy={submitting}
+        />
+      }
+    >
+      <FormSection step={1} icon={UserRound} title="Client information" description="Who is this invoice for and when is it due?">
+        <div className="space-y-4">
+          <CustomerPicker value={customer} onChange={setCustomer} />
+          <FormField label="Due date" required htmlFor="invoice-due-date">
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="invoice-due-date"
+                type="date"
+                placeholder="Due date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className={formInputClass(false, "pl-9")}
+              />
             </div>
-
-            <div className="hidden sm:grid sm:grid-cols-[1fr_88px_112px_112px_40px] sm:gap-3 sm:items-end px-1">
-              <Label className="text-xs font-medium text-muted-foreground">Name</Label>
-              <Label className="text-xs font-medium text-muted-foreground">Quantity</Label>
-              <Label className="text-xs font-medium text-muted-foreground">Unit price</Label>
-              <Label className="text-xs font-medium text-muted-foreground">Total</Label>
-              <span className="sr-only">Remove</span>
-            </div>
-
-            <div className="space-y-4">
-              {items.map((item, index) => (
-                <div
-                  key={index}
-                  className="grid gap-3 sm:grid-cols-[1fr_88px_112px_112px_40px] sm:items-end rounded-lg border bg-slate-50/50 p-3 sm:border-0 sm:bg-transparent sm:p-0"
-                >
-                  <div className="space-y-1.5">
-                    <Label htmlFor={`invoice-item-name-${index}`} className="text-xs sm:sr-only">
-                      Name
-                    </Label>
-                    <Input
-                      id={`invoice-item-name-${index}`}
-                      placeholder="Item name"
-                      value={item.description}
-                      onChange={(e) => updateItem(index, "description", e.target.value)}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 sm:contents">
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`invoice-item-qty-${index}`} className="text-xs sm:sr-only">
-                        Quantity
-                      </Label>
-                      <Input
-                        id={`invoice-item-qty-${index}`}
-                        type="number"
-                        min={1}
-                        step={1}
-                        placeholder="1"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(index, "quantity", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`invoice-item-price-${index}`} className="text-xs sm:sr-only">
-                        Unit price
-                      </Label>
-                      <Input
-                        id={`invoice-item-price-${index}`}
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        placeholder="0.00"
-                        value={item.unitPrice}
-                        onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs sm:sr-only">Total</Label>
-                    <div className="flex h-10 items-center justify-between rounded-md border bg-white px-3 sm:justify-end">
-                      <span className="text-xs text-muted-foreground sm:hidden">Total</span>
-                      <p className="text-sm font-semibold tabular-nums">
-                        {formatCurrency(item.total, { farmSettings })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end sm:justify-center">
-                    {items.length > 1 ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10"
-                        onClick={() => removeItem(index)}
-                        aria-label="Remove line item"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
-                    ) : (
-                      <div className="hidden sm:block sm:h-10 sm:w-10" />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2 rounded-lg bg-gray-50 p-4">
-            <p className="text-sm text-muted-foreground">
-              Tax {taxEnabled ? `(${taxRate}%)` : "disabled"} is calculated server-side from farm settings.
-            </p>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal:</span>
-              <span className="font-medium">{formatCurrency(subtotal, { farmSettings })}</span>
-            </div>
-            {taxEnabled && (
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Estimated tax ({taxRate}%):</span>
-                <span className="font-medium">{formatCurrency(tax, { farmSettings })}</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t pt-2 text-lg font-bold">
-              <span>Estimated total:</span>
-              <span className="text-blue-600">{formatCurrency(total, { farmSettings })}</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-foreground">Notes (optional)</label>
-            <Textarea
-              placeholder="Add any additional notes..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => void handleCreate()} disabled={submitting}>
-              {submitting ? "Creating..." : "Create invoice"}
-            </Button>
-          </div>
+          </FormField>
         </div>
-      </DialogContent>
-    </Dialog>
+      </FormSection>
+
+      <FormSection
+        step={2}
+        icon={ListOrdered}
+        title="Line items"
+        description="Products or services being billed."
+        action={
+          <Button type="button" variant="outline" size="sm" onClick={addItem} className="gap-2 rounded-xl bg-transparent">
+            <Plus className="w-4 h-4" />
+            Add item
+          </Button>
+        }
+      >
+        <div className="hidden sm:grid sm:grid-cols-[1fr_88px_112px_112px_40px] sm:gap-3 sm:items-end px-1 pb-2">
+          <Label className="text-xs font-medium text-slate-600">Name</Label>
+          <Label className="text-xs font-medium text-slate-600">Quantity</Label>
+          <Label className="text-xs font-medium text-slate-600">Unit price</Label>
+          <Label className="text-xs font-medium text-slate-600">Total</Label>
+          <span className="sr-only">Remove</span>
+        </div>
+
+        <div className="space-y-3">
+          {items.map((item, index) => (
+            <div
+              key={index}
+              className="grid gap-3 sm:grid-cols-[1fr_88px_112px_112px_40px] sm:items-end rounded-xl border border-slate-200 bg-slate-50/50 p-3 sm:border-0 sm:bg-transparent sm:p-0"
+            >
+              <div className="space-y-1.5">
+                <Label htmlFor={`invoice-item-name-${index}`} className="text-xs text-slate-600 sm:sr-only">
+                  Name
+                </Label>
+                <Input
+                  id={`invoice-item-name-${index}`}
+                  placeholder="Item name"
+                  value={item.description}
+                  onChange={(e) => updateItem(index, "description", e.target.value)}
+                  className={formInputClass()}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:contents">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`invoice-item-qty-${index}`} className="text-xs text-slate-600 sm:sr-only">
+                    Quantity
+                  </Label>
+                  <Input
+                    id={`invoice-item-qty-${index}`}
+                    type="number"
+                    min={1}
+                    step={1}
+                    placeholder="1"
+                    value={item.quantity}
+                    onChange={(e) => updateItem(index, "quantity", e.target.value)}
+                    className={formInputClass()}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor={`invoice-item-price-${index}`} className="text-xs text-slate-600 sm:sr-only">
+                    Unit price
+                  </Label>
+                  <Input
+                    id={`invoice-item-price-${index}`}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0.00"
+                    value={item.unitPrice}
+                    onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
+                    className={formInputClass()}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-600 sm:sr-only">Total</Label>
+                <div className="flex h-10 items-center justify-between rounded-xl border border-slate-200 bg-white px-3 sm:justify-end">
+                  <span className="text-xs text-muted-foreground sm:hidden">Total</span>
+                  <p className="text-sm font-semibold tabular-nums">
+                    {formatCurrency(item.total, { farmSettings })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end sm:justify-center">
+                {items.length > 1 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 rounded-xl"
+                    onClick={() => removeItem(index)}
+                    aria-label="Remove line item"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </Button>
+                ) : (
+                  <div className="hidden sm:block sm:h-10 sm:w-10" />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </FormSection>
+
+      <FormSection step={3} icon={Calculator} title="Totals" description={`Tax ${taxEnabled ? `(${taxRate}%)` : "disabled"} is calculated server-side from farm settings.`}>
+        <div className="space-y-2">
+          <div className="flex justify-between px-1 text-sm">
+            <span className="text-muted-foreground">Subtotal:</span>
+            <span className="font-medium">{formatCurrency(subtotal, { farmSettings })}</span>
+          </div>
+          {taxEnabled && (
+            <div className="flex justify-between px-1 text-sm">
+              <span className="text-muted-foreground">Estimated tax ({taxRate}%):</span>
+              <span className="font-medium">{formatCurrency(tax, { farmSettings })}</span>
+            </div>
+          )}
+          <FormSummary className="text-base" label="Estimated total" value={formatCurrency(total, { farmSettings })} />
+        </div>
+      </FormSection>
+
+      <FormSection step={4} icon={StickyNote} title="Notes" description="Optional message shown on the invoice.">
+        <FormField label="Notes (optional)" htmlFor="invoice-notes">
+          <Textarea
+            id="invoice-notes"
+            placeholder="Add any additional notes..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className={formTextareaClass()}
+          />
+        </FormField>
+      </FormSection>
+    </FormModal>
   )
 }

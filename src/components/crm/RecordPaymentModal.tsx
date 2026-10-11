@@ -1,24 +1,23 @@
 import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 import { toast } from "react-toastify"
-import { CreditCard, Loader2, Wallet } from "lucide-react"
+import { Banknote, CreditCard, Receipt, Wallet } from "lucide-react"
 
 import type { RootState } from "@/store"
 import type { CustomerHistoryItem } from "@/lib/types"
 import { getCustomerAccount, recordCustomerPayment } from "@/lib/crmRequest"
 import { formatCurrency } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  FormField,
+  FormModal,
+  FormSection,
+  FormSummary,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
 import {
   Select,
   SelectContent,
@@ -159,29 +158,41 @@ export default function RecordPaymentModal({
   if (!item) return null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-indigo-600" />
-            Record payment
-          </DialogTitle>
-          <DialogDescription>
-            {item.description} · Due {formatCurrency(balance)} (paid {formatCurrency(paid)} of{" "}
-            {formatCurrency(total)})
-          </DialogDescription>
-        </DialogHeader>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Record payment"
+      description={`${item.description} · Due ${formatCurrency(balance)} (paid ${formatCurrency(paid)} of ${formatCurrency(total)})`}
+      icon={Wallet}
+      tone="sales"
+      size="sm"
+      busy={saving}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitType="button"
+          onConfirm={() => void handleSubmit()}
+          submitLabel="Record payment"
+          busy={saving}
+          disabled={!canRecord}
+          icon={CreditCard}
+        />
+      }
+    >
+      <FormSection
+        icon={Receipt}
+        title="Balance"
+        description="Outstanding amount on this record."
+        action={<PaymentStatusBadge status={String(item.payment_status ?? item.meta?.status ?? "pending")} />}
+      >
+        <FormSummary label="Balance due" value={formatCurrency(balance)} />
+      </FormSection>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-            <span>Status</span>
-            <PaymentStatusBadge status={String(item.payment_status ?? item.meta?.status ?? "pending")} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Payment method</Label>
+      <FormSection icon={Banknote} title="Payment" description="How much was received and how.">
+        <div className="space-y-4">
+          <FormField label="Payment method">
             <Select value={paymentMode} onValueChange={setPaymentMode}>
-              <SelectTrigger>
+              <SelectTrigger className={formInputClass()}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -199,34 +210,35 @@ export default function RecordPaymentModal({
                 ) : null}
               </SelectContent>
             </Select>
-          </div>
+          </FormField>
 
           {paymentMode === "account_and_other" && isProduct ? (
-            <>
-              <div className="space-y-1.5">
-                <Label>Account amount</Label>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField label="Account amount" required htmlFor="payment-account-amount">
                 <Input
+                  id="payment-account-amount"
                   type="number"
                   min="0.01"
                   step="0.01"
                   value={accountAmount}
                   onChange={(e) => setAccountAmount(e.target.value)}
+                  className={formInputClass()}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Other amount</Label>
+              </FormField>
+              <FormField label="Other amount" htmlFor="payment-other-amount">
                 <Input
+                  id="payment-other-amount"
                   type="number"
                   min="0"
                   step="0.01"
                   value={otherAmount}
                   onChange={(e) => setOtherAmount(e.target.value)}
+                  className={formInputClass()}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Other method</Label>
+              </FormField>
+              <FormField label="Other method" className="sm:col-span-2">
                 <Select value={otherMethod} onValueChange={setOtherMethod}>
-                  <SelectTrigger>
+                  <SelectTrigger className={formInputClass()}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -236,37 +248,33 @@ export default function RecordPaymentModal({
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            </>
+              </FormField>
+            </div>
           ) : (
-            <div className="space-y-1.5">
-              <Label>Amount</Label>
+            <FormField label="Amount" required htmlFor="payment-amount">
               <Input
+                id="payment-amount"
                 type="number"
                 min="0.01"
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                className={formInputClass()}
               />
-            </div>
+            </FormField>
           )}
 
-          <div className="space-y-1.5">
-            <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-          </div>
+          <FormField label="Notes" htmlFor="payment-notes">
+            <Textarea
+              id="payment-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className={formTextareaClass()}
+            />
+          </FormField>
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={() => void handleSubmit()} disabled={saving || !canRecord}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-            Record payment
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </FormSection>
+    </FormModal>
   )
 }

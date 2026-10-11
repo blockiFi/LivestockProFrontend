@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  FormSummary,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Bird, CalendarDays, StickyNote, Tag, UserRound } from "lucide-react";
 import type { FlockSale } from "@/lib/types";
 import CustomerPicker, { type CustomerSelection } from "@/components/crm/CustomerPicker";
 
@@ -120,123 +126,111 @@ const AddFlockSaleModal = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-      <DialogContent
-        className="sm:max-w-md"
-        onPointerDownOutside={(e) => {
-          const target = e.target as HTMLElement | null
-          if (
-            target?.closest(
-              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
-            )
-          ) {
-            e.preventDefault()
-          }
-        }}
-        onInteractOutside={(e) => {
-          const target = e.target as HTMLElement | null
-          if (
-            target?.closest(
-              '[data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="sheet-overlay"], [data-slot="select-content"], [data-radix-popper-content-wrapper]'
-            )
-          ) {
-            e.preventDefault()
-          }
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Live Bird Sale" : "Record Live Bird Sale"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-            Current live birds: <strong>{liveBirdCount}</strong>
-            {isEditing && (
-              <span className="ml-1 text-blue-700">
-                ({availableBirds} available while editing this sale)
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min={1}
-                max={availableBirds}
-                value={formData.quantity}
-                onChange={(e) => setFormData((prev) => ({ ...prev, quantity: e.target.value }))}
-              />
-              {errors.quantity && <p className="text-xs text-red-500 mt-1">{errors.quantity}</p>}
-              {quantityNum > availableBirds && (
-                <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Exceeds available live birds
-                </p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="unit_price">Unit price (NGN)</Label>
-              <Input
-                id="unit_price"
-                type="number"
-                min={0}
-                step="0.01"
-                value={formData.unit_price}
-                onChange={(e) => setFormData((prev) => ({ ...prev, unit_price: e.target.value }))}
-              />
-              {errors.unit_price && <p className="text-xs text-red-500 mt-1">{errors.unit_price}</p>}
-            </div>
-          </div>
-
-          <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm">
-            <span className="text-gray-500">Total amount: </span>
-            <span className="font-semibold">
-              {totalAmount.toLocaleString(undefined, {
-                style: "currency",
-                currency: "NGN",
-                minimumFractionDigits: 2,
-              })}
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => !open && !isSubmitting && onClose()}
+      title={isEditing ? "Edit Live Bird Sale" : "Record Live Bird Sale"}
+      description="Sell live birds from this flock and record who bought them."
+      icon={Bird}
+      tone="sales"
+      size="md"
+      busy={isSubmitting}
+      dismissible={false}
+      footer={
+        <ModalFooterActions
+          onCancel={onClose}
+          submitType="button"
+          onConfirm={() => void handleSubmit()}
+          submitLabel={isEditing ? "Update Sale" : "Record Sale"}
+          busyLabel="Saving..."
+          busy={isSubmitting}
+        />
+      }
+    >
+      <FormSection step={1} icon={Tag} title="Sale details" description="Number of birds, price and sale date.">
+        <div className="mb-4 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+          Current live birds: <strong>{liveBirdCount}</strong>
+          {isEditing && (
+            <span className="ml-1 text-sky-700">
+              ({availableBirds} available while editing this sale)
             </span>
-          </div>
+          )}
+        </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="date">Sale date</Label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Quantity" required htmlFor="quantity" error={errors.quantity}>
             <Input
-              id="date"
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+              id="quantity"
+              type="number"
+              min={1}
+              max={availableBirds}
+              value={formData.quantity}
+              onChange={(e) => setFormData((prev) => ({ ...prev, quantity: e.target.value }))}
+              className={formInputClass(!!errors.quantity)}
             />
-            {errors.date && <p className="text-xs text-red-500 mt-1">{errors.date}</p>}
-          </div>
+            {quantityNum > availableBirds && (
+              <p className="flex items-center gap-1 text-[11px] text-amber-600">
+                <AlertTriangle className="h-3 w-3" />
+                Exceeds available live birds
+              </p>
+            )}
+          </FormField>
+          <FormField label="Unit price (NGN)" required htmlFor="unit_price" error={errors.unit_price}>
+            <Input
+              id="unit_price"
+              type="number"
+              min={0}
+              step="0.01"
+              value={formData.unit_price}
+              onChange={(e) => setFormData((prev) => ({ ...prev, unit_price: e.target.value }))}
+              className={formInputClass(!!errors.unit_price)}
+            />
+          </FormField>
 
-          <CustomerPicker
-            value={formData.customer}
-            onChange={(customer) => setFormData((prev) => ({ ...prev, customer }))}
+          <FormSummary
+            className="sm:col-span-2"
+            label="Total amount"
+            value={totalAmount.toLocaleString(undefined, {
+              style: "currency",
+              currency: "NGN",
+              minimumFractionDigits: 2,
+            })}
           />
 
-          <div className="space-y-1">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              rows={3}
-              value={formData.notes}
-              onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-            />
-          </div>
+          <FormField label="Sale date" required htmlFor="date" error={errors.date} className="sm:col-span-2">
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+                className={formInputClass(!!errors.date, "pl-9")}
+              />
+            </div>
+          </FormField>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : isEditing ? "Update Sale" : "Record Sale"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </FormSection>
+
+      <FormSection step={2} icon={UserRound} title="Customer" description="Link a saved customer or enter a walk-in buyer.">
+        <CustomerPicker
+          value={formData.customer}
+          onChange={(customer) => setFormData((prev) => ({ ...prev, customer }))}
+        />
+      </FormSection>
+
+      <FormSection step={3} icon={StickyNote} title="Notes" description="Anything else worth remembering about this sale.">
+        <FormField label="Notes" htmlFor="notes">
+          <Textarea
+            id="notes"
+            rows={3}
+            value={formData.notes}
+            onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+            className={formTextareaClass()}
+          />
+        </FormField>
+      </FormSection>
+    </FormModal>
   );
 };
 

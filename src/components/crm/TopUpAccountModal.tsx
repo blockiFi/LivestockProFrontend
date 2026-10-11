@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 import { toast } from "react-toastify"
-import { Wallet } from "lucide-react"
+import { Banknote, CheckCircle2, Hash, Wallet } from "lucide-react"
 
 import type { RootState } from "@/store"
 import { topUpCustomerAccount } from "@/lib/crmRequest"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  FormField,
+  FormModal,
+  FormSection,
+  FormSummary,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
 import {
   Select,
   SelectContent,
@@ -94,50 +94,64 @@ export default function TopUpAccountModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-emerald-600" />
-            Top Up Account
-          </DialogTitle>
-          <DialogDescription>
-            {customerName} · Current balance {formatCurrency(currentBalance)}
-          </DialogDescription>
-        </DialogHeader>
-
-        {result ? (
-          <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm">
-            <div className="flex justify-between">
-              <span>Previous Balance</span>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Top Up Account"
+      description={`${customerName} · Current balance ${formatCurrency(currentBalance)}`}
+      icon={Wallet}
+      tone="sales"
+      size="sm"
+      busy={saving}
+      footer={
+        result ? (
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">
+            Close
+          </Button>
+        ) : (
+          <ModalFooterActions
+            onCancel={() => onOpenChange(false)}
+            submitType="button"
+            onConfirm={() => void handleSubmit()}
+            submitLabel="Confirm top up"
+            busyLabel="Saving..."
+            busy={saving}
+          />
+        )
+      }
+    >
+      {result ? (
+        <FormSection icon={CheckCircle2} title="Top-up complete" description="The customer's account has been credited.">
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between px-1">
+              <span className="text-slate-600">Previous Balance</span>
               <span className="font-medium">{formatCurrency(result.previous)}</span>
             </div>
-            <div className="flex justify-between">
-              <span>Top Up</span>
+            <div className="flex justify-between px-1">
+              <span className="text-slate-600">Top Up</span>
               <span className="font-medium text-emerald-700">+{formatCurrency(result.topUp)}</span>
             </div>
-            <div className="flex justify-between border-t border-emerald-200 pt-2 text-base font-semibold">
-              <span>New Balance</span>
-              <span>{formatCurrency(result.next)}</span>
-            </div>
+            <FormSummary className="text-base" label="New Balance" value={formatCurrency(result.next)} />
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Amount</Label>
+        </FormSection>
+      ) : (
+        <FormSection icon={Banknote} title="Deposit" description="Amount received and how it was paid.">
+          <div className="space-y-4">
+            <FormField label="Amount" required htmlFor="topup-amount">
               <Input
+                id="topup-amount"
                 type="number"
                 min="0.01"
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
+                className={formInputClass()}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Payment method</Label>
+            </FormField>
+            <FormField label="Payment method">
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger>
+                <SelectTrigger className={formInputClass()}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -147,29 +161,30 @@ export default function TopUpAccountModal({
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Reference / receipt</Label>
-              <Input value={reference} onChange={(e) => setReference(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Note</Label>
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-            </div>
+            </FormField>
+            <FormField label="Reference / receipt" htmlFor="topup-reference">
+              <div className="relative">
+                <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  id="topup-reference"
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  className={formInputClass(false, "pl-9")}
+                />
+              </div>
+            </FormField>
+            <FormField label="Note" htmlFor="topup-notes">
+              <Textarea
+                id="topup-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className={formTextareaClass()}
+              />
+            </FormField>
           </div>
-        )}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            {result ? "Close" : "Cancel"}
-          </Button>
-          {!result ? (
-            <Button type="button" onClick={() => void handleSubmit()} disabled={saving}>
-              {saving ? "Saving..." : "Confirm top up"}
-            </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </FormSection>
+      )}
+    </FormModal>
   )
 }

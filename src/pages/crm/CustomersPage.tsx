@@ -46,14 +46,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ExportDataButton } from "@/components/general/ExportDataButton"
 import { ACTIONS } from "@/lib/actionPermissions"
@@ -743,29 +736,23 @@ export default function CustomersPage() {
         onSaved={() => void loadCustomers()}
       />
 
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete customer?</DialogTitle>
-            <DialogDescription>
-              This will permanently remove <strong>{deleteTarget?.name}</strong>. Sales and invoice records linked to
-              this customer will not be deleted, but the customer profile will be removed.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleting}
-              onClick={() => void handleDelete()}
-            >
-              {deleting ? "Deleting..." : "Delete customer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmModal
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete customer?"
+        description={
+          <>
+            This will permanently remove <strong>{deleteTarget?.name}</strong>. Sales and invoice records linked to
+            this customer will not be deleted, but the customer profile will be removed.
+          </>
+        }
+        tone="danger"
+        confirmLabel="Delete customer"
+        busyLabel="Deleting..."
+        busy={deleting}
+        confirmIcon={Trash2}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   )
 }

@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, CreditCard, Hash, Receipt, Wallet } from "lucide-react";
 import type { FlockExpenditure } from "@/lib/types";
 import { MANUAL_EXPENDITURE_CATEGORIES, PAYMENT_METHODS, getCategoryLabel } from "@/lib/expenditureCategories";
 
@@ -118,46 +123,68 @@ const AddFlockExpenditureModal = ({ isOpen, onClose, onSubmit, editing = null, d
       ));
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {dateOnly ? "Edit Expenditure Date" : isEditing ? "Edit Flock Expenditure" : "Record Expenditure"}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          {dateOnly && editing && (
-            <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700 space-y-1">
-              <p>
-                <span className="font-medium">Category:</span> {getCategoryLabel(editing.category)}
-              </p>
-              <p>
-                <span className="font-medium">Amount:</span>{" "}
-                {(editing.amount || 0).toLocaleString(undefined, {
-                  style: "currency",
-                  currency: editing.currency || "NGN",
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-              {editing.description && (
-                <p>
-                  <span className="font-medium">Description:</span> {editing.description}
-                </p>
-              )}
-              <p className="text-xs text-gray-500 pt-1">
-                Auto-generated costs can only have their date adjusted. Delete the source record to remove the cost.
-              </p>
-            </div>
+    <FormModal
+      open={isOpen}
+      onOpenChange={(open) => !open && !isSubmitting && onClose()}
+      title={dateOnly ? "Edit Expenditure Date" : isEditing ? "Edit Flock Expenditure" : "Record Expenditure"}
+      description={
+        dateOnly
+          ? "Adjust when this auto-generated cost was incurred."
+          : "Track a cost spent on this flock."
+      }
+      icon={Receipt}
+      tone="sales"
+      size={dateOnly ? "sm" : "md"}
+      busy={isSubmitting}
+      footer={
+        <ModalFooterActions
+          onCancel={onClose}
+          submitType="button"
+          onConfirm={() => void handleSubmit()}
+          submitLabel={isEditing ? "Update" : "Save expenditure"}
+          busyLabel="Saving..."
+          busy={isSubmitting}
+        />
+      }
+    >
+      {dateOnly && editing && (
+        <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <p>
+            <span className="font-medium">Category:</span> {getCategoryLabel(editing.category)}
+          </p>
+          <p>
+            <span className="font-medium">Amount:</span>{" "}
+            {(editing.amount || 0).toLocaleString(undefined, {
+              style: "currency",
+              currency: editing.currency || "NGN",
+              minimumFractionDigits: 2,
+            })}
+          </p>
+          {editing.description && (
+            <p>
+              <span className="font-medium">Description:</span> {editing.description}
+            </p>
           )}
+          <p className="pt-1 text-xs text-slate-500">
+            Auto-generated costs can only have their date adjusted. Delete the source record to remove the cost.
+          </p>
+        </div>
+      )}
 
+      <FormSection
+        step={dateOnly ? undefined : 1}
+        icon={Wallet}
+        title={dateOnly ? "Date" : "Expense"}
+        description={dateOnly ? "When the cost was incurred." : "Category, amount and date of the cost."}
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {!dateOnly && (
-            <div className="space-y-1">
-              <Label htmlFor="category">Category</Label>
+            <FormField label="Category" required htmlFor="category" error={errors.category} className="sm:col-span-2">
               <Select
                 value={formData.category}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, category: value }))}
               >
-                <SelectTrigger id="category">
+                <SelectTrigger id="category" className={formInputClass(!!errors.category)}>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -171,14 +198,12 @@ const AddFlockExpenditureModal = ({ isOpen, onClose, onSubmit, editing = null, d
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              {errors.category && <p className="text-xs text-red-500 mt-1">{errors.category}</p>}
-            </div>
+            </FormField>
           )}
 
           {!dateOnly && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="amount">Amount</Label>
+            <>
+              <FormField label="Amount" required htmlFor="amount" error={errors.amount}>
                 <Input
                   id="amount"
                   type="number"
@@ -186,93 +211,86 @@ const AddFlockExpenditureModal = ({ isOpen, onClose, onSubmit, editing = null, d
                   step="0.01"
                   value={formData.amount}
                   onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
+                  className={formInputClass(!!errors.amount)}
                 />
-                {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="currency">Currency</Label>
+              </FormField>
+              <FormField label="Currency" htmlFor="currency">
                 <Input
                   id="currency"
                   maxLength={3}
                   value={formData.currency}
                   onChange={(e) => setFormData((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))}
+                  className={formInputClass()}
                 />
-              </div>
-            </div>
+              </FormField>
+            </>
           )}
 
-          <div className="space-y-1">
-            <Label htmlFor="date">Date</Label>
-            <div className="flex items-center gap-2">
+          <FormField label="Date" required htmlFor="date" error={errors.date} className="sm:col-span-2">
+            <div className="relative">
+              <CalendarIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="date"
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+                className={formInputClass(!!errors.date, "pl-9")}
               />
-              <CalendarIcon className="h-4 w-4 text-gray-400" />
             </div>
-            {errors.date && <p className="text-xs text-red-500 mt-1">{errors.date}</p>}
-          </div>
+          </FormField>
+        </div>
+      </FormSection>
 
-          {!dateOnly && (
-            <>
-              <div className="space-y-1">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder="e.g. Farmhand wages, diesel for generator, pen repairs"
-                  rows={2}
+      {!dateOnly && (
+        <FormSection step={2} icon={CreditCard} title="Payment & notes" description="Optional details to help reconcile this cost.">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Description" htmlFor="description" className="sm:col-span-2">
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="e.g. Farmhand wages, diesel for generator, pen repairs"
+                rows={2}
+                className={formTextareaClass()}
+              />
+            </FormField>
+
+            <FormField label="Payment method" htmlFor="payment_method">
+              <Select
+                value={formData.payment_method || "none"}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, payment_method: value === "none" ? "" : value }))
+                }
+              >
+                <SelectTrigger id="payment_method" className={formInputClass()}>
+                  <SelectValue placeholder="Optional" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
+                  {PAYMENT_METHODS.map((method) => (
+                    <SelectItem key={method.value} value={method.value}>
+                      {method.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Reference / receipt no." htmlFor="reference_no">
+              <div className="relative">
+                <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  id="reference_no"
+                  value={formData.reference_no}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, reference_no: e.target.value }))}
+                  placeholder="INV-2026-001"
+                  className={formInputClass(false, "pl-9")}
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="payment_method">Payment method</Label>
-                  <Select
-                    value={formData.payment_method || "none"}
-                    onValueChange={(value) =>
-                      setFormData((prev) => ({ ...prev, payment_method: value === "none" ? "" : value }))
-                    }
-                  >
-                    <SelectTrigger id="payment_method">
-                      <SelectValue placeholder="Optional" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Not specified</SelectItem>
-                      {PAYMENT_METHODS.map((method) => (
-                        <SelectItem key={method.value} value={method.value}>
-                          {method.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="reference_no">Reference / receipt no.</Label>
-                  <Input
-                    id="reference_no"
-                    value={formData.reference_no}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, reference_no: e.target.value }))}
-                    placeholder="INV-2026-001"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : isEditing ? "Update" : "Save expenditure"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            </FormField>
+          </div>
+        </FormSection>
+      )}
+    </FormModal>
   );
 };
 

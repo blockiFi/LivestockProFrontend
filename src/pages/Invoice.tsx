@@ -7,9 +7,9 @@ import type { RootState } from "@/store"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FormModal } from "@/components/ui/form-modal"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, Printer, Eye, Trash2 } from "lucide-react"
+import { Search, Plus, Printer, Eye, Trash2, FileText } from "lucide-react"
 import { CreateInvoiceModal } from "@/components/modals/CreateIvoiceModal"
 import { InvoicePreview } from "@/components/general/invoice-preview"
 import { formatCurrency } from "@/lib/currency"
@@ -268,16 +268,20 @@ export function InvoicesPage() {
         defaultCustomerId={defaultCustomerId}
       />
 
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-[210mm] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Invoice Preview</DialogTitle>
-          </DialogHeader>
-          {selectedInvoice && (
-            <InvoicePreview farm={currentFarm} farmSettings={farmSettings} invoice={selectedInvoice} />
-          )}
-        </DialogContent>
-      </Dialog>
+      <FormModal
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        title="Invoice Preview"
+        description={selectedInvoice ? `${selectedInvoice.invoiceNumber} · ${selectedInvoice.clientName}` : undefined}
+        icon={FileText}
+        tone="sales"
+        size="lg"
+        className="sm:max-w-[calc(210mm+3rem)]"
+      >
+        {selectedInvoice && (
+          <InvoicePreview farm={currentFarm} farmSettings={farmSettings} invoice={selectedInvoice} />
+        )}
+      </FormModal>
     </div>
   )
 }

@@ -1,23 +1,21 @@
 import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 import { toast } from "react-toastify"
-import { Scale } from "lucide-react"
+import { ArrowUpDown, Scale } from "lucide-react"
 
 import type { RootState } from "@/store"
 import { adjustCustomerAccount } from "@/lib/crmRequest"
 import { formatCurrency } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
 import {
   Select,
   SelectContent,
@@ -92,23 +90,31 @@ export default function AccountAdjustmentModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Scale className="h-5 w-5 text-amber-600" />
-            Account Adjustment
-          </DialogTitle>
-          <DialogDescription>
-            {customerName} · Balance {formatCurrency(currentBalance)}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Direction</Label>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Account Adjustment"
+      description={`${customerName} · Balance ${formatCurrency(currentBalance)}`}
+      icon={Scale}
+      tone="sales"
+      size="sm"
+      busy={saving}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitType="button"
+          onConfirm={() => void handleSubmit()}
+          submitLabel="Confirm adjustment"
+          busyLabel="Saving..."
+          busy={saving}
+        />
+      }
+    >
+      <FormSection icon={ArrowUpDown} title="Adjustment" description="Correct the customer's balance with an audited reason.">
+        <div className="space-y-4">
+          <FormField label="Direction">
             <Select value={direction} onValueChange={(v) => setDirection(v as "credit" | "debit")}>
-              <SelectTrigger>
+              <SelectTrigger className={formInputClass()}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -116,26 +122,29 @@ export default function AccountAdjustmentModal({
                 <SelectItem value="debit">Debit (decrease)</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Amount</Label>
-            <Input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Reason (required)</Label>
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
-          </div>
+          </FormField>
+          <FormField label="Amount" required htmlFor="adjust-amount">
+            <Input
+              id="adjust-amount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className={formInputClass()}
+            />
+          </FormField>
+          <FormField label="Reason" required htmlFor="adjust-reason">
+            <Textarea
+              id="adjust-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              className={formTextareaClass()}
+            />
+          </FormField>
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={() => void handleSubmit()} disabled={saving}>
-            {saving ? "Saving..." : "Confirm adjustment"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </FormSection>
+    </FormModal>
   )
 }
