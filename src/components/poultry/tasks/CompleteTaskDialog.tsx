@@ -1,19 +1,17 @@
 import { useState } from "react"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { FarmTaskInstance } from "@/lib/types"
-import { Loader2 } from "lucide-react"
+import { ClipboardCheck, PenLine, Pill } from "lucide-react"
 import { formatTaskTime, sectionLabel } from "./taskHelpers"
 
 type Props = {
@@ -51,93 +49,102 @@ export default function CompleteTaskDialog({
   if (!instance) return null
 
   return (
-    <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Complete &amp; sign off</DialogTitle>
-          <DialogDescription>
-            {instance.title} · {formatTaskTime(instance.start_time)} ·{" "}
-            {sectionLabel(instance.section)}
-          </DialogDescription>
-        </DialogHeader>
+    <FormModal
+      open={open}
+      onOpenChange={handleOpen}
+      title="Complete & sign off"
+      description={
+        <>
+          {instance.title} · {formatTaskTime(instance.start_time)} · {sectionLabel(instance.section)}
+        </>
+      }
+      icon={ClipboardCheck}
+      tone="schedule"
+      size="md"
+      busy={!!saving}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitType="button"
+          submitLabel="Complete"
+          busy={!!saving}
+          disabled={
+            !!(instance.require_completion_confirmation && !confirmed) ||
+            !!(instance.require_signature && !signature.trim())
+          }
+          onConfirm={() =>
+            onSubmit({
+              notes: notes || undefined,
+              worker_confirmed: confirmed || undefined,
+              signature_text: signature.trim() || undefined,
+            })
+          }
+        />
+      }
+    >
+      {instance.section === "medication" && (
+        <FormSection icon={Pill} title="Medication details" description="What should be administered for this task.">
+          <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            {instance.animal_group && (
+              <div>
+                <dt className="text-xs text-slate-500">Group</dt>
+                <dd className="font-medium text-slate-900">{instance.animal_group}</dd>
+              </div>
+            )}
+            {instance.medication_name && (
+              <div>
+                <dt className="text-xs text-slate-500">Medication</dt>
+                <dd className="font-medium text-slate-900">{instance.medication_name}</dd>
+              </div>
+            )}
+            {instance.dosage_instructions && (
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-slate-500">Dosage</dt>
+                <dd className="font-medium text-slate-900">{instance.dosage_instructions}</dd>
+              </div>
+            )}
+          </dl>
+        </FormSection>
+      )}
 
-        <div className="space-y-4 py-2">
-          {instance.section === "medication" && (
-            <div className="rounded-lg border border-rose-100 bg-rose-50/50 p-3 text-sm space-y-1">
-              {instance.animal_group && (
-                <p>
-                  <span className="text-slate-500">Group:</span> {instance.animal_group}
-                </p>
-              )}
-              {instance.medication_name && (
-                <p>
-                  <span className="text-slate-500">Medication:</span>{" "}
-                  {instance.medication_name}
-                </p>
-              )}
-              {instance.dosage_instructions && (
-                <p>
-                  <span className="text-slate-500">Dosage:</span>{" "}
-                  {instance.dosage_instructions}
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-          </div>
+      <FormSection icon={PenLine} title="Sign-off" description="Add notes and confirm the task was completed.">
+        <div className="space-y-4">
+          <FormField label="Notes" htmlFor="complete-task-notes">
+            <Textarea
+              id="complete-task-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className={formTextareaClass()}
+            />
+          </FormField>
 
           {instance.require_completion_confirmation && (
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 text-sm text-slate-700">
               <Checkbox checked={confirmed} onCheckedChange={(c) => setConfirmed(Boolean(c))} />
               I confirm this task was completed as instructed
             </label>
           )}
 
           {instance.require_signature && (
-            <div className="space-y-2">
-              <Label>Sign-off name</Label>
+            <FormField label="Sign-off name" htmlFor="complete-task-signature" required>
               <Input
+                id="complete-task-signature"
                 value={signature}
                 onChange={(e) => setSignature(e.target.value)}
                 placeholder="Type your full name"
+                className={formInputClass()}
               />
-            </div>
-          )}
-
-          {instance.require_supervisor_approval && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-3 py-2">
-              This task will await supervisor approval after you complete it.
-            </p>
+            </FormField>
           )}
         </div>
+      </FormSection>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            className="gap-2"
-            disabled={
-              saving ||
-              (instance.require_completion_confirmation && !confirmed) ||
-              (instance.require_signature && !signature.trim())
-            }
-            onClick={() =>
-              onSubmit({
-                notes: notes || undefined,
-                worker_confirmed: confirmed || undefined,
-                signature_text: signature.trim() || undefined,
-              })
-            }
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Complete
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {instance.require_supervisor_approval && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          This task will await supervisor approval after you complete it.
+        </p>
+      )}
+    </FormModal>
   )
 }

@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+} from "@/components/ui/form-modal"
 import {
   Select,
   SelectContent,
@@ -16,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { AlertTriangle, Calendar, Package, Wheat } from "lucide-react"
+import { AlertTriangle, BarChart3, Calendar, Package, Wheat } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
@@ -207,57 +204,83 @@ const BulkImplementFeedingModal = ({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Wheat className="h-5 w-5 text-orange-600" />
-            Implement All Missed Feeding
-          </DialogTitle>
-          <DialogDescription>
-            Backfill all past days without a feeding record using planned schedule quantities.
-            Records will be saved with status <span className="font-medium">late</span> and feed
-            inventory will be deducted for each day.
-          </DialogDescription>
-        </DialogHeader>
-
-        {loading ? (
-          <LoadingState variant="centered" label="Loading missed days…" />
-        ) : (
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border bg-orange-50 p-4 text-center">
-                <div className="text-2xl font-bold text-orange-700">{preview?.count ?? 0}</div>
-                <div className="text-xs text-orange-800">Missed days</div>
-              </div>
-              <div className="rounded-lg border bg-amber-50 p-4 text-center">
-                <div className="text-2xl font-bold text-amber-700">
-                  {(preview?.total_feed_kg ?? 0).toFixed(2)} kg
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Implement All Missed Feeding"
+      description={
+        <>
+          Backfill all past days without a feeding record using planned schedule quantities. Records
+          will be saved with status <span className="font-semibold">late</span> and feed inventory
+          will be deducted for each day.
+        </>
+      }
+      icon={Wheat}
+      tone="schedule"
+      size="md"
+      busy={submitting}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitType="button"
+          onConfirm={handleConfirm}
+          submitLabel={`Implement ${preview?.count ?? 0} day(s)`}
+          busyLabel="Implementing..."
+          busy={submitting}
+          disabled={loading || !canSubmit}
+          icon={Wheat}
+        />
+      }
+    >
+      {loading ? (
+        <LoadingState variant="centered" label="Loading missed days…" />
+      ) : (
+        <>
+          <FormSection step={1} icon={BarChart3} title="Backfill summary" description="Days that will be recorded as late feedings.">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4 text-center">
+                  <div className="text-2xl font-bold text-teal-700">{preview?.count ?? 0}</div>
+                  <div className="text-xs text-teal-800">Missed days</div>
                 </div>
-                <div className="text-xs text-amber-800">Total planned feed</div>
+                <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-4 text-center">
+                  <div className="text-2xl font-bold text-amber-700">
+                    {(preview?.total_feed_kg ?? 0).toFixed(2)} kg
+                  </div>
+                  <div className="text-xs text-amber-800">Total planned feed</div>
+                </div>
               </div>
+
+              {missedDays.length > 0 && (
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-600">
+                  <Calendar className="h-4 w-4 text-slate-400" />
+                  <span>
+                    Date range: <span className="font-medium text-slate-800">{dateRange}</span>
+                  </span>
+                </div>
+              )}
+
+              {missedDays.length === 0 && (
+                <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                  <AlertTriangle className="h-4 w-4" />
+                  All past feeding days are already recorded.
+                </div>
+              )}
             </div>
+          </FormSection>
 
-            {missedDays.length > 0 && (
-              <div className="flex items-center gap-2 text-sm text-slate-600 rounded-lg border px-3 py-2">
-                <Calendar className="h-4 w-4 text-slate-400" />
-                <span>
-                  Date range: <span className="font-medium text-slate-800">{dateRange}</span>
-                </span>
-              </div>
-            )}
-
-            {showInventoryPicker && (
-              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <div className="flex items-start gap-2 text-sm text-amber-900">
-                  <Package className="h-4 w-4 mt-0.5 shrink-0" />
-                  <p>
-                    {selectionRequired.length > 0
-                      ? "No usable stock was found for some feed type(s). You can pick a batch, or leave it blank — a zero-cost overdraft batch will be created automatically (update cost afterward)."
-                      : "Optional: choose a preferred inventory batch. If not selected, the oldest usable stock will be used automatically."}
-                  </p>
-                </div>
-
+          {showInventoryPicker && (
+            <FormSection
+              step={2}
+              icon={Package}
+              title="Feed inventory"
+              description={
+                selectionRequired.length > 0
+                  ? "No usable stock was found for some feed type(s). You can pick a batch, or leave it blank — a zero-cost overdraft batch will be created automatically (update cost afterward)."
+                  : "Optional: choose a preferred inventory batch. If not selected, the oldest usable stock will be used automatically."
+              }
+            >
+              <div className="space-y-4">
                 {[...selectionRequired, ...optionalSelection].map((req: FeedInventoryRequirement) => {
                   const options = selectableInventoriesByType.get(req.feed_type_id) ?? []
                   const stockShortfall =
@@ -265,18 +288,16 @@ const BulkImplementFeedingModal = ({
                     (req.available_stock_kg ?? 0) < req.total_feed_kg
 
                   return (
-                    <div key={req.feed_type_id} className="space-y-1.5">
-                      <Label className="text-xs text-amber-900">
-                        {req.feed_type_name} · {req.total_feed_kg.toFixed(2)} kg across{" "}
-                        {req.missed_days_count} day(s)
-                        {req.needs_selection ? " *" : ""}
-                      </Label>
-                      {stockShortfall && (
-                        <p className="text-xs text-amber-800">
-                          {(req.available_stock_kg ?? 0).toFixed(2)} kg available across all batches
-                          — stock may go negative if you proceed.
-                        </p>
-                      )}
+                    <FormField
+                      key={req.feed_type_id}
+                      label={`${req.feed_type_name} · ${req.total_feed_kg.toFixed(2)} kg across ${req.missed_days_count} day(s)`}
+                      required={req.needs_selection}
+                      hint={
+                        stockShortfall
+                          ? `${(req.available_stock_kg ?? 0).toFixed(2)} kg available across all batches — stock may go negative if you proceed.`
+                          : undefined
+                      }
+                    >
                       <Select
                         value={
                           inventorySelections[req.feed_type_id]
@@ -290,7 +311,7 @@ const BulkImplementFeedingModal = ({
                           }))
                         }
                       >
-                        <SelectTrigger className="h-9 bg-white text-sm">
+                        <SelectTrigger className={formInputClass()}>
                           <SelectValue
                             placeholder={
                               req.needs_selection
@@ -313,37 +334,15 @@ const BulkImplementFeedingModal = ({
                           )}
                         </SelectContent>
                       </Select>
-                    </div>
+                    </FormField>
                   )
                 })}
               </div>
-            )}
-
-            {missedDays.length === 0 && (
-              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                <AlertTriangle className="h-4 w-4" />
-                All past feeding days are already recorded.
-              </div>
-            )}
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleConfirm}
-            disabled={loading || submitting || !canSubmit}
-            className="bg-orange-600 hover:bg-orange-700"
-          >
-            {submitting && <LoadingState variant="button" loading label="Implementing…" />}
-            {submitting ? "Implementing..." : `Implement ${preview?.count ?? 0} day(s)`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            </FormSection>
+          )}
+        </>
+      )}
+    </FormModal>
   )
 }
 

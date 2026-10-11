@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+  formTextareaClass,
+} from "@/components/ui/form-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -11,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, CalendarRange, FileText, ListChecks, PencilLine, Plus, Save, Trash2, X } from "lucide-react";
 import type { FeedType } from "@/lib/types";
 import {
   getFeedTypes,
@@ -21,6 +27,7 @@ import {
 } from "@/lib/request";
 import FeedingRangeEditor, { type FeedingRangeDraft } from "@/components/poultry/schedules/FeedingRangeEditor";
 import { DEFAULT_FEEDING_TIMES, normalizeFeedingTimesForUi, validateFeedingRanges } from "@/lib/feeding-range";
+import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
@@ -307,226 +314,242 @@ export default function EditScheduleModal({
     }
   };
 
+  const modeToggle = (
+    <div className="inline-flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+      {(["daily", "range"] as const).map((mode) => (
+        <Button
+          key={mode}
+          type="button"
+          size="sm"
+          variant="ghost"
+          className={cn(
+            "h-8 rounded-lg",
+            feedingEntryMode === mode && "bg-teal-700 text-white hover:bg-teal-800 hover:text-white"
+          )}
+          onClick={() => switchFeedingMode(mode)}
+        >
+          {mode === "daily" ? "Daily (per day)" : "Day ranges"}
+        </Button>
+      ))}
+    </div>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit {type} schedule</DialogTitle>
-        </DialogHeader>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={<span className="capitalize">Edit {type} schedule</span>}
+      description="Update the schedule details and its items."
+      icon={PencilLine}
+      tone="schedule"
+      size={isFeeding ? "xl" : "lg"}
+      busy={isSaving}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitType="button"
+          onConfirm={handleSave}
+          submitLabel="Save"
+          busyLabel="Saving..."
+          busy={isSaving}
+          icon={Save}
+        />
+      }
+    >
+      <FormSection step={1} icon={FileText} title="Schedule details" description="Name and description shown across the app.">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField label={isFeeding ? "Title" : "Name"} required htmlFor="edit-schedule-name">
+            <Input
+              id="edit-schedule-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={formInputClass()}
+            />
+          </FormField>
+          <FormField label="Description" htmlFor="edit-schedule-description">
+            <Textarea
+              id="edit-schedule-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={formTextareaClass()}
+            />
+          </FormField>
+        </div>
+      </FormSection>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{isFeeding ? "Title" : "Name"}</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-            </div>
-          </div>
-
-          {isFeeding ? (
-            <>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Entry mode</Label>
-                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={feedingEntryMode === "daily" ? "default" : "ghost"}
-                    className="h-8"
-                    onClick={() => switchFeedingMode("daily")}
-                  >
-                    Daily (per day)
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={feedingEntryMode === "range" ? "default" : "ghost"}
-                    className="h-8"
-                    onClick={() => switchFeedingMode("range")}
-                  >
-                    Day ranges
-                  </Button>
-                </div>
+      {isFeeding ? (
+        <FormSection
+          step={2}
+          icon={feedingEntryMode === "range" ? CalendarRange : CalendarDays}
+          title="Feeding items"
+          description={
+            feedingEntryMode === "range"
+              ? "Set one rate across a span of days, including open-ended ranges."
+              : "One feed rate per placement day. Saved as single-day ranges."
+          }
+          action={modeToggle}
+        >
+          {feedingEntryMode === "range" ? (
+            <FeedingRangeEditor
+              ranges={feedingRanges}
+              feedTypes={feedTypes}
+              allowSplit
+              onSplit={handleSplit}
+              onChange={(ranges) => {
+                setItems(
+                  ranges.map((r) => ({
+                    id: r.id,
+                    __localId: r.__localId,
+                    feed_type_id: r.feed_type_id,
+                    start_day: r.start_day,
+                    end_day: r.open_ended ? null : r.end_day,
+                    open_ended: Boolean(r.open_ended),
+                    quantity: r.quantity,
+                    feeding_times: normalizeFeedingTimesForUi(r.feeding_times),
+                    feeding_day: r.start_day,
+                    age_days: r.start_day,
+                  }))
+                );
+              }}
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500">{items.length} day(s)</p>
+                <Button type="button" size="sm" onClick={addDailyItem} className="rounded-xl bg-teal-700 text-white hover:bg-teal-800">
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Add day
+                </Button>
               </div>
-
-              {feedingEntryMode === "range" ? (
-                <FeedingRangeEditor
-                  ranges={feedingRanges}
-                  feedTypes={feedTypes}
-                  allowSplit
-                  onSplit={handleSplit}
-                  onChange={(ranges) => {
-                    setItems(
-                      ranges.map((r) => ({
-                        id: r.id,
-                        __localId: r.__localId,
-                        feed_type_id: r.feed_type_id,
-                        start_day: r.start_day,
-                        end_day: r.open_ended ? null : r.end_day,
-                        open_ended: Boolean(r.open_ended),
-                        quantity: r.quantity,
-                        feeding_times: normalizeFeedingTimesForUi(r.feeding_times),
-                        feeding_day: r.start_day,
-                        age_days: r.start_day,
-                      }))
-                    );
-                  }}
-                />
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-slate-600">
-                      One feed rate per placement day. Saved as single-day ranges.
-                    </p>
-                    <Button type="button" size="sm" onClick={addDailyItem}>
-                      <Plus className="h-3.5 w-3.5 mr-1" />
-                      Add day
-                    </Button>
-                  </div>
-                  {items.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-                      No days yet. Add a feeding day to get started.
-                    </div>
-                  )}
-                  {items.map((it, idx) => (
-                    <div
-                      key={it.id ?? it.__localId ?? idx}
-                      className="rounded-lg border border-slate-200 bg-white p-4 space-y-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Day</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={it.age_days ?? it.start_day ?? 1}
-                              onChange={(e) =>
-                                updateDailyItem(idx, { age_days: Number(e.target.value) || 1 })
-                              }
-                              className="h-9"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">g / bird / day</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={0.1}
-                              value={it.quantity ?? 0}
-                              onChange={(e) => updateDailyItem(idx, { quantity: e.target.value })}
-                              className="h-9"
-                            />
-                          </div>
-                          <div className="space-y-1 md:col-span-2">
-                            <Label className="text-xs">Feed type</Label>
-                            <Select
-                              value={it.feed_type_id ? String(it.feed_type_id) : ""}
-                              onValueChange={(v) => updateDailyItem(idx, { feed_type_id: Number(v) })}
-                            >
-                              <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Select feed type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {feedTypes.map((ft) => (
-                                  <SelectItem key={ft.id} value={String(ft.id)}>
-                                    {ft.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600"
-                          onClick={() => removeDailyItem(idx)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Feeding times</Label>
-                        {(normalizeFeedingTimesForUi(it.feeding_times)).map((ft, ti) => (
-                          <div key={ti} className="flex gap-2 items-center">
-                            <Input
-                              type="time"
-                              value={ft.time}
-                              className="h-8 w-32"
-                              onChange={(e) => updateDailyTime(idx, ti, { time: e.target.value })}
-                            />
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={ft.percentage}
-                              className="h-8 w-24"
-                              onChange={(e) =>
-                                updateDailyTime(idx, ti, { percentage: Number(e.target.value) })
-                              }
-                            />
-                            <span className="text-xs text-slate-500">%</span>
-                            {normalizeFeedingTimesForUi(it.feeding_times).length > 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 px-2"
-                                onClick={() => {
-                                  const times = normalizeFeedingTimesForUi(it.feeding_times)
-                                  updateDailyItem(idx, {
-                                    feeding_times: times.filter((_, i) => i !== ti),
-                                  })
-                                }}
-                              >
-                                <X className="h-3.5 w-3.5 text-red-500" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
-                          onClick={() => {
-                            const times = normalizeFeedingTimesForUi(it.feeding_times)
-                            updateDailyItem(idx, {
-                              feeding_times: [...times, { time: "12:00", percentage: 0 }],
-                            })
-                          }}
-                        >
-                          <Plus className="h-3.5 w-3.5 mr-1" />
-                          Add time
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+              {items.length === 0 && (
+                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                  No days yet. Add a feeding day to get started.
                 </div>
               )}
-            </>
-          ) : (
-            <div className="text-sm text-slate-500">
-              {items.length} item(s). Medication/vaccination item editing remains read-only in this view.
+              {items.map((it, idx) => (
+                <div
+                  key={it.id ?? it.__localId ?? idx}
+                  className="space-y-3 rounded-xl border border-slate-200 bg-white p-4"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="grid flex-1 grid-cols-2 gap-3 md:grid-cols-4">
+                      <FormField label="Day">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={it.age_days ?? it.start_day ?? 1}
+                          onChange={(e) =>
+                            updateDailyItem(idx, { age_days: Number(e.target.value) || 1 })
+                          }
+                          className={formInputClass()}
+                        />
+                      </FormField>
+                      <FormField label="g / bird / day">
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.1}
+                          value={it.quantity ?? 0}
+                          onChange={(e) => updateDailyItem(idx, { quantity: e.target.value })}
+                          className={formInputClass()}
+                        />
+                      </FormField>
+                      <FormField label="Feed type" className="md:col-span-2">
+                        <Select
+                          value={it.feed_type_id ? String(it.feed_type_id) : ""}
+                          onValueChange={(v) => updateDailyItem(idx, { feed_type_id: Number(v) })}
+                        >
+                          <SelectTrigger className={formInputClass()}>
+                            <SelectValue placeholder="Select feed type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {feedTypes.map((ft) => (
+                              <SelectItem key={ft.id} value={String(ft.id)}>
+                                {ft.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mt-6 h-8 w-8 p-0 text-red-600"
+                      onClick={() => removeDailyItem(idx)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <FormField label="Feeding times">
+                    <div className="space-y-2">
+                      {(normalizeFeedingTimesForUi(it.feeding_times)).map((ft, ti) => (
+                        <div key={ti} className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={ft.time}
+                            className={formInputClass(false, "h-9 w-32")}
+                            onChange={(e) => updateDailyTime(idx, ti, { time: e.target.value })}
+                          />
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={ft.percentage}
+                            className={formInputClass(false, "h-9 w-24")}
+                            onChange={(e) =>
+                              updateDailyTime(idx, ti, { percentage: Number(e.target.value) })
+                            }
+                          />
+                          <span className="text-xs text-slate-500">%</span>
+                          {normalizeFeedingTimesForUi(it.feeding_times).length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2"
+                              onClick={() => {
+                                const times = normalizeFeedingTimesForUi(it.feeding_times)
+                                updateDailyItem(idx, {
+                                  feeding_times: times.filter((_, i) => i !== ti),
+                                })
+                              }}
+                            >
+                              <X className="h-3.5 w-3.5 text-red-500" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-xl"
+                        onClick={() => {
+                          const times = normalizeFeedingTimesForUi(it.feeding_times)
+                          updateDailyItem(idx, {
+                            feeding_times: [...times, { time: "12:00", percentage: 0 }],
+                          })
+                        }}
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        Add time
+                      </Button>
+                    </div>
+                  </FormField>
+                </div>
+              ))}
             </div>
           )}
-        </div>
-
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </FormSection>
+      ) : (
+        <FormSection step={2} icon={ListChecks} title="Schedule items" description="Items are read-only in this view.">
+          <p className="text-sm text-slate-500">
+            {items.length} item(s). Medication/vaccination item editing remains read-only in this view.
+          </p>
+        </FormSection>
+      )}
+    </FormModal>
   );
 }

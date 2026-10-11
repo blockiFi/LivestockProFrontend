@@ -2,15 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+  FormField,
+  FormModal,
+  FormSection,
+  ModalFooterActions,
+  formInputClass,
+} from "@/components/ui/form-modal"
 import {
   Select,
   SelectContent,
@@ -18,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Wheat } from "lucide-react"
+import { CalendarRange, Loader2, Wheat } from "lucide-react"
 import { toast } from "react-toastify"
 import type { FeedingSchedule } from "@/lib/types"
 import { createFeedingBatchSchedule, getFeedingSchedules } from "@/lib/request"
@@ -143,82 +140,66 @@ export default function AssignFeedingScheduleModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Wheat className="h-5 w-5 text-amber-600" />
-            {isReassign ? "Change Feeding Schedule" : "Assign Feeding Schedule"}
-          </DialogTitle>
-          <DialogDescription>
-            {isReassign
-              ? `Pick a different feeding program for this flock. Prior feed logs for the previous program will be cleared.`
-              : `Choose an existing feeding program for this flock. Schedules for ${
-                  poultryTypeName || "this poultry type"
-                } are listed below.`}
-          </DialogDescription>
-        </DialogHeader>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Loading schedules…
-          </div>
-        ) : schedules.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No feeding schedules found for this poultry type. Create one under Schedule Management
-            first.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label>Feeding schedule</Label>
-              <Select value={selectedId} onValueChange={setSelectedId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a schedule" />
-                </SelectTrigger>
-                <SelectContent>
-                  {schedules.map((schedule) => (
-                    <SelectItem key={schedule.id} value={String(schedule.id)}>
-                      {schedule.title}
-                      {schedule.id === currentFeedingScheduleId ? " (current)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {selected?.description && (
-              <p className="text-xs text-muted-foreground">{selected.description}</p>
-            )}
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleAssign}
-            disabled={
-              saving ||
-              !selectedId ||
-              schedules.length === 0 ||
-              (isReassign && Number(selectedId) === currentFeedingScheduleId)
-            }
-          >
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isReassign ? "Reassigning…" : "Assigning…"}
-              </>
-            ) : isReassign ? (
-              "Reassign schedule"
-            ) : (
-              "Assign schedule"
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isReassign ? "Change Feeding Schedule" : "Assign Feeding Schedule"}
+      description={
+        isReassign
+          ? `Pick a different feeding program for this flock. Prior feed logs for the previous program will be cleared.`
+          : `Choose an existing feeding program for this flock. Schedules for ${
+              poultryTypeName || "this poultry type"
+            } are listed below.`
+      }
+      icon={Wheat}
+      tone="schedule"
+      size="sm"
+      busy={saving}
+      footer={
+        <ModalFooterActions
+          onCancel={() => onOpenChange(false)}
+          submitType="button"
+          onConfirm={handleAssign}
+          submitLabel={isReassign ? "Reassign schedule" : "Assign schedule"}
+          busyLabel={isReassign ? "Reassigning…" : "Assigning…"}
+          busy={saving}
+          disabled={
+            !selectedId ||
+            schedules.length === 0 ||
+            (isReassign && Number(selectedId) === currentFeedingScheduleId)
+          }
+        />
+      }
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-8 text-sm text-slate-500">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Loading schedules…
+        </div>
+      ) : schedules.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+          No feeding schedules found for this poultry type. Create one under Schedule Management
+          first.
+        </div>
+      ) : (
+        <FormSection icon={CalendarRange} title="Feeding program" description="The template this flock will follow.">
+          <FormField label="Feeding schedule" required hint={selected?.description || undefined}>
+            <Select value={selectedId} onValueChange={setSelectedId}>
+              <SelectTrigger className={formInputClass()}>
+                <SelectValue placeholder="Select a schedule" />
+              </SelectTrigger>
+              <SelectContent>
+                {schedules.map((schedule) => (
+                  <SelectItem key={schedule.id} value={String(schedule.id)}>
+                    {schedule.title}
+                    {schedule.id === currentFeedingScheduleId ? " (current)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        </FormSection>
+      )}
+    </FormModal>
   )
 }

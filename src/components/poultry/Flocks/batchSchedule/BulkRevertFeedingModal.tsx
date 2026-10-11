@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+import { ConfirmModal } from "@/components/ui/form-modal"
 import { AlertTriangle, Calendar, Loader2, Undo2 } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { useSelector } from "react-redux"
@@ -96,73 +88,58 @@ const BulkRevertFeedingModal = ({
       : "—"
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Undo2 className="h-5 w-5 text-slate-600" />
-            Revert Bulk Backfill
-          </DialogTitle>
-          <DialogDescription>
-            Remove late backfill feeding records and restore feed inventory where usage was
-            deducted. Manually recorded feedings are not affected.
-          </DialogDescription>
-        </DialogHeader>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-10 text-slate-500">
-            <Loader2 className="h-6 w-6 animate-spin mr-2" />
-            Loading revertible records...
-          </div>
-        ) : (
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border bg-slate-50 p-4 text-center">
-                <div className="text-2xl font-bold text-slate-700">{preview?.count ?? 0}</div>
-                <div className="text-xs text-slate-600">Late backfills</div>
-              </div>
-              <div className="rounded-lg border bg-amber-50 p-4 text-center">
-                <div className="text-2xl font-bold text-amber-700">
-                  {(preview?.total_feed_kg ?? 0).toFixed(2)} kg
-                </div>
-                <div className="text-xs text-amber-800">Feed to restore</div>
-              </div>
+    <ConfirmModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Revert Bulk Backfill"
+      description="Remove late backfill feeding records and restore feed inventory where usage was deducted. Manually recorded feedings are not affected."
+      icon={Undo2}
+      tone="danger"
+      busy={submitting}
+      confirmDisabled={loading || (preview?.count ?? 0) === 0}
+      confirmLabel={`Revert ${preview?.count ?? 0} record(s)`}
+      busyLabel="Reverting..."
+      confirmIcon={Undo2}
+      onConfirm={handleConfirm}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-10 text-sm text-slate-500">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Loading revertible records...
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+              <div className="text-2xl font-bold text-slate-800">{preview?.count ?? 0}</div>
+              <div className="text-xs text-slate-500">Late backfills</div>
             </div>
-
-            {revertibleDays.length > 0 && (
-              <div className="flex items-center gap-2 text-sm text-slate-600 rounded-lg border px-3 py-2">
-                <Calendar className="h-4 w-4 text-slate-400" />
-                <span>
-                  Date range: <span className="font-medium text-slate-800">{dateRange}</span>
-                </span>
+            <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4 text-center shadow-sm">
+              <div className="text-2xl font-bold text-rose-700">
+                {(preview?.total_feed_kg ?? 0).toFixed(2)} kg
               </div>
-            )}
-
-            {revertibleDays.length === 0 && (
-              <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                <AlertTriangle className="h-4 w-4" />
-                No late backfill records to revert.
-              </div>
-            )}
+              <div className="text-xs text-rose-800">Feed to restore</div>
+            </div>
           </div>
-        )}
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleConfirm}
-            disabled={loading || submitting || (preview?.count ?? 0) === 0}
-          >
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {submitting ? "Reverting..." : `Revert ${preview?.count ?? 0} record(s)`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {revertibleDays.length > 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+              <Calendar className="h-4 w-4 text-slate-400" />
+              <span>
+                Date range: <span className="font-medium text-slate-800">{dateRange}</span>
+              </span>
+            </div>
+          )}
+
+          {revertibleDays.length === 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              <AlertTriangle className="h-4 w-4" />
+              No late backfill records to revert.
+            </div>
+          )}
+        </div>
+      )}
+    </ConfirmModal>
   )
 }
 
