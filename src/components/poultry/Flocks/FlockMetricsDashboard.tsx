@@ -219,9 +219,7 @@ export default function FlockMetricsDashboard({
   const visibleChartTabs = useMemo(() => {
     const tabs: { id: string; label: string }[] = []
     if (trends.mortality.length > 0) tabs.push({ id: "mortality", label: "Mortality" })
-    if (trends.weight.length > 0 && (poultryKind === "broiler" || poultryKind === "dual" || poultryKind === "other")) {
-      tabs.push({ id: "weight", label: "Weight" })
-    }
+    if (trends.weight.length > 0) tabs.push({ id: "weight", label: "Weight" })
     if (trends.eggs.length > 0 && (poultryKind === "layer" || poultryKind === "dual")) {
       tabs.push({ id: "eggs", label: "Eggs" })
     }

@@ -1338,17 +1338,14 @@ const FlockPage = () => {
                           <span className="hidden sm:inline">Mortality</span>
                           <span className="sm:hidden">Mortality</span>
                         </TabsTrigger>
-                        {(flock.poultry_type.name.toLowerCase() === "broiler" ||
-                          flock.poultry_type.name.toLowerCase() === "dual purpose") && (
-                          <TabsTrigger
-                            value="weight"
-                            className="flex items-center gap-2 whitespace-nowrap px-3 py-2 min-w-fit data-[state=active]:bg-white data-[state=active]:shadow-sm"
-                          >
-                            <Scale className="h-4 w-4" />
-                            <span className="hidden sm:inline">Weight</span>
-                            <span className="sm:hidden">Weight</span>
-                          </TabsTrigger>
-                        )}
+                        <TabsTrigger
+                          value="weight"
+                          className="flex items-center gap-2 whitespace-nowrap px-3 py-2 min-w-fit data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                        >
+                          <Scale className="h-4 w-4" />
+                          <span className="hidden sm:inline">Weight</span>
+                          <span className="sm:hidden">Weight</span>
+                        </TabsTrigger>
                         {(flock.poultry_type.name.toLowerCase() === "layer" ||
                           flock.poultry_type.name.toLowerCase() === "dual purpose") && (
                           <TabsTrigger
