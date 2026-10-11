@@ -540,7 +540,91 @@ export type WeightReport = {
   created_at: string;     // ISO datetime string
   updated_at: string;     // ISO datetime string
   deleted_at: string | null;
+  house_id?: number | null;
+  house?: { id: number; name: string } | null;
+  pen_label?: string | null;
+  sex?: WeightSex | null;
+  weighing_method?: WeighingMethod | null;
+  scale_reference?: string | null;
+  weighed_at_time?: string | null;
+  age_days?: number | null;
+  target_weight_g?: number | null;
+  average_weight_g?: number | null;
+  median_weight_g?: number | null;
+  std_dev_g?: number | null;
+  cv_percent?: number | null;
+  uniformity_percent?: number | null;
+  uniformity_band_percent?: number | null;
+  birds_within_band?: number | null;
+  uniformity_method?: UniformityMethod | null;
+  deviation_from_target_g?: number | null;
+  deviation_from_target_percent?: number | null;
+  daily_gain_g?: number | null;
+  data_source?: WeightDataSource | null;
+  source_file_path?: string | null;
+  samples?: WeightSample[];
 }
+
+export type WeightSex = 'mixed' | 'male' | 'female';
+export type WeighingMethod = 'manual_scale' | 'hanging_scale' | 'platform_auto' | 'crate';
+export type WeightDataSource = 'manual' | 'ai_image' | 'ai_file' | 'summary_only';
+export type UniformityMethod = 'measured' | 'counted' | 'estimated';
+
+export type WeightSample = {
+  id?: number;
+  weight_report_id?: number;
+  sequence?: number;
+  weight_g: number;
+  sex?: 'male' | 'female' | null;
+  is_outlier?: boolean;
+  excluded?: boolean;
+  note?: string | null;
+};
+
+export type WeightReportPayload = {
+  flock_id: number;
+  report_date: string;
+  house_id?: number | null;
+  pen_label?: string | null;
+  sex?: WeightSex;
+  weighing_method?: WeighingMethod | null;
+  scale_reference?: string | null;
+  weighed_at_time?: string | null;
+  number_of_birds?: number | null;
+  uniformity_band_percent?: number;
+  target_weight_g?: number | null;
+  notes?: string | null;
+  data_source?: Exclude<WeightDataSource, 'summary_only'>;
+  source_file_path?: string | null;
+  samples?: Array<Pick<WeightSample, 'weight_g' | 'sex' | 'excluded' | 'note'>>;
+  average_weight?: number;
+  min_weight?: number;
+  max_weight?: number;
+  sample_size?: number;
+  birds_within_band?: number | null;
+};
+
+export type WeightLastTarget = {
+  target_weight_g: number | null;
+  report_date: string | null;
+  age_days: number | null;
+  uniformity_band_percent: number | null;
+};
+
+export type WeightExtractionResult = {
+  ok: boolean;
+  source_type: 'pdf' | 'spreadsheet' | 'image';
+  unit: string | null;
+  samples: Array<{ weight_g: number; sex?: 'male' | 'female' | null; is_outlier?: boolean }>;
+  target_weight_g: number | null;
+  date: string | null;
+  house: string | null;
+  confidence: number | null;
+  warnings: string[];
+  data_source: 'ai_image' | 'ai_file';
+  source_file_path: string | null;
+  original_filename: string | null;
+};
 export type EggReport = {
   id: number;
   farm_id: number;

@@ -25,7 +25,7 @@ import {
   Timer,
 } from "lucide-react"
 import { Link, useLoaderData } from "react-router-dom"
-import type { DetailedFlockRecord, FeedInventoryType, FeedType, FlockProfitLoss, PoultryDailyReport, PoultryFeedUsageRecord } from "@/lib/types"
+import type { DetailedFlockRecord, FeedInventoryType, FeedType, FlockProfitLoss, PoultryDailyReport, PoultryFeedUsageRecord, WeightReportPayload } from "@/lib/types"
 import { getDaysInFlock, formatDate, isFlockActive, cn } from "@/lib/utils"
 import { formatEggsWithCrates } from "@/lib/eggMetrics"
 import { toLocalIsoDate } from "@/lib/dateRange"
@@ -135,6 +135,13 @@ const FlockPage = () => {
     const penQuantityForDetails = primaryAllocationForDetails
       ? Number(primaryAllocationForDetails.quantity || 0)
       : flock.actual_quantity;
+
+    const weighingHouses = [
+      ...allocations.map((a) => a.house).filter((h): h is { id: number; name: string } => !!h?.id),
+      ...(flock.poultry_house?.id ? [flock.poultry_house] : []),
+    ]
+      .map((h) => ({ id: Number(h.id), name: String(h.name ?? `House ${h.id}`) }))
+      .filter((h, i, all) => all.findIndex((x) => x.id === h.id) === i);
 
     // Function to refresh flock data
     const refreshFlock = async (): Promise<DetailedFlockRecord | null> => {
@@ -447,7 +454,7 @@ const FlockPage = () => {
         }
     };
 
-    const handleCreateWeightReport = async (recordData: any) => {
+    const handleCreateWeightReport = async (recordData: WeightReportPayload) => {
         if (!farmId || !token) return;
         
         try {
@@ -1436,6 +1443,7 @@ const FlockPage = () => {
                       <WeightReportPage
                         reports={flock.weight_reports}
                         flock={flock}
+                        houses={weighingHouses}
                         onAddRecord={isBatchActive && canCreateRecords ? handleCreateWeightReport : undefined}
                         onDeleteRecord={isBatchActive && canDeleteRecords ? handleDeleteWeightReport : undefined}
                       />

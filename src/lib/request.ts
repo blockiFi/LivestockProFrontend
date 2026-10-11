@@ -1,6 +1,6 @@
 import axios from "./axios"
 import type {    LoginData,  PaginatedRequestType,  RequestResponse } from "./interfaces"
-import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, EggReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout, BatchChatSessionSummary, BatchChatMessage, BatchChatTurnResponse, BatchChatMemory } from "./types"
+import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, WeightReportPayload, WeightSex, WeightLastTarget, WeightExtractionResult, EggReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout, BatchChatSessionSummary, BatchChatMessage, BatchChatTurnResponse, BatchChatMemory } from "./types"
 import  { isAxiosError } from "axios"
 
 const flattenApiErrors = (error: unknown): string => {
@@ -532,6 +532,29 @@ export const createFarm = async (
       sample_size: toNumber(r.sample_size),
       recorded_by: toNumber(recorder?.id ?? r.recorded_by),
       recorded_by_name: recorder?.name ?? r.recorded_by_name ?? null,
+      house_id: toNullableNumber(r.house_id),
+      age_days: toNullableNumber(r.age_days),
+      target_weight_g: toNullableNumber(r.target_weight_g),
+      average_weight_g: toNullableNumber(r.average_weight_g),
+      median_weight_g: toNullableNumber(r.median_weight_g),
+      std_dev_g: toNullableNumber(r.std_dev_g),
+      cv_percent: toNullableNumber(r.cv_percent),
+      uniformity_percent: toNullableNumber(r.uniformity_percent),
+      uniformity_band_percent: toNullableNumber(r.uniformity_band_percent),
+      birds_within_band: toNullableNumber(r.birds_within_band),
+      deviation_from_target_g: toNullableNumber(r.deviation_from_target_g),
+      deviation_from_target_percent: toNullableNumber(r.deviation_from_target_percent),
+      daily_gain_g: toNullableNumber(r.daily_gain_g),
+      samples: Array.isArray(r.samples)
+        ? r.samples.map((s: any) => ({
+            ...s,
+            id: toNumber(s.id),
+            sequence: toNumber(s.sequence),
+            weight_g: toNumber(s.weight_g),
+            is_outlier: Boolean(s.is_outlier),
+            excluded: Boolean(s.excluded),
+          }))
+        : undefined,
     };
   };
 
@@ -2045,7 +2068,7 @@ export const createFarm = async (
   export const createWeightReport = async (
     token: string,
     farmId: number,
-    recordData: Omit<WeightReport, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>
+    recordData: WeightReportPayload
   ): Promise<RequestResponse<WeightReport>> => {
     try {
       const response = await axios.post(
@@ -2116,6 +2139,112 @@ export const createFarm = async (
           error: ["An unexpected error occurred"],
         };
       }
+    }
+  };
+
+  export const getWeightReport = async (
+    token: string,
+    farmId: number,
+    reportId: number
+  ): Promise<RequestResponse<WeightReport>> => {
+    try {
+      const response = await axios.get(
+        `/api/farms/${farmId}/flock-weight-reports/${reportId}`,
+        { headers: { "Authorization": `Bearer ${token}` } }
+      );
+      return { success: true, data: sanitizeWeightReport(response.data.data) };
+    } catch (error: unknown) {
+      console.error("Error fetching weight report:", error);
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message || "Failed to load weight report"],
+        };
+      }
+      return { success: false, error: ["An unexpected error occurred"] };
+    }
+  };
+
+  export const getLastWeightTarget = async (
+    token: string,
+    farmId: number,
+    flockId: number,
+    sex?: WeightSex
+  ): Promise<RequestResponse<WeightLastTarget>> => {
+    try {
+      const response = await axios.get(
+        `/api/farms/${farmId}/flock-weight-reports/last-target`,
+        {
+          headers: { "Authorization": `Bearer ${token}` },
+          params: { flock_id: flockId, ...(sex ? { sex } : {}) },
+        }
+      );
+      const d = response.data.data ?? {};
+      return {
+        success: true,
+        data: {
+          target_weight_g: toNullableNumber(d.target_weight_g),
+          report_date: d.report_date ?? null,
+          age_days: toNullableNumber(d.age_days),
+          uniformity_band_percent: toNullableNumber(d.uniformity_band_percent),
+        },
+      };
+    } catch (error: unknown) {
+      console.error("Error fetching last weight target:", error);
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message || "Failed to load last target weight"],
+        };
+      }
+      return { success: false, error: ["An unexpected error occurred"] };
+    }
+  };
+
+  export const extractWeightSamples = async (
+    token: string,
+    farmId: number,
+    file: File,
+    flockId?: number
+  ): Promise<RequestResponse<WeightExtractionResult>> => {
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      if (flockId) form.append("flock_id", String(flockId));
+      const response = await axios.post(
+        `/api/farms/${farmId}/flock-weight-reports/extract`,
+        form,
+        {
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+          timeout: 180000,
+        }
+      );
+      const d = response.data.data ?? {};
+      return {
+        success: true,
+        data: {
+          ...d,
+          samples: Array.isArray(d.samples)
+            ? d.samples.map((s: any) => ({
+                weight_g: Number(s.weight_g),
+                sex: s.sex ?? null,
+                is_outlier: Boolean(s.is_outlier),
+              }))
+            : [],
+          target_weight_g: toNullableNumber(d.target_weight_g),
+          confidence: toNullableNumber(d.confidence),
+          warnings: Array.isArray(d.warnings) ? d.warnings : [],
+        },
+      };
+    } catch (error: unknown) {
+      console.error("Error extracting weight samples:", error);
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          error: error.response?.data?.errors || [error.response?.data?.message || "Failed to extract weights"],
+        };
+      }
+      return { success: false, error: ["An unexpected error occurred"] };
     }
   };
 
