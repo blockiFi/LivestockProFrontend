@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -32,6 +33,53 @@ const toneStyles = {
   },
 } as const
 
+/** Text input that keeps partial entries like "0." or ".5" while typing and reports a parsed number. */
+function AmountInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string
+  value: number | null
+  onChange: (next: number | null) => void
+  placeholder: string
+}) {
+  const [text, setText] = useState(value == null ? "" : String(value))
+
+  useEffect(() => {
+    const parsed = text.trim() === "" ? null : Number(text.replace(",", "."))
+    if (parsed !== value && !(Number.isNaN(parsed) && value == null)) {
+      setText(value == null ? "" : String(value))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
+  return (
+    <Input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
+      value={text}
+      onChange={(e) => {
+        const next = e.target.value
+        if (!/^\d*[.,]?\d*$/.test(next)) return
+        setText(next)
+        const normalized = next.replace(",", ".")
+        if (normalized === "" || normalized === ".") {
+          onChange(null)
+          return
+        }
+        const n = Number(normalized)
+        if (Number.isFinite(n)) onChange(n)
+      }}
+      placeholder={placeholder}
+      className="h-10 min-w-0 flex-1 bg-white text-base tabular-nums"
+    />
+  )
+}
+
 export function DosageRatioFields({
   title,
   description,
@@ -58,78 +106,64 @@ export function DosageRatioFields({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
-        <div className="col-span-1 space-y-1.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor={`${idPrefix}-med-amt`} className="text-xs text-slate-600">
-            Medicine
+            Medicine amount
           </Label>
-          <Input
-            id={`${idPrefix}-med-amt`}
-            type="number"
-            step="0.0001"
-            min="0"
-            value={value.medicine_amount ?? ""}
-            onChange={(e) =>
-              set("medicine_amount", e.target.value === "" ? null : Number.parseFloat(e.target.value))
-            }
-            placeholder="1"
-            className="h-9 bg-white/80"
-          />
-        </div>
-        <div className="col-span-1 space-y-1.5">
-          <Label className="text-xs text-slate-600">Unit</Label>
-          <Select value={value.medicine_unit || undefined} onValueChange={(v) => set("medicine_unit", v)}>
-            <SelectTrigger className="h-9 bg-white/80">
-              <SelectValue placeholder="Unit" />
-            </SelectTrigger>
-            <SelectContent>
-              {MEDICINE_UNITS.map((u) => (
-                <SelectItem key={u.value} value={u.value}>
-                  {u.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <AmountInput
+              id={`${idPrefix}-med-amt`}
+              value={value.medicine_amount}
+              onChange={(n) => set("medicine_amount", n)}
+              placeholder="e.g. 1"
+            />
+            <Select value={value.medicine_unit || undefined} onValueChange={(v) => set("medicine_unit", v)}>
+              <SelectTrigger className="h-10 w-28 shrink-0 bg-white">
+                <SelectValue placeholder="Unit" />
+              </SelectTrigger>
+              <SelectContent>
+                {MEDICINE_UNITS.map((u) => (
+                  <SelectItem key={u.value} value={u.value}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <div className="col-span-2 flex items-end justify-center pb-2 sm:col-span-1">
+        <div className="flex justify-center sm:pb-2.5">
           <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200/80">
             <Droplets className="h-3 w-3" />
             per
           </span>
         </div>
 
-        <div className="col-span-1 space-y-1.5">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor={`${idPrefix}-dil-amt`} className="text-xs text-slate-600">
-            Diluent
+            Diluent amount
           </Label>
-          <Input
-            id={`${idPrefix}-dil-amt`}
-            type="number"
-            step="0.0001"
-            min="0"
-            value={value.diluent_amount ?? ""}
-            onChange={(e) =>
-              set("diluent_amount", e.target.value === "" ? null : Number.parseFloat(e.target.value))
-            }
-            placeholder="1"
-            className="h-9 bg-white/80"
-          />
-        </div>
-        <div className="col-span-1 space-y-1.5">
-          <Label className="text-xs text-slate-600">Unit</Label>
-          <Select value={value.diluent_unit || undefined} onValueChange={(v) => set("diluent_unit", v)}>
-            <SelectTrigger className="h-9 bg-white/80">
-              <SelectValue placeholder="Unit" />
-            </SelectTrigger>
-            <SelectContent>
-              {DILUENT_UNITS.map((u) => (
-                <SelectItem key={u.value} value={u.value}>
-                  {u.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <AmountInput
+              id={`${idPrefix}-dil-amt`}
+              value={value.diluent_amount}
+              onChange={(n) => set("diluent_amount", n)}
+              placeholder="e.g. 10"
+            />
+            <Select value={value.diluent_unit || undefined} onValueChange={(v) => set("diluent_unit", v)}>
+              <SelectTrigger className="h-10 w-28 shrink-0 bg-white">
+                <SelectValue placeholder="Unit" />
+              </SelectTrigger>
+              <SelectContent>
+                {DILUENT_UNITS.map((u) => (
+                  <SelectItem key={u.value} value={u.value}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -146,7 +180,7 @@ export function DosageRatioFields({
               })
             }
           >
-            <SelectTrigger className="h-9 bg-white/80">
+            <SelectTrigger className="h-10 bg-white">
               <SelectValue placeholder="Water, feed, or other" />
             </SelectTrigger>
             <SelectContent>
@@ -166,7 +200,7 @@ export function DosageRatioFields({
               value={value.diluent_label}
               onChange={(e) => set("diluent_label", e.target.value)}
               placeholder="e.g. milk replacer"
-              className="h-9 bg-white/80"
+              className="h-10 bg-white"
             />
           </div>
         ) : (

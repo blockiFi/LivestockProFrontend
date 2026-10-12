@@ -323,7 +323,7 @@ export default function AddMedicationProductModal({
         title="Label mix ratios"
         description="Optional preventive and treatment rates from the product label."
       >
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3">
           <DosageRatioFields
             idPrefix={`${idPrefix}-preventive`}
             title="Preventive"
