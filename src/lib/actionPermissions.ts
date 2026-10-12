@@ -111,6 +111,7 @@ export const ACTIONS = {
     create: ["create feed inventories", "manage inventory", "manage medication inventory"],
     update: ["update feed inventories", "manage inventory", "manage medication inventory"],
     delete: ["delete feed inventories", "manage inventory"],
+    deplete: ["manage medication inventory"],
   },
   vaccineInventory: {
     view: ["view vaccine inventory", "view vaccine inventories", "manage vaccine inventory", "manage inventory", "view inventory"],

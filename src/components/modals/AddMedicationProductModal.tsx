@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   AlertTriangle,
   Beaker,
+  Boxes,
   Building2,
   Clock,
   ImageIcon,
@@ -28,6 +29,7 @@ import {
   emptyMedicationDosageRatios,
   type MedicationDosageRatios,
 } from "@/lib/medicationDosage"
+import { PACK_SIZE_UNITS, PACK_TYPES, formatAmount, packNoun, packSizeValid } from "@/lib/medicationPack"
 
 export type MedicationProductFormValues = {
   poultry_medication_id: number | null
@@ -39,6 +41,10 @@ export type MedicationProductFormValues = {
   image_url?: string
   min_stock_level: number
   dosage_ratios: MedicationDosageRatios
+  pack_type: string
+  /** Kept as text so decimals like 0.5 can be typed. */
+  pack_size: string
+  pack_size_unit: string
 }
 
 const emptyForm = (): MedicationProductFormValues => ({
@@ -51,6 +57,9 @@ const emptyForm = (): MedicationProductFormValues => ({
   image_url: "",
   min_stock_level: 0,
   dosage_ratios: emptyMedicationDosageRatios(),
+  pack_type: "",
+  pack_size: "",
+  pack_size_unit: "",
 })
 
 type Props = {
@@ -107,7 +116,12 @@ export default function AddMedicationProductModal({
     !formData.name.trim() ||
     !formData.manufacturer.trim() ||
     !formData.poultry_medication_id ||
-    !formData.administration_method_id
+    !formData.administration_method_id ||
+    !packSizeValid(formData)
+
+  const packPreview = packSizeValid(formData)
+    ? `1 ${packNoun(formData.pack_type, 1)} = ${formatAmount(Number(formData.pack_size), formData.pack_size_unit)}`
+    : null
 
   const handleClose = () => {
     if (submitting) return
@@ -242,6 +256,71 @@ export default function AddMedicationProductModal({
       </FormSection>
 
       <FormSection
+        icon={Boxes}
+        title="Pack size"
+        description="What one pack contains. Stock is added in packs and used in g, ml or tablets."
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <FormField label="Pack type" required>
+            <Select value={formData.pack_type || undefined} onValueChange={(v) => setField("pack_type", v)}>
+              <SelectTrigger className={inputClass(!formData.pack_type)}>
+                <SelectValue placeholder="e.g. Sachet" />
+              </SelectTrigger>
+              <SelectContent>
+                {PACK_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          <FormField label="Contents per pack" required htmlFor={`${idPrefix}-pack-size`}>
+            <Input
+              id={`${idPrefix}-pack-size`}
+              type="text"
+              inputMode="decimal"
+              value={formData.pack_size}
+              onChange={(e) => {
+                const v = e.target.value.replace(",", ".")
+                if (v === "" || /^\d*\.?\d*$/.test(v)) setField("pack_size", v)
+              }}
+              placeholder="e.g. 100"
+              className={inputClass(!(Number(formData.pack_size) > 0))}
+            />
+          </FormField>
+
+          <FormField label="Unit" required>
+            <Select
+              value={formData.pack_size_unit || undefined}
+              onValueChange={(v) => setField("pack_size_unit", v)}
+            >
+              <SelectTrigger className={inputClass(!formData.pack_size_unit)}>
+                <SelectValue placeholder="g, ml, ..." />
+              </SelectTrigger>
+              <SelectContent>
+                {PACK_SIZE_UNITS.map((u) => (
+                  <SelectItem key={u.value} value={u.value}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        </div>
+        {packPreview ? (
+          <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+            {packPreview}
+          </p>
+        ) : editing ? (
+          <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            Set the pack size to keep adding stock for this product.
+          </p>
+        ) : null}
+      </FormSection>
+
+      <FormSection
         icon={Warehouse}
         title="Stock & withdrawal"
         description="Inventory alerts and food-safety withdrawal period."
@@ -250,7 +329,7 @@ export default function AddMedicationProductModal({
           <FormField
             label="Minimum stock"
             htmlFor={`${idPrefix}-min-stock`}
-            hint="Alert when available quantity falls to this level"
+            hint="Alert when stock falls to this many packs"
           >
             <div className="relative">
               <AlertTriangle className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

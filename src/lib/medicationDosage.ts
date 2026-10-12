@@ -17,7 +17,9 @@ export type MedicationDosageRatios = {
 export const MEDICINE_UNITS = [
   { value: "g", label: "Grams (g)" },
   { value: "mg", label: "Milligrams (mg)" },
+  { value: "kg", label: "Kilograms (kg)" },
   { value: "ml", label: "Milliliters (ml)" },
+  { value: "L", label: "Liters (L)" },
   { value: "tablet", label: "Tablet" },
 ] as const
 

@@ -36,6 +36,15 @@ import {
   suggestedMedicineUnit,
 } from "@/lib/medicationDosage"
 import { GetToken, getPoultryMedicationData } from "@/lib/request"
+import {
+  FAMILY_UNITS,
+  batchRemainingLabel,
+  isUnitAwareBatch,
+  packBreakdown,
+  stockSummary,
+  toBase,
+  unitFamily,
+} from "@/lib/medicationPack"
 
 type MedicationOption = Medication | MedicationData
 
@@ -214,6 +223,33 @@ const AddMedicationRecordModal = ({
 
   const labelHint = selectedProduct ? formatMedicationDosageSummary(selectedProduct) : null
 
+  // Unit-aware batches hold stock in g, ml or tablet; usage must be in a unit of the same family.
+  const batchUnit = selectedBatch && isUnitAwareBatch(selectedBatch) ? selectedBatch.content_unit ?? null : null
+  const batchFamily = unitFamily(batchUnit)
+  const allowedUnits = batchFamily
+    ? MEDICINE_UNITS.filter((u) => FAMILY_UNITS[batchFamily].includes(u.value))
+    : MEDICINE_UNITS
+  const packType = selectedProduct?.pack_type ?? null
+  const batchPackBase = selectedBatch ? Number(selectedBatch.pack_size_base) || null : null
+  const deductAmount =
+    batchUnit && formData.dosage > 0 && formData.dosage_unit
+      ? toBase(formData.dosage, formData.dosage_unit)
+      : formData.dosage
+  const batchRemaining = selectedBatch ? inventoryQty(selectedBatch) : 0
+  const remainingLabel = selectedBatch ? batchRemainingLabel(selectedBatch, packType) : null
+  const afterUseLabel =
+    batchUnit && deductAmount != null && deductAmount > 0 && deductAmount <= batchRemaining + 1e-6
+      ? packBreakdown(batchRemaining - deductAmount, batchPackBase, packType, batchUnit)
+      : null
+
+  useEffect(() => {
+    if (!batchFamily) return
+    if (unitFamily(formData.dosage_unit) === batchFamily) return
+    const suggested = suggestedMedicineUnit(selectedProduct)
+    const next = suggested && unitFamily(suggested) === batchFamily ? suggested : FAMILY_UNITS[batchFamily][0]
+    setFormData((prev) => ({ ...prev, dosage_unit: next }))
+  }, [batchFamily, formData.dosage_unit, selectedProduct])
+
   const clearError = (field: string) => {
     setErrors((prev) => {
       if (!(field in prev)) return prev
@@ -292,9 +328,11 @@ const AddMedicationRecordModal = ({
       newErrors.poultry_medication_inventory_id = "Please select an inventory batch"
     if (!formData.administered_by.trim()) newErrors.administered_by = "Administered by is required"
     if (formData.dosage <= 0) newErrors.dosage = "Amount used must be greater than 0"
-    else if (selectedBatch && formData.dosage > inventoryQty(selectedBatch))
-      newErrors.dosage = `Only ${inventoryQty(selectedBatch)} available in this batch`
+    else if (selectedBatch && deductAmount != null && deductAmount > batchRemaining + 1e-6)
+      newErrors.dosage = `Only ${remainingLabel} left in this batch`
     if (!formData.dosage_unit.trim()) newErrors.dosage_unit = "Unit is required"
+    else if (batchFamily && unitFamily(formData.dosage_unit) !== batchFamily)
+      newErrors.dosage_unit = `This product is measured in ${batchUnit}. Use ${FAMILY_UNITS[batchFamily].join(" or ")}.`
     if (!formData.administration_method_id)
       newErrors.administration_method_id = "Please select administration method"
 
@@ -319,7 +357,7 @@ const AddMedicationRecordModal = ({
       await onSubmit({
         ...formData,
         dosage: amount,
-        quantity: amount,
+        quantity: deductAmount ?? amount,
         purpose: formData.purpose || undefined,
       })
       resetLocalState()
@@ -473,7 +511,7 @@ const AddMedicationRecordModal = ({
                         {product.manufacturer}
                         {" · "}
                         {product.totalStock > 0
-                          ? `${product.totalStock} in stock (${product.batches.length} batch${product.batches.length === 1 ? "" : "es"})`
+                          ? `${stockSummary(product.batches, product)} in stock (${product.batches.length} batch${product.batches.length === 1 ? "" : "es"})`
                           : "Out of stock"}
                       </div>
                     </div>
@@ -506,7 +544,7 @@ const AddMedicationRecordModal = ({
               </SelectTrigger>
               <SelectContent>
                 {inventoriesForProduct.map((inventory) => {
-                  const qty = inventoryQty(inventory)
+                  const qty = batchRemainingLabel(inventory, selectedProduct?.pack_type)
                   return (
                     <SelectItem key={inventory.id} value={String(inventory.id)}>
                       <div>
@@ -515,7 +553,7 @@ const AddMedicationRecordModal = ({
                           {inventory.expiry_date
                             ? `Exp: ${format(new Date(inventory.expiry_date), "MMM dd, yyyy")} | `
                             : ""}
-                          Qty: {qty} | {inventory.manufacturer || selectedProduct?.manufacturer || ""}
+                          Left: {qty} | {inventory.manufacturer || selectedProduct?.manufacturer || ""}
                         </div>
                       </div>
                     </SelectItem>
@@ -618,7 +656,7 @@ const AddMedicationRecordModal = ({
                 <SelectValue placeholder="Select unit" />
               </SelectTrigger>
               <SelectContent>
-                {MEDICINE_UNITS.map((u) => (
+                {allowedUnits.map((u) => (
                   <SelectItem key={u.value} value={u.value}>
                     {u.label}
                   </SelectItem>
@@ -643,6 +681,17 @@ const AddMedicationRecordModal = ({
             </Select>
           </FormField>
         </div>
+        {selectedBatch && remainingLabel && (
+          <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs text-slate-600">
+            Batch {selectedBatch.batch_number || "—"}: <span className="font-medium text-slate-900">{remainingLabel} left</span>
+            {afterUseLabel && (
+              <>
+                {" · after this: "}
+                <span className="font-medium text-slate-900">{afterUseLabel}</span>
+              </>
+            )}
+          </p>
+        )}
       </FormSection>
 
       <FormSection icon={StickyNote} title="Notes" description="Anything else worth recording.">

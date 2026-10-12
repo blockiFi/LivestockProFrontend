@@ -426,6 +426,10 @@ export type MedicationProduct = {
   updated_at: string;
   inventory? : MedicationInventory[];
   min_stock_level?: number;
+  pack_type?: string | null;
+  pack_size?: number | null;
+  pack_size_unit?: string | null;
+  pack_label?: string | null;
 };
 
 
@@ -449,7 +453,19 @@ export type MedicationInventory  = {
   deleted_at: string | null;
   created_by: string | null;
   product?: MedicationProduct;
-
+  /** Pack-size snapshot: stock is held in `content_unit` (g, ml or tablet). Null on legacy batches. */
+  packs_received?: number | null;
+  pack_size_base?: number | null;
+  content_unit?: string | null;
+  total_content?: number | null;
+  remaining_breakdown?: string | null;
+  remaining_packs_equivalent?: number | null;
+  depleted_at?: string | null;
+  depleted_by?: number | null;
+  depletion_reason?: string | null;
+  depletion_note?: string | null;
+  written_off_quantity?: number | null;
+  written_off_value?: number | null;
 }
 export type VaccineInventory = {
   id: number;

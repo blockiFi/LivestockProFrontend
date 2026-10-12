@@ -24,7 +24,19 @@ import {
   Settings,
   Clock,
   AlertTriangle,
+  Boxes,
 } from "lucide-react"
+import {
+  batchRemainingLabel,
+  batchStockLevel,
+  batchValue,
+  formatAmount,
+  isUnitAwareBatch,
+  packNoun,
+  packSizePayload,
+  productToPackFields,
+  stockSummary,
+} from "@/lib/medicationPack"
 import type { Medication, MedicationData, MedicationProduct } from "@/lib/types"
 import { useLoaderData, useRevalidator } from "react-router-dom"
 import {
@@ -138,6 +150,12 @@ const getProductInventories = (product: MedicationProduct): MedicationInventory[
   })) as MedicationInventory[]
 }
 
+const productStockLevel = (product: MedicationProduct) =>
+  getProductInventories(product).reduce((s, inv) => s + batchStockLevel(inv), 0)
+
+const productStockValue = (product: MedicationProduct) =>
+  getProductInventories(product).reduce((s, inv) => s + batchValue(inv), 0)
+
 function ProductCard({
   product,
   medication,
@@ -151,11 +169,12 @@ function ProductCard({
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const inventories = getProductInventories(product)
-  const totalAvailable = inventories.reduce((sum, inv) => sum + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
+  const stockLevel = productStockLevel(product)
   const minStock = Number((product as any).min_stock_level ?? 0)
-  const stockStatus = stockStatusColor(totalAvailable, minStock)
-  const isLowStock = totalAvailable <= minStock
-  const totalValue = inventories.reduce((sum, inv) => sum + (Number(inv.available_quantity ?? inv.quantity) || 0) * (Number(inv.unit_cost) || 0), 0)
+  const stockStatus = stockStatusColor(stockLevel, minStock)
+  const isLowStock = stockLevel <= minStock
+  const totalValue = productStockValue(product)
+  const stockLabel = stockSummary(inventories, product)
   const formatDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : "-")
 
   // Inventory table pagination state
@@ -195,7 +214,7 @@ function ProductCard({
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Stock</p>
                   <Badge className={stockStatus}>
-                    {totalAvailable} units
+                    {stockLabel}
                     {isLowStock && " ⚠️"}
                   </Badge>
                 </div>
@@ -258,7 +277,21 @@ function ProductCard({
                 <AlertCircle className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">Min Stock Level</p>
-                  <p className="font-medium">{minStock} units</p>
+                  <p className="font-medium">
+                    {minStock} {product.pack_type ? packNoun(product.pack_type, minStock) : "units"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <Boxes className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-gray-500">Pack size</p>
+                  {product.pack_label ? (
+                    <p className="font-medium">{product.pack_label}</p>
+                  ) : (
+                    <p className="font-medium text-amber-700">Not set — edit to add stock</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -290,9 +323,9 @@ function ProductCard({
                       <TableRow>
                         <TableHead>Batch</TableHead>
                         <TableHead>Manufacturer</TableHead>
-                        <TableHead className="text-right">Qty</TableHead>
-                        <TableHead className="text-right">Available</TableHead>
-                        <TableHead className="text-right">Unit Cost</TableHead>
+                        <TableHead className="text-right">Received</TableHead>
+                        <TableHead className="text-right">Remaining</TableHead>
+                        <TableHead className="text-right">Cost / pack</TableHead>
                         <TableHead className="text-right">Total Value</TableHead>
                         <TableHead>Manufactured</TableHead>
                         <TableHead>Expiry</TableHead>
@@ -301,16 +334,26 @@ function ProductCard({
                     </TableHeader>
                     <TableBody>
                       {pagedInventories.map((inv) => {
-                        const qty = Number(inv.quantity) || 0
-                        const available = Number(inv.available_quantity ?? inv.quantity) || 0
                         const unitCost = Number(inv.unit_cost) || 0
-                        const rowValue = available * unitCost
+                        const rowValue = batchValue(inv)
+                        const unitAware = isUnitAwareBatch(inv)
+                        const received = unitAware && inv.content_unit
+                          ? `${Number(inv.packs_received ?? 0)} ${packNoun(product.pack_type, Number(inv.packs_received ?? 0))} (${formatAmount(Number(inv.total_content ?? 0), inv.content_unit)})`
+                          : "-"
                         return (
                           <TableRow key={inv.id}>
                             <TableCell className="font-medium">{inv.batch_number || "-"}</TableCell>
                             <TableCell>{inv.manufacturer || "-"}</TableCell>
-                            <TableCell className="text-right">{qty}</TableCell>
-                            <TableCell className="text-right">{available}</TableCell>
+                            <TableCell className="text-right">{received}</TableCell>
+                            <TableCell className="text-right">
+                              {batchRemainingLabel(inv, product.pack_type)}
+                              {unitAware && inv.content_unit && (
+                                <span className="block text-xs text-gray-500">
+                                  {formatAmount(Number(inv.available_quantity ?? inv.quantity) || 0, inv.content_unit)} of{" "}
+                                  {formatAmount(Number(inv.total_content ?? 0), inv.content_unit)}
+                                </span>
+                              )}
+                            </TableCell>
                             <TableCell className="text-right">{Naira}{formatCurrency(unitCost)}</TableCell>
                             <TableCell className="text-right">{Naira}{formatCurrency(rowValue)}</TableCell>
                             <TableCell>{formatDate(inv.manufacture_date)}</TableCell>
@@ -421,6 +464,7 @@ function ProductCard({
       image_url: editingProduct.image_url ?? "",
       min_stock_level: Number(editingProduct.min_stock_level ?? 0) || 0,
       dosage_ratios: productToDosageRatios(editingProduct as unknown as Record<string, unknown>),
+      ...productToPackFields(editingProduct),
     }
   }, [editingProduct])
   
@@ -461,7 +505,7 @@ function ProductCard({
       // Stock filter (based on available vs min stock if present)
       if (stockFilter !== 'all') {
         list = list.filter(({ product }) => {
-          const available = getProductInventories(product).reduce((s, inv) => s + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
+          const available = productStockLevel(product)
           const minStock = Number((product as any).min_stock_level ?? 0)
           if (stockFilter === 'low') return available <= minStock
           if (stockFilter === 'medium') return available > minStock && available <= minStock * 1.5
@@ -476,13 +520,13 @@ function ProductCard({
           case 'name':
             return a.product.name.localeCompare(b.product.name)
           case 'stock': {
-            const aAvail = getProductInventories(a.product).reduce((s, inv) => s + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
-            const bAvail = getProductInventories(b.product).reduce((s, inv) => s + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
+            const aAvail = productStockLevel(a.product)
+            const bAvail = productStockLevel(b.product)
             return bAvail - aAvail
           }
           case 'cost': {
-            const aVal = getProductInventories(a.product).reduce((s, inv) => s + (Number(inv.available_quantity ?? inv.quantity) || 0) * (Number(inv.unit_cost) || 0), 0)
-            const bVal = getProductInventories(b.product).reduce((s, inv) => s + (Number(inv.available_quantity ?? inv.quantity) || 0) * (Number(inv.unit_cost) || 0), 0)
+            const aVal = productStockValue(a.product)
+            const bVal = productStockValue(b.product)
             return bVal - aVal
           }
           case 'category':
@@ -516,6 +560,7 @@ function ProductCard({
         image_url: form.image_url?.trim() || undefined,
         min_stock_level: Number(form.min_stock_level) || 0,
         ...dosageRatiosToPayload(form.dosage_ratios),
+        ...packSizePayload(form),
       }
       const res = await createMedicationProduct(token, farm.id, payload)
       if (res.success) {
@@ -551,6 +596,7 @@ function ProductCard({
       image_url: form.image_url?.trim() || null,
       min_stock_level: Number(form.min_stock_level) || 0,
       ...dosageRatiosToPayload(form.dosage_ratios, { includeEmpty: true }),
+      ...packSizePayload(form),
     }
     const res = await updateMedicationProduct(token, farm.id, editingProduct.id, payload)
     if (!res.success) {
@@ -586,8 +632,7 @@ function ProductCard({
     }
   }
 
-  const availableOf = (product: MedicationProduct) =>
-    getProductInventories(product).reduce((s, inv) => s + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
+  const availableOf = productStockLevel
 
   // Calculate statistics
   const totalMedications = products.length
@@ -597,15 +642,7 @@ function ProductCard({
     const minStock = Number(product.min_stock_level ?? 0)
     return sum + (available <= 0 || (minStock > 0 && available <= minStock) ? 1 : 0)
   }, 0)
-  const totalStockValue = products.reduce(
-    (sum, { product }) =>
-      sum +
-      getProductInventories(product).reduce(
-        (iSum, inv) => iSum + (Number(inv.available_quantity ?? inv.quantity) || 0) * (Number(inv.unit_cost) || 0),
-        0,
-      ),
-    0,
-  )
+  const totalStockValue = products.reduce((sum, { product }) => sum + productStockValue(product), 0)
   const categoriesCount = (medications ?? []).length
 
   return (

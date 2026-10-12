@@ -27,6 +27,14 @@ import { cn, formatCurrency, Naira } from "@/lib/utils"
 import type { MedicationData, MedicationInventory, MedicationProduct } from "@/lib/types"
 import { createMedicationInventory, GetToken, getFarm, getPoultryMedicationData } from "@/lib/request"
 import { formatMedicationDosageSummary } from "@/lib/medicationDosage"
+import {
+  baseUnitOf,
+  formatAmount,
+  packNoun,
+  productHasPackSize,
+  productPackSizeBase,
+  stockSummary,
+} from "@/lib/medicationPack"
 
 type Props = {
   isOpen: boolean
@@ -36,7 +44,7 @@ type Props = {
   defaultProductId?: number
 }
 
-type CatalogProduct = MedicationProduct & { stock: number }
+type CatalogProduct = MedicationProduct & { stock: number; stockLabel: string }
 type CatalogType = { id: number; name: string; products: CatalogProduct[] }
 
 type FormState = {
@@ -65,11 +73,13 @@ const emptyForm = (): FormState => ({
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
-const productStock = (product: MedicationProduct): number => {
+const productBatches = (product: MedicationProduct): MedicationInventory[] => {
   const raw = product as MedicationProduct & { inventories?: MedicationInventory[] }
-  const batches = raw.inventories ?? raw.inventory ?? []
-  return batches.reduce((sum, inv) => sum + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
+  return raw.inventories ?? raw.inventory ?? []
 }
+
+const productStock = (product: MedicationProduct): number =>
+  productBatches(product).reduce((sum, inv) => sum + (Number(inv.available_quantity ?? inv.quantity) || 0), 0)
 
 const buildCatalog = (medications: MedicationData[]): CatalogType[] =>
   medications
@@ -77,7 +87,12 @@ const buildCatalog = (medications: MedicationData[]): CatalogType[] =>
       id: Number(med.id),
       name: med.name,
       products: (med.products ?? [])
-        .map((p) => ({ ...p, id: Number(p.id), stock: productStock(p) }))
+        .map((p) => ({
+          ...p,
+          id: Number(p.id),
+          stock: productStock(p),
+          stockLabel: stockSummary(productBatches(p), p),
+        }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -163,6 +178,19 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
   const unitCost = Number(form.unit_cost) || 0
   const totalCost = quantity * unitCost
 
+  const hasPackSize = productHasPackSize(selectedProduct)
+  const packType = selectedProduct?.pack_type ?? null
+  const packWord = packNoun(packType, 1)
+  const packSizeBase = productPackSizeBase(selectedProduct)
+  const contentUnit = baseUnitOf(selectedProduct?.pack_size_unit)
+  const contentSummary =
+    hasPackSize && quantity > 0 && packSizeBase && contentUnit
+      ? `${Number(quantity.toFixed(2))} ${packNoun(packType, quantity)} × ${formatAmount(
+          Number(selectedProduct!.pack_size),
+          selectedProduct!.pack_size_unit!,
+        )} = ${formatAmount(quantity * packSizeBase, contentUnit)}`
+      : null
+
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
     setErrors((prev) => {
@@ -201,8 +229,9 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
     const next: Record<string, string> = {}
     if (!form.poultry_medication_id) next.poultry_medication_id = "Select a medication type"
     if (!form.medication_product_id) next.medication_product_id = "Select a product"
-    if (!(quantity > 0)) next.quantity = "Quantity must be greater than 0"
-    if (form.unit_cost === "" || unitCost < 0) next.unit_cost = "Enter a unit cost (0 or more)"
+    else if (!hasPackSize) next.medication_product_id = "Set the pack size on this product before adding stock."
+    if (!(quantity > 0)) next.quantity = `Enter the number of ${packNoun(packType, 2)} (more than 0)`
+    if (form.unit_cost === "" || unitCost < 0) next.unit_cost = `Enter the cost per ${packWord} (0 or more)`
     if (form.expiry_date && form.expiry_date < todayIso()) next.expiry_date = "Expiry date cannot be in the past"
     if (form.expiry_date && form.manufacture_date && form.expiry_date <= form.manufacture_date)
       next.expiry_date = "Expiry date must be after the manufacture date"
@@ -231,7 +260,7 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
     try {
       const res = await createMedicationInventory(token, farm.id, {
         medication_product_id: form.medication_product_id,
-        quantity,
+        packs_received: quantity,
         unit_cost: unitCost,
         batch_number: form.batch_number.trim() || undefined,
         manufacture_date: form.manufacture_date || null,
@@ -245,7 +274,9 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
         toast.error(message)
         return
       }
-      toast.success(`Added ${quantity} to ${selectedProduct?.name ?? "inventory"}`)
+      toast.success(
+        `Added ${Number(quantity.toFixed(2))} ${packNoun(packType, quantity)} to ${selectedProduct?.name ?? "inventory"}`,
+      )
       onCreated?.(res.data)
       onClose()
     } finally {
@@ -274,7 +305,7 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
           submitLabel="Add inventory"
           busyLabel="Adding..."
           busy={submitting}
-          disabled={loading || (!!selectedType && products.length === 0)}
+          disabled={loading || (!!selectedType && products.length === 0) || (!!selectedProduct && !hasPackSize)}
         />
       }
     >
@@ -337,7 +368,8 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
                       <div className="text-xs text-slate-500">
                         {product.manufacturer || "Unknown manufacturer"}
                         {" · "}
-                        {product.stock > 0 ? `${product.stock} in stock` : "No stock yet"}
+                        {product.stock > 0 ? `${product.stockLabel} in stock` : "No stock yet"}
+                        {product.pack_label ? ` · ${product.pack_label}` : " · No pack size"}
                       </div>
                     </div>
                   </SelectItem>
@@ -345,6 +377,16 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
               </SelectContent>
             </Select>
           </FormField>
+        )}
+
+        {selectedProduct && !hasPackSize && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-800">
+            {selectedProduct.name} has no pack size yet, so stock can't be measured.{" "}
+            <Link to="/dashboard/poultry/health/medication-products" className="font-semibold underline" onClick={onClose}>
+              Edit product
+            </Link>{" "}
+            to set what one pack contains (e.g. a sachet of 100 g), then come back.
+          </div>
         )}
 
         {selectedProduct && (
@@ -356,12 +398,12 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
             <div>
               <dt className="text-slate-500">Current stock</dt>
               <dd className={cn("font-medium", selectedProduct.stock > 0 ? "text-emerald-700" : "text-slate-900")}>
-                {selectedProduct.stock}
+                {selectedProduct.stock > 0 ? selectedProduct.stockLabel : "None"}
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">Minimum stock</dt>
-              <dd className="font-medium text-slate-900">{Number(selectedProduct.min_stock_level ?? 0)}</dd>
+              <dt className="text-slate-500">Pack size</dt>
+              <dd className="font-medium text-slate-900">{selectedProduct.pack_label || "Not set"}</dd>
             </div>
             <div className="col-span-2 sm:col-span-1">
               <dt className="text-slate-500">Label dosage</dt>
@@ -375,7 +417,12 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
 
       <FormSection step={3} icon={Boxes} title="Batch details" description="Quantity, cost and dates for the stock received.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField label="Quantity" required htmlFor="med-inv-qty" error={errors.quantity}>
+          <FormField
+            label={`Number of ${packNoun(packType, 2)}`}
+            required
+            htmlFor="med-inv-qty"
+            error={errors.quantity}
+          >
             <Input
               id="med-inv-qty"
               type="number"
@@ -383,12 +430,12 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
               step="0.01"
               value={form.quantity}
               onChange={(e) => setField("quantity", e.target.value)}
-              placeholder="e.g. 20"
+              placeholder="e.g. 2"
               className={inputClass(!!errors.quantity)}
             />
           </FormField>
 
-          <FormField label={`Unit cost (${Naira})`} required htmlFor="med-inv-cost" error={errors.unit_cost}>
+          <FormField label={`Cost per ${packWord} (${Naira})`} required htmlFor="med-inv-cost" error={errors.unit_cost}>
             <Input
               id="med-inv-cost"
               type="number"
@@ -401,7 +448,11 @@ export default function AddMedicationInventoryModal({ isOpen, onClose, onCreated
             />
           </FormField>
 
-          <FormSummary className="sm:col-span-2" label="Total cost" value={`${Naira}${formatCurrency(totalCost)}`} />
+          <FormSummary
+            className="sm:col-span-2"
+            label={contentSummary ?? "Total cost"}
+            value={`${Naira}${formatCurrency(totalCost)}`}
+          />
 
           <FormField label="Batch number" htmlFor="med-inv-batch" error={errors.batch_number}>
             <div className="relative">

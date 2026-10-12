@@ -23,6 +23,7 @@ import { ACTIONS } from "@/lib/actionPermissions"
 import AddMedicationProductModal, {
   type MedicationProductFormValues,
 } from "@/components/modals/AddMedicationProductModal"
+import { packSizePayload } from "@/lib/medicationPack"
 import { dosageRatiosToPayload } from "@/lib/medicationDosage"
 
 function CreateMedicationCategoryModal({
@@ -180,6 +181,7 @@ export default function CategoriesPage() {
         image_url: form.image_url?.trim() || undefined,
         min_stock_level: Number(form.min_stock_level) || 0,
         ...dosageRatiosToPayload(form.dosage_ratios),
+        ...packSizePayload(form),
       }
       const res = await createMedicationProduct(token, farm.id, payload)
       if (res.success) {

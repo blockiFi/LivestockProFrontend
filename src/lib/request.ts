@@ -331,6 +331,12 @@ export const createFarm = async (
     quantity: toNumber(inv.quantity),
     available_quantity: inv.available_quantity != null ? toNumber(inv.available_quantity) : toNumber(inv.quantity),
     unit_cost: toNumber(inv.unit_cost),
+    packs_received: toNumber(inv.packs_received),
+    pack_size_base: toNumber(inv.pack_size_base),
+    total_content: toNumber(inv.total_content),
+    remaining_packs_equivalent: toNumber(inv.remaining_packs_equivalent),
+    written_off_quantity: toNumber(inv.written_off_quantity),
+    written_off_value: toNumber(inv.written_off_value),
     product: inv.product
       ? {
           ...inv.product,
@@ -340,6 +346,7 @@ export const createFarm = async (
           withdrawal_period: toNumber(inv.product.withdrawal_period),
           dosage: inv.product.dosage != null ? toNumber(inv.product.dosage) : inv.product.dosage,
           min_stock_level: inv.product.min_stock_level != null ? toNumber(inv.product.min_stock_level) : inv.product.min_stock_level,
+          pack_size: toNumber(inv.product.pack_size),
         }
       : undefined,
   } : undefined;
@@ -358,6 +365,7 @@ export const createFarm = async (
           withdrawal_period: toNumber(p.withdrawal_period),
           dosage: p.dosage != null ? toNumber(p.dosage) : p.dosage,
           min_stock_level: p.min_stock_level != null ? toNumber(p.min_stock_level) : p.min_stock_level,
+          pack_size: toNumber(p.pack_size),
           inventory: Array.isArray(p.inventories)
             ? p.inventories.map(sanitizeMedicationInventory).filter(Boolean)
             : Array.isArray(p.inventory)
@@ -5742,6 +5750,9 @@ export const createMedicationProduct = async (
     treatment_diluent_type?: string | null
     treatment_diluent_label?: string | null
     type?: "default" | "user"
+    pack_type: string
+    pack_size: number
+    pack_size_unit: string
   }
 ): Promise<RequestResponse<MedicationProduct>> => {
   try {
@@ -6194,12 +6205,15 @@ export async function getFeedinVentories(token: string,
 
   }
 
-  export async function getMedicationInventories(token: string, farmId: number) : Promise<RequestResponse<MedicationInventory[]>> { 
+  export async function getMedicationInventories(token: string, farmId: number, includeDepleted = false) : Promise<RequestResponse<MedicationInventory[]>> { 
 
     try {
-      let url = `/api/farms/${farmId}/medication-inventory`;
+      const url = `/api/farms/${farmId}/medication-inventory`;
      
-      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: includeDepleted ? { include_depleted: 1 } : undefined,
+      });
       if (response.status === 200) {
 
           const sanitizedData = Array.isArray(response.data?.data)
@@ -6299,7 +6313,8 @@ export const createMedicationInventory = async (
   farmId: number,
   data: {
     medication_product_id: number
-    quantity: number
+    /** Number of packs (sachets, bottles, ...); `unit_cost` is the cost of one pack. */
+    packs_received: number
     batch_number?: string
     manufacture_date?: string | null
     expiry_date?: string | null
@@ -6327,6 +6342,30 @@ export const createMedicationInventory = async (
       return {
         success: false,
         error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to create medication inventory"],
+      }
+    }
+    return { success: false, error: ["An unexpected error occurred"] }
+  }
+}
+
+export const depleteMedicationInventory = async (
+  token: string,
+  farmId: number,
+  inventoryId: number,
+  data: { reason: string; note?: string | null }
+): Promise<RequestResponse<MedicationInventory>> => {
+  try {
+    const response = await axios.post(
+      `/api/farms/${farmId}/medication-inventory/${inventoryId}/deplete`,
+      data,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return { success: true, data: sanitizeMedicationInventory(response.data.data) as unknown as MedicationInventory }
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      return {
+        success: false,
+        error: error.response?.data?.errors || [error.response?.data?.message] || ["Failed to mark batch as depleted"],
       }
     }
     return { success: false, error: ["An unexpected error occurred"] }
