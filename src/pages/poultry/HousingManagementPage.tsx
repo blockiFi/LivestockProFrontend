@@ -24,8 +24,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "react-toastify";
-import { Copy, Filter, Home, Info, Layers, MapPin, MoreVertical, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react";
+import { Copy, Filter, Grid3x3, Home, Info, Layers, MapPin, MoreVertical, Pencil, Plus, Search, Trash2, Wrench } from "lucide-react";
 import AddHouseModal from "@/components/modals/AddHouseModal";
+import HouseEggLayoutModal from "@/components/modals/HouseEggLayoutModal";
 import Pagination from "@/components/general/Pagination";
 import { formatDate } from "@/lib/utils";
 import { ConfirmModal, FormModal, FormSection } from "@/components/ui/form-modal";
@@ -60,6 +61,7 @@ const HousingManagementPage = () => {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [detailsHouse, setDetailsHouse] = useState<PoultryHouse | null>(null);
   const [houseRulesMap, setHouseRulesMap] = useState<Record<number, HouseCapacityRule[]>>({});
+  const [eggLayoutHouse, setEggLayoutHouse] = useState<PoultryHouse | null>(null);
   const [rulesLoading, setRulesLoading] = useState(false);
   const [isLoadingHouses, setIsLoadingHouses] = useState(false);
   const [openHouseMenuId, setOpenHouseMenuId] = useState<number | null>(null);
@@ -391,6 +393,18 @@ const HousingManagementPage = () => {
                                 Edit rules
                               </DropdownMenuItem>
                             </ActionGate>
+                            <ActionGate anyOf={ACTIONS.houses.manage}>
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  setOpenHouseMenuId(null);
+                                  setEggLayoutHouse(house);
+                                }}
+                                className="gap-2"
+                              >
+                                <Grid3x3 className="h-4 w-4 text-gray-700" />
+                                Egg collection layout
+                              </DropdownMenuItem>
+                            </ActionGate>
                             <ActionGate anyOf={ACTIONS.houses.create}>
                               <DropdownMenuItem
                                 onSelect={() => {
@@ -564,6 +578,12 @@ const HousingManagementPage = () => {
               : undefined
           }
           initialCapacityRules={duplicateHouse ? houseRulesMap[duplicateHouse.id] : undefined}
+        />
+
+        <HouseEggLayoutModal
+          isOpen={eggLayoutHouse !== null}
+          house={eggLayoutHouse}
+          onClose={() => setEggLayoutHouse(null)}
         />
 
         <AddHouseModal
