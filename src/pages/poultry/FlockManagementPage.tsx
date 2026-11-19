@@ -316,7 +316,7 @@ const FlockCard = ({ flock }: { flock: FlockRecord }) => {
 
 const FlockManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [statusFilter, setStatusFilter] = useState<string>("active")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [flocks, setFlocks] = useState<FlockRecord[]>([])
@@ -530,11 +530,11 @@ const FlockManagementPage = () => {
                 No flocks found
               </h3>
               <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
-                {searchTerm || statusFilter !== "all" || typeFilter !== "all"
+                {flocks.length > 0
                   ? "Try adjusting your search or filter criteria to find flocks."
                   : "Get started by creating your first flock."}
               </p>
-              {!searchTerm && statusFilter === "all" && typeFilter === "all" && (
+              {flocks.length === 0 && (
                 <ActionGate anyOf={ACTIONS.flocks.create}>
                   <Button
                     onClick={() => setIsAddFlockModalOpen(true)}
