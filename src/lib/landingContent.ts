@@ -1,21 +1,9 @@
 import {
-  Activity,
   BarChart3,
-  Bell,
-  Bird,
   ClipboardList,
-  DollarSign,
-  Egg,
-  Layers,
-  Package,
-  Pill,
-  Shield,
-  Sprout,
-  Users,
-  Wrench,
+  HeartPulse,
   type LucideIcon,
 } from "lucide-react"
-import { APP_NAME } from "@/lib/brand"
 
 export type NavLink = {
   label: string
@@ -24,195 +12,127 @@ export type NavLink = {
 
 export const landingNavLinks: NavLink[] = [
   { label: "Features", href: "#features" },
-  { label: "Solutions", href: "#solutions" },
-  { label: "How It Works", href: "#how-it-works" },
   { label: "Pricing", href: "#pricing" },
-  { label: "Resources", href: "#contact" },
+  { label: "FAQ", href: "#faq" },
   { label: "Contact", href: "#contact" },
 ]
 
-export const problemPoints = [
-  "Poor record keeping across paper notes and spreadsheets",
-  "Difficulty tracking livestock batches and daily performance",
-  "Feed wastage and unclear consumption patterns",
-  "Missed medication and vaccination schedules",
-  "Inventory shortages discovered too late",
-  "Poor task coordination across farm staff",
-  "No real-time visibility into farm operations",
-  "Difficulty measuring profitability per batch",
-]
-
-export const solutionPoints = [
-  {
-    title: "Centralized digital records",
-    description: "Every flock, house, and daily activity logged in one secure platform.",
-  },
-  {
-    title: "Batch-level livestock tracking",
-    description: "Monitor population, mortality, weight, and production by batch in real time.",
-  },
-  {
-    title: "Feed usage intelligence",
-    description: "Track feed consumption, inventory, and formulation to reduce waste.",
-  },
-  {
-    title: "Health program compliance",
-    description: "Never miss vaccinations or medication with schedules and reminders.",
-  },
-  {
-    title: "Smart inventory alerts",
-    description: "Stay ahead of feed, vaccine, and medication stockouts.",
-  },
-  {
-    title: "Team task management",
-    description: "Assign, track, and complete farm tasks with full accountability.",
-  },
-  {
-    title: "Live farm dashboard",
-    description: "See KPIs, alerts, and trends the moment you need them.",
-  },
-  {
-    title: "Profitability insights",
-    description: "Connect sales, expenses, and production to understand true margins.",
-  },
-]
-
-export type FeatureItem = {
-  icon: LucideIcon
-  title: string
-  description: string
-  className?: string
+export const landingHeroCopy = {
+  badge: "For poultry and livestock farms",
+  headline: "Run your whole farm from one place",
+  subheadline:
+    "Batches, feed, health schedules, inventory, staff tasks and money, recorded daily and turned into clear reports. On your phone or laptop.",
 }
 
-export const featureItems: FeatureItem[] = [
-  {
-    icon: Bird,
-    title: "Batch & Livestock Management",
-    description: "Manage flocks, houses, transfers, and batch lifecycle from arrival to close-out.",
-    className: "md:col-span-2",
-  },
-  {
-    icon: Sprout,
-    title: "Feed Management",
-    description: "Formulate feeds, track usage, and manage feeding schedules by age and batch.",
-  },
-  {
-    icon: Pill,
-    title: "Medication & Vaccination",
-    description: "Plan, record, and audit every health intervention across your operation.",
-  },
+export const trustPoints = [
+  "Layers, broilers and other livestock",
+  "Priced in naira, per farm",
+  "Works on phone and laptop",
+  "Role-based staff access",
+]
+
+export type Outcome = {
+  icon: LucideIcon
+  title: string
+  before: string
+  after: string
+}
+
+export const outcomes: Outcome[] = [
   {
     icon: ClipboardList,
-    title: "Task Management",
-    description: "Schedule recurring farm tasks and track completion across your team.",
+    title: "Records",
+    before: "Daily counts scattered across notes and phones",
+    after: "Every batch, house and day logged in one place, searchable by anyone on the team.",
   },
   {
-    icon: Package,
-    title: "Inventory Management",
-    description: "Monitor feed, vaccine, and medication stock with low-stock alerts.",
-    className: "md:col-span-2",
-  },
-  {
-    icon: DollarSign,
-    title: "Sales & Expenses",
-    description: "Record flock sales, product sales, and expenditures with category tracking.",
+    icon: HeartPulse,
+    title: "Health",
+    before: "Vaccinations and medication missed or forgotten",
+    after: "Schedules per batch with reminders, and a full history of every treatment.",
   },
   {
     icon: BarChart3,
-    title: "Farm Analytics & Reports",
-    description: "Dashboards, P&L views, and exportable reports for data-driven decisions.",
-    className: "md:col-span-2",
+    title: "Money",
+    before: "No idea which batch actually made a profit",
+    after: "Sales, feed and expenses tied to each batch, so you see real margins.",
+  },
+]
+
+export type FeatureDeepDive = {
+  id: "production" | "health" | "inventory" | "finance"
+  title: string
+  description: string
+  points: string[]
+}
+
+export const featureDeepDives: FeatureDeepDive[] = [
+  {
+    id: "production",
+    title: "Flocks and egg production",
+    description:
+      "Track every batch from arrival to sale: population, mortality, weight and transfers. Record eggs by cell and collection round, so you know exactly which part of a house is under-laying.",
+    points: [
+      "Cell-based egg collection with rounds",
+      "Daily mortality and weight logs",
+      "House layouts and batch transfers",
+    ],
   },
   {
-    icon: Wrench,
-    title: "Equipment Management",
-    description: "Track assets, maintenance, inspections, and equipment lifecycle.",
+    id: "health",
+    title: "Feed and health schedules",
+    description:
+      "Plan feeding by age and batch, formulate your own feeds, and never miss a vaccination. Reminders reach the right staff member before the due date.",
+    points: [
+      "Recurring vaccination and medication plans",
+      "Feed usage per batch to cut waste",
+      "Import schedules from documents (Premium AI)",
+    ],
   },
   {
-    icon: Bell,
-    title: "Notifications & Reminders",
-    description: "Automated alerts for health schedules, inventory, and critical farm events.",
+    id: "inventory",
+    title: "Inventory and staff tasks",
+    description:
+      "Know what feed, vaccines and drugs you have before you run out. Assign daily tasks to staff and see who did what, and when.",
+    points: [
+      "Low-stock alerts",
+      "Recurring tasks with completion tracking",
+      "Each role sees only what it needs",
+    ],
   },
   {
-    icon: Users,
-    title: "Staff & User Management",
-    description: "Role-based access so every team member sees only what they need.",
+    id: "finance",
+    title: "Sales, expenses and profit",
+    description:
+      "Record flock and product sales, track every expense by category, and get profit and loss per batch. Export reports for your bank, partners or accountant.",
+    points: [
+      "Profit and loss per batch",
+      "Customer records and sales history",
+      "Excel export for any table",
+    ],
   },
-  {
-    icon: Egg,
-    title: "Production Tracking",
-    description: "Log eggs, weight, mortality, and daily records with batch-level accuracy.",
-  },
-  {
-    icon: Activity,
-    title: "Activity Reports",
-    description: "Export operational data for audits, planning, and performance reviews.",
-  },
+]
+
+export const extraModules = [
+  "Equipment and maintenance",
+  "Staff and roles",
+  "Notifications",
+  "Multiple farms",
+  "Activity reports",
 ]
 
 export const howItWorksSteps = [
   {
-    step: "01",
-    title: "Create Your Farm",
-    description: "Set up your farm, livestock types, batches, houses, and team members.",
+    title: "Set up your farm",
+    description: "Add houses, batches, livestock types and your team.",
   },
   {
-    step: "02",
-    title: "Record Your Operations",
-    description: "Track feeding, medication, production, inventory, tasks, and expenses daily.",
+    title: "Record daily work",
+    description: "Staff log eggs, feed, health and tasks from their phones.",
   },
   {
-    step: "03",
-    title: "Monitor Performance",
-    description: "View real-time dashboards and alerts to spot issues before they escalate.",
-  },
-  {
-    step: "04",
-    title: "Make Better Decisions",
-    description: "Use reports and analytics to improve productivity and farm profitability.",
-  },
-]
-
-export const benefitItems = [
-  {
-    icon: DollarSign,
-    title: "Reduce operational costs",
-    description: "Identify waste and inefficiencies across feed, labor, and inventory.",
-  },
-  {
-    icon: Sprout,
-    title: "Minimize feed wastage",
-    description: "Match consumption to batch needs with accurate usage tracking.",
-  },
-  {
-    icon: Shield,
-    title: "Improve health tracking",
-    description: "Maintain complete vaccination and medication histories per batch.",
-  },
-  {
-    icon: ClipboardList,
-    title: "Reduce record-keeping errors",
-    description: "Replace scattered notes with structured, searchable digital records.",
-  },
-  {
-    icon: Users,
-    title: "Improve staff accountability",
-    description: "Assign tasks and track who completed what, and when.",
-  },
-  {
-    icon: BarChart3,
-    title: "Monitor farm performance",
-    description: "See mortality, production, and financial trends in one place.",
-  },
-  {
-    icon: Layers,
-    title: "Make data-driven decisions",
-    description: "Base operational changes on real farm data, not guesswork.",
-  },
-  {
-    icon: Activity,
-    title: "Increase farm profitability",
-    description: "Connect costs and revenue to understand true batch-level margins.",
+    title: "See how you're doing",
+    description: "Dashboards and alerts show problems before they cost you.",
   },
 ]
 
@@ -223,36 +143,37 @@ export type Testimonial = {
   company: string
 }
 
+/** Add real customer quotes here; the section stays hidden while this is empty. */
 export const testimonials: Testimonial[] = []
 
 export const pricingTiers = [
   {
     name: "Basic",
-    tagline: "For a single farmer running one batch at a time.",
+    tagline: "One farmer, one batch at a time.",
     price: "5,000",
     highlight: false,
     points: [
       "1 user account",
-      "1 active batch at a time",
-      "Flock, feed, health, and sales records",
-      "Schedules, tasks, and alerts",
+      "1 active batch",
+      "Flock, feed, health and sales records",
+      "Schedules, tasks and alerts",
     ],
   },
   {
     name: "Standard",
-    tagline: "For growing farms with a team and several batches.",
+    tagline: "Growing farms with a team.",
     price: "10,000",
     highlight: false,
     points: [
       "Unlimited team members",
       "Unlimited active batches",
-      "Role-based access control",
+      "Role-based access",
       "Everything in Basic",
     ],
   },
   {
     name: "Premium",
-    tagline: "For farms that want AI working alongside the team.",
+    tagline: "AI working alongside your team.",
     price: "15,000",
     highlight: true,
     points: [
@@ -264,23 +185,28 @@ export const pricingTiers = [
   },
 ]
 
-export const dashboardPreviewKpis = [
-  { label: "Active birds", value: "12,480", sub: "6 active flocks", color: "text-emerald-400" },
-  { label: "Feed consumed", value: "2,840 kg", sub: "Last 30 days", color: "text-sky-400" },
-  { label: "Eggs collected", value: "297 crates + 10 eggs (8,920 eggs)", sub: "This week", color: "text-amber-400" },
-  { label: "Mortality rate", value: "1.8%", sub: "Within target", color: "text-rose-400" },
-  { label: "Revenue", value: "₦4.2M", sub: "Lifetime", color: "text-emerald-400" },
-  { label: "Net profit", value: "₦1.1M", sub: "26% margin", color: "text-emerald-300" },
+export const faqItems = [
+  {
+    question: "How does the free trial work?",
+    answer:
+      "You get 14 days of full access with no card needed. Pick a plan when it ends, or simply stop.",
+  },
+  {
+    question: "Can my farm staff use it on their phones?",
+    answer:
+      "Yes. It runs in the browser on any phone or laptop, and each staff member only sees what their role allows.",
+  },
+  {
+    question: "Which animals does it support?",
+    answer:
+      "Poultry is fully supported, including layers, broilers and dual-purpose birds. You can also set up your own livestock types for the other animals on your farm.",
+  },
+  {
+    question: "Can I run more than one farm?",
+    answer: "Yes. You can add several farms to one account and switch between them.",
+  },
+  {
+    question: "Can I change plans or cancel?",
+    answer: "Yes, any time. There are no long-term contracts or hidden fees.",
+  },
 ]
-
-export const dashboardPreviewAlerts = [
-  { title: "Newcastle vaccination due", detail: "Batch 244 · in 2 days", tag: "Vaccination" },
-  { title: "Finisher feed inventory low", detail: "2 bags remaining", tag: "Inventory" },
-  { title: "Task overdue: house cleaning", detail: "House B · assigned to staff", tag: "Task" },
-]
-
-export const landingHeroCopy = {
-  badge: "Farm management · Livestock · Data · Profitability",
-  headline: "Run your entire farm operation from one command center",
-  subheadline: `${APP_NAME} helps poultry and livestock farms manage batches, feed, health, inventory, tasks, and finances — with real-time insights that drive better decisions.`,
-}
