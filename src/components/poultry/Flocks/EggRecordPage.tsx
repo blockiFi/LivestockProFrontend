@@ -15,6 +15,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  BarChart3,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/
 import Pagination from "@/components/general/Pagination"
 import AddEggRecordModal from "@/components/modals/AddEggRecordModal"
 import RecordEggCollectionModal from "@/components/modals/RecordEggCollectionModal"
+import CellInsightsModal from "@/components/modals/CellInsightsModal"
 import { getEggSheet } from "@/lib/eggCollection"
 import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRangeFilter"
 import { useRecordsDateRange } from "@/hooks/useRecordsDateRange"
@@ -109,6 +111,7 @@ const EggRecordPage = ({
   const [hasCells, setHasCells] = useState(false)
   /** Day open in the collection-rounds modal (yyyy-MM-dd), or null when closed. */
   const [collectionDate, setCollectionDate] = useState<string | null>(null)
+  const [isInsightsOpen, setIsInsightsOpen] = useState(false)
 
   const flockId = flock?.id
 
@@ -350,6 +353,12 @@ const EggRecordPage = ({
             columns={EGG_EXPORT_COLUMNS}
             filename={buildExportFilename(flock?.name || "flock", "eggs")}
           />
+          {hasCells && (
+            <Button variant="outline" onClick={() => setIsInsightsOpen(true)} className="gap-2 border-emerald-300 text-emerald-800 hover:bg-emerald-50">
+              <BarChart3 className="h-4 w-4" />
+              Cell insights
+            </Button>
+          )}
           {onAddRecord && (
             <Button
               onClick={openAdd}
@@ -673,6 +682,15 @@ const EggRecordPage = ({
           void onCollectionsChanged?.()
         }}
       />
+
+      {flockId && (
+        <CellInsightsModal
+          isOpen={isInsightsOpen}
+          onClose={() => setIsInsightsOpen(false)}
+          flockId={flockId}
+          flockName={flock?.name}
+        />
+      )}
 
       <ConfirmModal
         open={isDeleteDialogOpen}
