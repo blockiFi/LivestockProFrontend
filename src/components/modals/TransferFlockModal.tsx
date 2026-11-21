@@ -18,7 +18,8 @@ export default function TransferFlockModal(props: {
   farmId: number
   flockId: number
   allocations: Array<{ house_id: number; quantity: number; house?: any }>
-  onSuccess: () => void
+  /** Called with the applied lines so the caller can follow up on the houses involved. */
+  onSuccess: (lines: Array<{ from_house_id?: number | null; to_house_id?: number | null; quantity: number }>) => void
 }) {
   const { open, onOpenChange, token, farmId, flockId, allocations, onSuccess } = props
   const [mode, setMode] = useState<Mode>("move")
@@ -106,7 +107,7 @@ export default function TransferFlockModal(props: {
       if (res.success) {
         toast.success("Transfer applied")
         onOpenChange(false)
-        onSuccess()
+        onSuccess(lines)
       } else {
         if (Array.isArray(res.error)) {
           res.error.forEach((e) => toast.error(e))

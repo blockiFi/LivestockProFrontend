@@ -43,9 +43,20 @@ interface HouseEggLayoutModalProps {
   onClose: () => void
   house: PoultryHouse | null
   canManage?: boolean
+  /** Preselects this flock in "Assign selected to", e.g. after a transfer into this house. */
+  defaultFlockId?: number | null
+  /** Shown at the top of the modal, e.g. why it was opened after a transfer. */
+  notice?: string | null
 }
 
-const HouseEggLayoutModal = ({ isOpen, onClose, house, canManage = true }: HouseEggLayoutModalProps) => {
+const HouseEggLayoutModal = ({
+  isOpen,
+  onClose,
+  house,
+  canManage = true,
+  defaultFlockId = null,
+  notice = null,
+}: HouseEggLayoutModalProps) => {
   const token = useSelector((s: RootState) => s.authentication.token)
   const farmId = useSelector((s: RootState) => s.authentication.activeFarm?.id)
 
@@ -101,11 +112,12 @@ const HouseEggLayoutModal = ({ isOpen, onClose, house, canManage = true }: House
     if (isOpen) {
       setSelected(new Set())
       setEditingRow(null)
+      setAssignFlock(defaultFlockId ? String(defaultFlockId) : "")
       void load()
     } else {
       setLayout(null)
     }
-  }, [isOpen, load])
+  }, [isOpen, load, defaultFlockId])
 
   const flockName = useCallback(
     (id: number | null) => {
@@ -283,6 +295,9 @@ const HouseEggLayoutModal = ({ isOpen, onClose, house, canManage = true }: House
         </div>
       ) : (
         <>
+          {notice ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{notice}</div>
+          ) : null}
           <FormSection
             step={1}
             icon={Bird}
