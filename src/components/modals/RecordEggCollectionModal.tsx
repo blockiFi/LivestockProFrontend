@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { confirmDialog } from "@/lib/confirmDialog"
 
 interface RecordEggCollectionModalProps {
   isOpen: boolean
@@ -237,7 +238,12 @@ const RecordEggCollectionModal = ({ isOpen, onClose, flock, initialDate, readOnl
 
   const removeRound = async (round: EggCollectionRound) => {
     if (!token || !farmId || !flockId) return
-    if (!window.confirm(`Delete round ${round.round_no} (${round.eggs_collected} eggs)?`)) return
+    const ok = await confirmDialog({
+      title: `Delete round ${round.round_no}?`,
+      description: `${round.eggs_collected.toLocaleString()} eggs will be removed from this day's total.`,
+      confirmLabel: "Delete round",
+    })
+    if (!ok) return
     setSaving(true)
     const res = await deleteEggCollection(token, farmId, flockId, round.id)
     setSaving(false)
@@ -253,7 +259,16 @@ const RecordEggCollectionModal = ({ isOpen, onClose, flock, initialDate, readOnl
     if (mode === "total" && totalEggs.trim() === "") return toast.error("Enter the eggs collected in this round")
     if (mode === "cell" && Object.keys(cellEggs).length === 0) return toast.error("Enter eggs for at least one cell")
     if (roundBroken > roundEggs) return toast.error("Broken eggs cannot be more than eggs collected")
-    if (mode === "cell" && unfilled > 0 && !window.confirm(`${unfilled} cells have no entry. Save anyway?`)) return
+    if (mode === "cell" && unfilled > 0) {
+      const ok = await confirmDialog({
+        title: `${unfilled.toLocaleString()} cells have no entry`,
+        description: "Cells without an entry are left out of this round, not saved as 0. Save the round anyway?",
+        confirmLabel: "Save round",
+        cancelLabel: "Keep entering",
+        tone: "flock",
+      })
+      if (!ok) return
+    }
 
     const payload: EggCollectionPayload = {
       date,

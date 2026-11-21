@@ -18,6 +18,7 @@ import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
 import { deleteInvoice, getInvoices, mapApiInvoiceToUi, updateInvoice } from "@/lib/crmRequest"
 import { CardGridSkeleton } from "@/components/general/skeletons"
+import { confirmDialog } from "@/lib/confirmDialog"
 
 const statusToApi = (status: Invoice["status"]) => status.toLowerCase() as "pending" | "paid" | "overdue"
 
@@ -86,7 +87,12 @@ export function InvoicesPage() {
 
   const handleDeleteInvoice = async (id: number) => {
     if (!token || !farmId) return
-    if (!window.confirm("Delete this invoice?")) return
+    const ok = await confirmDialog({
+      title: "Delete this invoice?",
+      description: "This cannot be undone.",
+      confirmLabel: "Delete",
+    })
+    if (!ok) return
     const res = await deleteInvoice(token, farmId, id)
     if (!res.success) {
       toast.error(res.error?.join(", ") || "Failed to delete invoice")

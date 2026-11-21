@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { confirmDialog } from "@/lib/confirmDialog"
 
 /** Tile colours for flocks sharing a house. */
 const FLOCK_COLORS = [
@@ -248,7 +249,12 @@ const HouseEggLayoutModal = ({ isOpen, onClose, house, canManage = true }: House
 
   const removeRow = async (row: HouseLayoutRow) => {
     if (!token || !farmId) return
-    if (!window.confirm(`Remove row ${row.code}? Rows with recorded eggs are hidden instead of deleted.`)) return
+    const ok = await confirmDialog({
+      title: `Remove row ${row.code}?`,
+      description: "Its cells are removed from the layout. If eggs were already recorded in this row, it is hidden instead so its history stays.",
+      confirmLabel: "Remove row",
+    })
+    if (!ok) return
     await run(() => deleteHouseEggRow(token, farmId, house.id, row.id), `Row ${row.code} removed`)
   }
 

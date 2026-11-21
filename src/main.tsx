@@ -27,6 +27,7 @@ import { InvoicesPage } from './pages/Invoice.tsx';
 import { ThemeProvider, useTheme } from './providers/ThemeProvider.tsx';
 import NotificationCenterPage from './pages/NotificationCenterPage.tsx';
 import ForbiddenPage from './pages/ForbiddenPage.tsx';
+import { ConfirmDialogHost } from './components/general/ConfirmDialogHost.tsx';
 
 function AppRouter() {
   const { resolvedTheme } = useTheme()
@@ -34,6 +35,7 @@ function AppRouter() {
   return (
     <>
       <RouterProvider router={router} />
+      <ConfirmDialogHost />
       <ToastContainer  
         position="top-right"
         autoClose={10000}

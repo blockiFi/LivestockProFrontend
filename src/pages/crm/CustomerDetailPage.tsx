@@ -41,6 +41,7 @@ import Pagination from "@/components/general/Pagination"
 import { CardGridSkeleton, TableSkeleton } from "@/components/general/skeletons"
 import { ActionGate } from "@/components/general/ActionGate"
 import { PERM } from "@/lib/permissions"
+import { confirmDialog } from "@/lib/confirmDialog"
 
 const HISTORY_PER_PAGE = 10
 
@@ -465,9 +466,15 @@ export default function CustomerDetailPage() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => {
+                                onClick={async () => {
                                   if (!token || !farmId || !customerId) return
-                                  if (!window.confirm(`Refund ${formatCurrency(Number(txn.amount))} to account?`)) return
+                                  const ok = await confirmDialog({
+                                    title: "Refund to account?",
+                                    description: `${formatCurrency(Number(txn.amount))} will be credited back to this customer's account.`,
+                                    confirmLabel: "Refund",
+                                    tone: "sales",
+                                  })
+                                  if (!ok) return
                                   void refundCustomerAccountSale(token, farmId, Number(customerId), {
                                     sales_record_id: txn.sales_record_id!,
                                     amount: Number(txn.amount),

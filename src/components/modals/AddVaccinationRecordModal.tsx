@@ -26,6 +26,7 @@ import {
 import { cn, Naira, formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
 import type { vaccine, PoultryVaccineInventory, AdministrationMethod } from "@/lib/types"
+import { toast } from "react-toastify"
 
 interface AddVaccinationRecordModalProps {
   isOpen: boolean
@@ -118,7 +119,7 @@ const AddVaccinationRecordModal = ({
     
     if (!formData.poultry_vaccine_id || !formData.poultry_vaccine_inventory_id || 
         !formData.administered_by || !formData.administration_method_id) {
-      alert("Please fill in all required fields")
+      toast.error("Please fill in all required fields")
       return
     }
 
