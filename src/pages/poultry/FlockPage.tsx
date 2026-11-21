@@ -67,6 +67,8 @@ import type { FlockAllocationRow, FlockTransferRecord } from "@/lib/request"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
 import { usePermissions } from "@/hooks/usePermissions"
+import { useTransferCellPrompt } from "@/hooks/useTransferCellPrompt"
+import HouseEggLayoutModal from "@/components/modals/HouseEggLayoutModal"
 const FlockPage = () => {
     const {Flock: initialFlock} = useLoaderData() as {Flock: DetailedFlockRecord};
     const [flock, setFlock] = useState<DetailedFlockRecord>(initialFlock);
@@ -93,6 +95,15 @@ const FlockPage = () => {
     const token = useSelector((state: RootState) => state.authentication.token);
     const farmId = useSelector((state: RootState) => state.authentication.activeFarm?.id);
     const { canAny } = usePermissions();
+
+    const canManageHouses = canAny([...ACTIONS.houses.manage]);
+    const transferCellPrompt = useTransferCellPrompt({
+        token,
+        farmId,
+        flockId: flock.id,
+        flockName: flock.name || flock.batch_number || "this flock",
+        enabled: canManageHouses,
+    });
 
     const canCreateRecords = canAny([...ACTIONS.records.create]);
     const canUpdateRecords = canAny([...ACTIONS.records.update]);
@@ -1700,13 +1711,17 @@ const FlockPage = () => {
               farmId={farmId}
               flockId={flock.id}
               allocations={allocations}
-              onSuccess={() => {
+              onSuccess={(lines) => {
                 refreshAllocations()
                 refreshTransfers()
                 refreshFlock()
+                void transferCellPrompt.afterTransfer(lines)
               }}
             />
           )}
+
+          {/* After a transfer: assign / release egg-collection cells in the houses involved */}
+          <HouseEggLayoutModal {...transferCellPrompt.layoutModal} canManage={canManageHouses} />
 
           {farmId && (
             <BulkFlockRecordImportSheet

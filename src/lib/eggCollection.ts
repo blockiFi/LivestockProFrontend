@@ -334,3 +334,138 @@ export const parseRowCodes = (input: string): string[] => {
   }
   return Array.from(new Set(trimmed.split(/[\s,]+/).filter(Boolean)))
 }
+
+// ---- Cell insights ----
+
+export type CellInsightStatus = "first_egg" | "increase" | "decrease" | "stopped" | "steady" | "silent" | "no_history"
+
+export type CellInsightFlag = "over_capacity" | "full" | "high_broken" | "silent" | "never_laid" | "top" | "weak"
+
+export type CellInsightCell = {
+  cell_id: number
+  label: string
+  cell_number: number
+  birds: number
+  eggs: number
+  broken: number
+  previous_eggs: number | null
+  change: number | null
+  average_before: number | null
+  window_rate: number | null
+  zero_streak: number
+  laying_streak: number
+  status: CellInsightStatus
+  flags: CellInsightFlag[]
+}
+
+export type CellInsightEvent = {
+  cell_id: number
+  label: string
+  house_name: string | null
+  row_code: string
+  birds: number
+  eggs: number
+  previous_eggs: number | null
+  change: number | null
+  window_rate: number | null
+  detail: string
+}
+
+export type CellInsightEventKey =
+  | "first_egg"
+  | "increase"
+  | "decrease"
+  | "stopped"
+  | "silent"
+  | "never_laid"
+  | "over_capacity"
+  | "high_broken"
+  | "top"
+  | "weak"
+  | "full"
+
+export type CellInsightRow = {
+  row_id: number
+  house_id: number
+  house_name: string | null
+  row_code: string
+  cells: number
+  birds: number
+  eggs: number
+  broken: number
+  previous_eggs: number | null
+  change: number | null
+  lay_rate: number | null
+  cells_laying: number
+  up: number
+  down: number
+}
+
+export type CellInsights = {
+  flock_id: number
+  date: string
+  window_days: number
+  silent_days: number
+  recorded_dates: string[]
+  has_cells: boolean
+  has_data: boolean
+  latest_recorded_date?: string | null
+  previous_date?: string | null
+  summary?: {
+    cells: number
+    birds: number
+    eggs: number
+    broken: number
+    previous_eggs: number | null
+    change: number | null
+    lay_rate: number | null
+    cells_laying: number
+    previous_cells_laying: number | null
+    cells_entered: number
+    previous_cells_entered: number | null
+    rounds: number
+    possibly_incomplete: boolean
+    counts: Record<CellInsightEventKey | "steady", number>
+  }
+  events?: Record<CellInsightEventKey, CellInsightEvent[]>
+  rows?: CellInsightRow[]
+  houses?: { house_id: number; house_name: string | null; rows: { row_id: number; code: string; cells: CellInsightCell[] }[] }[]
+  trend?: { date: string; eggs: number; broken: number; cells_laying: number; lay_rate: number | null }[]
+}
+
+export type CellAiInsights = {
+  date: string
+  previous_date: string | null
+  ai_available: boolean
+  ai_insights: {
+    headline: string
+    summary: string
+    positives?: string[]
+    concerns?: string[]
+    actions?: { priority: "high" | "medium" | "low"; action: string; cells?: string[]; reason?: string }[]
+    watch_cells?: { cell: string; reason: string }[]
+  } | null
+  ai_text: string | null
+}
+
+export const getEggCellInsights = (
+  token: string,
+  farmId: number,
+  flockId: number,
+  params?: { date?: string; window?: number; silent_days?: number }
+) =>
+  call<CellInsights>(
+    () => axios.get(flockUrl(farmId, flockId, "/egg-cell-insights"), { ...auth(token), params }),
+    "Failed to load cell insights"
+  )
+
+export const getEggCellAiInsights = (
+  token: string,
+  farmId: number,
+  flockId: number,
+  data: { date: string; window?: number; silent_days?: number }
+) =>
+  call<CellAiInsights>(
+    () => axios.post(flockUrl(farmId, flockId, "/egg-cell-insights/ai"), data, { ...auth(token), timeout: 90000 }),
+    "Failed to get AI analysis"
+  )
