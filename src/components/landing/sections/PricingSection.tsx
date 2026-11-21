@@ -1,73 +1,64 @@
 import { Link } from "react-router-dom"
-import { CheckCircle } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import RevealOnScroll from "@/components/landing/ui/RevealOnScroll"
 import SectionHeading from "@/components/landing/ui/SectionHeading"
 import SectionShell from "@/components/landing/ui/SectionShell"
+import CheckItem from "@/components/landing/ui/CheckItem"
 import { pricingTiers } from "@/lib/landingContent"
+import { cn } from "@/lib/utils"
 
 export default function PricingSection() {
   return (
-    <SectionShell id="pricing" className="border-t border-slate-800 bg-slate-900">
+    <SectionShell id="pricing">
       <RevealOnScroll>
         <SectionHeading
           eyebrow="Pricing"
-          title="Simple pricing, billed per farm"
-          description="Every plan starts with a 14-day free trial. Change or cancel at any time — no hidden fees and no long-term contracts."
+          title="Simple pricing, per farm"
+          description="Every plan starts with a 14-day free trial. No card needed, cancel anytime."
           align="center"
-          className="mx-auto"
         />
       </RevealOnScroll>
 
-      <div className="mt-12 grid gap-6 md:grid-cols-3">
-        {pricingTiers.map((tier, i) => (
-          <RevealOnScroll key={tier.name} delayMs={i * 80}>
-            <Card
-              className={`h-full border-slate-800 bg-slate-950/70 backdrop-blur transition-all hover:-translate-y-1 hover:border-emerald-500/30 motion-reduce:hover:translate-y-0 ${
-                tier.highlight ? "ring-2 ring-emerald-400" : ""
-              }`}
+      <div className="mt-12 grid gap-5 md:grid-cols-3">
+        {pricingTiers.map((tier) => (
+          <div
+            key={tier.name}
+            className={cn(
+              "relative flex flex-col rounded-2xl p-7 sm:p-8",
+              tier.highlight ? "bg-farm-ink text-white" : "border border-farm-line bg-white text-farm-ink",
+            )}
+          >
+            {tier.highlight && (
+              <span className="absolute right-5 top-5 rounded-full bg-farm-orange px-3 py-1 text-xs font-extrabold text-[#1f1300]">
+                Most complete
+              </span>
+            )}
+            <h3 className="text-xl font-bold">{tier.name}</h3>
+            <p className={cn("mt-1.5 text-sm", tier.highlight ? "text-[#bfd3c6]" : "text-slate-500")}>{tier.tagline}</p>
+            <p className="mt-6">
+              <span className="text-[2.5rem] font-extrabold tracking-tight">₦{tier.price}</span>
+              <span className={cn("text-[15px]", tier.highlight ? "text-[#bfd3c6]" : "text-slate-500")}> / month</span>
+            </p>
+            <ul className={cn("mt-6 flex flex-1 flex-col gap-2.5 text-[15px]", tier.highlight ? "text-[#e6efe9]" : "text-[#2b3036]")}>
+              {tier.points.map((point) => (
+                <CheckItem key={point} className={tier.highlight ? "[&_svg]:text-farm-orange" : undefined}>
+                  {point}
+                </CheckItem>
+              ))}
+            </ul>
+            <Link
+              to="/register"
+              className={cn(
+                "mt-7 flex h-12 items-center justify-center rounded-xl text-[15px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-4",
+                tier.highlight
+                  ? "bg-farm-orange text-[#1f1300] hover:bg-[#f6a043] focus-visible:ring-farm-orange/40"
+                  : "border border-[#dcd6c8] text-farm-ink hover:border-farm-green hover:text-farm-green focus-visible:ring-farm-green/20",
+              )}
             >
-              <CardContent className="flex h-full flex-col p-6">
-                {tier.highlight && (
-                  <span className="mb-3 inline-block w-fit rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
-                    Most complete
-                  </span>
-                )}
-                <h3 className="text-lg font-semibold text-white">{tier.name}</h3>
-                <p className="mt-1 text-sm text-slate-400">{tier.tagline}</p>
-                <p className="mt-4">
-                  <span className="text-3xl font-bold text-white">₦{tier.price}</span>
-                  <span className="text-sm text-slate-400"> /month per farm</span>
-                </p>
-                <ul className="mt-6 flex-1 space-y-3 text-sm text-slate-300">
-                  {tier.points.map((point) => (
-                    <li key={point} className="flex items-start gap-2">
-                      <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link to="/register" className="mt-6 block">
-                  <Button
-                    className={`w-full rounded-xl ${
-                      tier.highlight
-                        ? "bg-gradient-to-r from-green-400 to-emerald-500 text-emerald-950 hover:from-green-500 hover:to-emerald-600"
-                        : "bg-slate-800 text-slate-100 hover:bg-slate-700"
-                    }`}
-                  >
-                    Start free trial
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </RevealOnScroll>
+              Start free trial
+            </Link>
+          </div>
         ))}
       </div>
-
-      <p className="mt-8 text-center text-xs text-slate-500">
-        No credit card required to start · Cancel anytime
-      </p>
     </SectionShell>
   )
 }

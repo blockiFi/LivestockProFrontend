@@ -10,8 +10,8 @@ type Props = {
 
 export default function SectionShell({ id, children, className, containerClassName }: Props) {
   return (
-    <section id={id} className={cn("py-20 sm:py-28", className)}>
-      <div className={cn("mx-auto max-w-6xl px-4", containerClassName)}>{children}</div>
+    <section id={id} className={cn("scroll-mt-20 py-20 sm:py-24", className)}>
+      <div className={cn("mx-auto max-w-6xl px-4 sm:px-6", containerClassName)}>{children}</div>
     </section>
   )
 }

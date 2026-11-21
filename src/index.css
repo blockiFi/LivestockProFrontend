@@ -3,6 +3,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Landing page palette (taken from the Farm Central logo) */
+@theme {
+  --color-farm-cream: #faf8f3;
+  --color-farm-line: #e8e3d8;
+  --color-farm-ink: #14261b;
+  --color-farm-green: #1e5a36;
+  --color-farm-green-dark: #123b23;
+  --color-farm-mint: #e9f2ec;
+  --color-farm-charcoal: #3b4045;
+  --color-farm-orange: #f08a1c;
+  --color-farm-orange-soft: #fff3e3;
+  --font-landing: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
