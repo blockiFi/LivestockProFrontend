@@ -1453,6 +1453,7 @@ const FlockPage = () => {
                         onAddRecord={isBatchActive && canCreateRecords ? handleCreateEggReport : undefined}
                         onUpdateRecord={isBatchActive && canCreateRecords ? handleUpdateEggReport : undefined}
                         onDeleteRecord={isBatchActive && canDeleteRecords ? handleDeleteEggReport : undefined}
+                        onCollectionsChanged={refreshFlock}
                       />
                     </TabsContent>
 

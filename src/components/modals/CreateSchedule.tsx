@@ -22,6 +22,7 @@ import { AlertDialog } from "@/components/ui/alert-dialog"
 import { cn, Naira } from "@/lib/utils"
 import FeedingRangeEditor, { type FeedingRangeDraft } from "@/components/poultry/schedules/FeedingRangeEditor"
 import { DEFAULT_FEEDING_TIMES, formatFeedingDayRange, normalizeFeedingTimesForUi, validateFeedingRanges } from "@/lib/feeding-range"
+import { confirmDialog } from "@/lib/confirmDialog"
 const scheduleTypeIcons = {
     medication: Pill,
     vaccination: Shield,
@@ -584,12 +585,14 @@ const CreateSchedule  =({
       }
     };
   
-    const switchFeedingEntryMode = (mode: "daily" | "range") => {
+    const switchFeedingEntryMode = async (mode: "daily" | "range") => {
       if (mode === feedingEntryMode) return
       if (formData.items.length > 0) {
-        const ok = window.confirm(
-          "Switching between Daily and Range clears the current feeding items. Continue?"
-        )
+        const ok = await confirmDialog({
+          title: `Switch to ${mode === "daily" ? "Daily" : "Range"} entry?`,
+          description: "Switching between Daily and Range clears the feeding items you've added so far.",
+          confirmLabel: "Switch and clear",
+        })
         if (!ok) return
         setFormData((prev) => ({ ...prev, items: [] }))
       }

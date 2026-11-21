@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { confirmDialog } from "@/lib/confirmDialog"
 
 type Props = {
   open: boolean
@@ -67,9 +68,13 @@ export default function AccountAdjustmentModal({
       toast.error("A reason is required for adjustments")
       return
     }
-    if (!window.confirm(`Confirm ${direction} adjustment of ${formatCurrency(value)}?`)) {
-      return
-    }
+    const ok = await confirmDialog({
+      title: `Confirm ${direction} adjustment`,
+      description: `${formatCurrency(value)} will be applied to this customer's account.`,
+      confirmLabel: "Apply adjustment",
+      tone: "sales",
+    })
+    if (!ok) return
 
     setSaving(true)
     const res = await adjustCustomerAccount(token, farmId, customerId, {

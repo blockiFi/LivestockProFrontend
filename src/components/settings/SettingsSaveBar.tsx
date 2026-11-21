@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react"
 import { useBlocker } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
+import { confirmDialog } from "@/lib/confirmDialog"
 
 interface SettingsSaveBarProps {
   dirty: boolean
@@ -32,12 +33,18 @@ export function SettingsSaveBar({ dirty, saving = false, onSave, onDiscard }: Se
   useEffect(() => {
     if (blocker.state !== "blocked") return
 
-    const confirmed = window.confirm("You have unsaved changes. Leave this page without saving?")
-    if (confirmed) {
-      blockerRef.current.proceed?.()
-    } else {
-      blockerRef.current.reset?.()
-    }
+    void confirmDialog({
+      title: "Leave without saving?",
+      description: "You have unsaved changes on this page.",
+      confirmLabel: "Leave page",
+      cancelLabel: "Stay",
+    }).then((confirmed) => {
+      if (confirmed) {
+        blockerRef.current.proceed?.()
+      } else {
+        blockerRef.current.reset?.()
+      }
+    })
   }, [blocker.state])
 
   if (!dirty) return null

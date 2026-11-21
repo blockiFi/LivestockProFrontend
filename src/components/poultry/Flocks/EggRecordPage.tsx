@@ -6,6 +6,7 @@ import { getEggStock, type EggReportPayload, type EggStockSummary } from "@/lib/
 import {
   Egg,
   Eye,
+  Grid3x3,
   Package,
   Pencil,
   Percent,
@@ -28,6 +29,8 @@ import { ExportDataButton } from "@/components/general/ExportDataButton"
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData"
 import Pagination from "@/components/general/Pagination"
 import AddEggRecordModal from "@/components/modals/AddEggRecordModal"
+import RecordEggCollectionModal from "@/components/modals/RecordEggCollectionModal"
+import { getEggSheet } from "@/lib/eggCollection"
 import RecordsDateRangeFilter from "@/components/poultry/Flocks/RecordsDateRangeFilter"
 import { useRecordsDateRange } from "@/hooks/useRecordsDateRange"
 import { toast } from "react-toastify"
@@ -62,6 +65,8 @@ interface EggRecordPageProps {
   onAddRecord?: (data: EggReportPayload) => Promise<void>
   onUpdateRecord?: (id: number, data: EggReportPayload) => Promise<void>
   onDeleteRecord?: (id: number) => Promise<void>
+  /** Refresh the flock after collection rounds change (cell-based / multi-round entry). */
+  onCollectionsChanged?: () => void | Promise<unknown>
 }
 
 const badgeClassNames = {
@@ -76,6 +81,7 @@ const EggRecordPage = ({
   onAddRecord,
   onUpdateRecord,
   onDeleteRecord,
+  onCollectionsChanged,
 }: EggRecordPageProps) => {
   const token = useSelector((s: RootState) => s.authentication.token)
   const farmId = useSelector((s: RootState) => s.authentication.activeFarm?.id)
@@ -99,6 +105,10 @@ const EggRecordPage = ({
   const [eggStockLoading, setEggStockLoading] = useState(false)
   const stockCardRef = useRef<HTMLDivElement | null>(null)
   const reportsPerPage = 10
+  /** True when this flock has cells assigned for cell-based egg collection. */
+  const [hasCells, setHasCells] = useState(false)
+  /** Day open in the collection-rounds modal (yyyy-MM-dd), or null when closed. */
+  const [collectionDate, setCollectionDate] = useState<string | null>(null)
 
   const flockId = flock?.id
 
@@ -133,6 +143,31 @@ const EggRecordPage = ({
   useEffect(() => {
     void loadEggStock()
   }, [loadEggStock, reports])
+
+  useEffect(() => {
+    if (!token || !farmId || !flockId) return
+    let cancelled = false
+    void getEggSheet(token, farmId, flockId, localToday()).then((res) => {
+      if (!cancelled) setHasCells(Boolean(res.success && res.data?.has_cells))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [token, farmId, flockId])
+
+  /** Days recorded in rounds, or flocks with cells, use the rounds modal; others keep the simple form. */
+  const usesRounds = (report?: EggReport) =>
+    hasCells || Number((report as EggReport & { collections_count?: number })?.collections_count ?? 0) > 0
+
+  const openAdd = () => {
+    if (usesRounds()) setCollectionDate(localToday())
+    else setIsAddModalOpen(true)
+  }
+
+  const openEdit = (report: EggReport) => {
+    if (usesRounds(report)) setCollectionDate(report.date.slice(0, 10))
+    else setEditingReport(report)
+  }
 
   // Refetch when Eggs tab becomes visible again (e.g. after recording a sale)
   useEffect(() => {
@@ -317,11 +352,11 @@ const EggRecordPage = ({
           />
           {onAddRecord && (
             <Button
-              onClick={() => setIsAddModalOpen(true)}
+              onClick={openAdd}
               className="bg-gradient-to-r from-emerald-500 to-amber-600 hover:from-emerald-600 hover:to-amber-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200"
             >
               <Plus className="h-4 w-4" />
-              Add Egg Report
+              {hasCells ? "Record Collection" : "Add Egg Report"}
             </Button>
           )}
         </div>
@@ -478,7 +513,7 @@ const EggRecordPage = ({
               : "Start tracking daily egg collection for this flock."}
           </p>
           {onAddRecord && !emptyInRange && (
-            <Button className="mt-4" onClick={() => setIsAddModalOpen(true)}>
+            <Button className="mt-4" onClick={openAdd}>
               <Plus className="h-4 w-4 mr-2" />
               Add Egg Report
             </Button>
@@ -512,7 +547,27 @@ const EggRecordPage = ({
 
                   return (
                     <TableRow key={report.id}>
-                      <TableCell className="font-medium">{formatDate(report.date)}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {formatDate(report.date)}
+                          {(() => {
+                            const rounds = Number((report as EggReport & { collections_count?: number }).collections_count ?? 0)
+                            const byCell = (report as EggReport & { entry_mode?: string }).entry_mode === "cell"
+                            if (!rounds && !byCell) return null
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setCollectionDate(report.date.slice(0, 10))}
+                                title="View collection rounds"
+                                className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100"
+                              >
+                                {byCell && <Grid3x3 className="h-3 w-3" />}
+                                {rounds > 1 ? `${rounds} rounds` : byCell ? "By cell" : "1 round"}
+                              </button>
+                            )
+                          })()}
+                        </div>
+                      </TableCell>
                       <TableCell>{formatEggsWithCrates(report.eggs_collected)}</TableCell>
                       <TableCell className={broken > 0 ? "text-rose-600 font-medium" : undefined}>
                         {formatEggsWithCrates(broken)}
@@ -552,7 +607,7 @@ const EggRecordPage = ({
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setEditingReport(report)}
+                                onClick={() => openEdit(report)}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -607,6 +662,17 @@ const EggRecordPage = ({
           initialReport={editingReport}
         />
       )}
+
+      <RecordEggCollectionModal
+        isOpen={collectionDate !== null}
+        initialDate={collectionDate ?? undefined}
+        onClose={() => setCollectionDate(null)}
+        flock={flock}
+        readOnly={!onAddRecord && !onUpdateRecord}
+        onChanged={() => {
+          void onCollectionsChanged?.()
+        }}
+      />
 
       <ConfirmModal
         open={isDeleteDialogOpen}

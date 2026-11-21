@@ -32,6 +32,7 @@ import { ActionGate } from "@/components/general/ActionGate";
 import { AiUpgradeNotice } from "@/components/general/AiGate";
 import { useSubscription } from "@/hooks/useSubscription";
 import { ACTIONS } from "@/lib/actionPermissions";
+import { confirmDialog } from "@/lib/confirmDialog"
 
 function fmt(v?: number | null, suffix = "") {
   if (v === null || v === undefined) return "-";
@@ -728,9 +729,15 @@ export default function FeedCompositionsPage() {
           <CardContent className="space-y-4">
             <Select
               value={selectedProductId == null ? "" : String(selectedProductId)}
-              onValueChange={(v) => {
+              onValueChange={async (v) => {
                 if (hasUnsavedChanges) {
-                  if (!confirm("You have unsaved changes. Discard them?")) return;
+                  const ok = await confirmDialog({
+                    title: "Discard unsaved changes?",
+                    description: "Switching product will lose the changes you haven't saved.",
+                    confirmLabel: "Discard",
+                    cancelLabel: "Keep editing",
+                  });
+                  if (!ok) return;
                 }
                 setSelectedProductId(Number(v));
               }}

@@ -28,6 +28,7 @@ import {
 import FeedingRangeEditor, { type FeedingRangeDraft } from "@/components/poultry/schedules/FeedingRangeEditor";
 import { DEFAULT_FEEDING_TIMES, normalizeFeedingTimesForUi, validateFeedingRanges } from "@/lib/feeding-range";
 import { cn } from "@/lib/utils";
+import { toast } from "react-toastify"
 
 type Props = {
   open: boolean;
@@ -132,7 +133,7 @@ export default function EditScheduleModal({
   const switchFeedingMode = (mode: "daily" | "range") => {
     if (mode === feedingEntryMode) return;
     if (mode === "daily" && hasMultiDayOrOpenRanges(items)) {
-      alert(
+      toast.error(
         "This schedule has multi-day or open-ended ranges. Split or remove them before switching to Daily mode."
       );
       return;
@@ -286,7 +287,7 @@ export default function EditScheduleModal({
       onOpenChange(false);
     } catch (e: any) {
       console.error(e);
-      alert(e?.message ?? "Failed to save schedule");
+      toast.error(e?.message ?? "Failed to save schedule");
     } finally {
       setIsSaving(false);
     }
@@ -297,7 +298,7 @@ export default function EditScheduleModal({
     if (!item?.id) return;
     const res = await splitFeedingScheduleItem(token, farmId, item.id, { day });
     if (!res.success) {
-      alert((res as any).error?.[0] ?? "Split failed");
+      toast.error((res as any).error?.[0] ?? "Split failed");
       return;
     }
     await Promise.resolve(onSaved?.());

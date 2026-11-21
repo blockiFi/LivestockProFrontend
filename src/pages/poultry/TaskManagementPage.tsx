@@ -73,6 +73,7 @@ import {
 import { cn } from "@/lib/utils"
 import { ActionGate } from "@/components/general/ActionGate"
 import { ACTIONS } from "@/lib/actionPermissions"
+import { promptDialog } from "@/lib/confirmDialog"
 
 function StatCard({
   label,
@@ -331,9 +332,20 @@ const TaskManagementPage = () => {
 
   const handleSaveTemplateFromForm = async () => {
     if (!token || !farmId) return
-    const title = window.prompt("Template title?")
+    const title = await promptDialog({
+      title: "Save as template",
+      label: "Template title",
+      placeholder: "e.g. Clean drinkers",
+      confirmLabel: "Next",
+    })
     if (!title?.trim()) return
-    const section = window.prompt("Section (layers/broilers/feeding/...)", "feeding") || "feeding"
+    const section =
+      (await promptDialog({
+        title: "Template section",
+        label: "Section (layers, broilers, feeding…)",
+        defaultValue: "feeding",
+        confirmLabel: "Save template",
+      }))?.trim() || "feeding"
     const res = await createFarmTaskTemplate(token, farmId, {
       title: title.trim(),
       section: section as any,

@@ -49,6 +49,7 @@ import {
 } from "@/lib/request"
 import type { PoultryVaccineInventory, VaccineData, VaccineProduct } from "@/lib/types"
 import { formatCurrency, Naira } from "@/lib/utils"
+import { confirmDialog } from "@/lib/confirmDialog"
 
 type ProductRow = {
   product: VaccineProduct
@@ -177,7 +178,12 @@ export default function VaccinationProductsPage() {
       toast.error("Default platform products cannot be deleted")
       return
     }
-    if (!confirm(`Delete "${product.name}"? This cannot be undone.`)) return
+    const ok = await confirmDialog({
+      title: `Delete "${product.name}"?`,
+      description: "This cannot be undone.",
+      confirmLabel: "Delete",
+    })
+    if (!ok) return
     const token = GetToken()
     const farm = getFarm()
     if (!token || !farm) return
