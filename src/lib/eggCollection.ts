@@ -469,3 +469,16 @@ export const getEggCellAiInsights = (
     () => axios.post(flockUrl(farmId, flockId, "/egg-cell-insights/ai"), data, { ...auth(token), timeout: 90000 }),
     "Failed to get AI analysis"
   )
+
+export type CellChatMessage = { role: "user" | "assistant"; content: string }
+
+export const sendEggCellChat = (
+  token: string,
+  farmId: number,
+  flockId: number,
+  data: { date: string; window?: number; messages: CellChatMessage[] }
+) =>
+  call<{ ai_available: boolean; reply: string | null }>(
+    () => axios.post(flockUrl(farmId, flockId, "/egg-cell-insights/chat"), data, { ...auth(token), timeout: 120000 }),
+    "Failed to get a reply"
+  )
