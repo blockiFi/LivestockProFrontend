@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { AiGate } from "@/components/general/AiGate"
+import CellInsightsChat from "@/components/poultry/Flocks/CellInsightsChat"
 import { cn } from "@/lib/utils"
 import {
   getEggCellAiInsights,
@@ -219,6 +220,24 @@ export default function CellInsightsModal({ isOpen, onClose, flockId, flockName,
     return m
   }, [data])
 
+  const knownLabels = useMemo(() => new Set(labelToId.keys()), [labelToId])
+
+  /** Starter questions that fit what happened on the day. */
+  const chatSuggestions = useMemo(() => {
+    const c = data?.summary?.counts
+    const ev = data?.events
+    const worstRow = [...(data?.rows ?? [])].sort((a, b) => (a.change ?? 0) - (b.change ?? 0))[0]
+    const list: string[] = []
+    if (worstRow && (worstRow.change ?? 0) < 0) list.push(`Why did row ${worstRow.row_code} drop?`)
+    if (c?.stopped) list.push("Which stopped cells should I check first?")
+    if (c?.first_egg) list.push("Which cells laid their first egg?")
+    if (c?.silent || c?.never_laid) list.push("Which cells have been empty longest?")
+    if (ev?.top?.[0]) list.push(`How has ${ev.top[0].label} done lately?`)
+    list.push("Which row is doing best this week?")
+    list.push("Is production going up or down?")
+    return list.slice(0, 5)
+  }, [data])
+
   const highlightLabels = (labels: string[]) => {
     const ids = labels.map((l) => labelToId.get(l.toUpperCase())).filter((x): x is number => Boolean(x))
     setHighlight(new Set(ids))
@@ -387,8 +406,9 @@ export default function CellInsightsModal({ isOpen, onClose, flockId, flockName,
             </div>
 
             {/* AI */}
-            <FormSection step={1} icon={Sparkles} title="AI analysis" description="The AI reads the numbers below and says what to check first.">
+            <FormSection step={1} icon={Sparkles} title="AI analysis" description="The AI reads the numbers below and says what to check first. Ask it follow-up questions in the chat.">
               <AiGate>
+                <div className="space-y-4">
                 {!ai?.ai_insights && !ai?.ai_text ? (
                   <div className="flex flex-wrap items-center gap-3">
                     <Button type="button" onClick={() => void runAi()} disabled={aiLoading} className="gap-2">
@@ -402,11 +422,20 @@ export default function CellInsightsModal({ isOpen, onClose, flockId, flockName,
                 ) : (
                   <p className="whitespace-pre-wrap text-sm text-slate-700">{ai.ai_text}</p>
                 )}
+                  <CellInsightsChat
+                    flockId={flockId}
+                    date={data.date}
+                    windowDays={windowDays}
+                    knownLabels={knownLabels}
+                    onCells={highlightLabels}
+                    suggestions={chatSuggestions}
+                  />
+                </div>
               </AiGate>
             </FormSection>
 
             {/* Heatmap */}
-                        <FormSection step={2} icon={Egg} title="Cell map" description="Tap a cell for its details. Tap a chip above to highlight those cells.">
+            <FormSection step={2} icon={Egg} title="Cell map" description="Tap a cell for its details. Tap a chip above to highlight those cells.">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 {data.houses && data.houses.length > 1 &&
                   data.houses.map((h) => (
