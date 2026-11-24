@@ -638,7 +638,7 @@ const RecordSaleModal = ({ isOpen, onClose, onSubmit, editingOrderId = null }: R
                     >
                       <SelectTrigger
                         aria-label={`Batch for line ${i + 1}`}
-                        className={formInputClass(!!errors[`line_${i}_flock`], "h-9")}
+                        className={formInputClass(!!errors[`line_${i}_flock`], "h-9 w-full")}
                       >
                         <SelectValue placeholder={flocksLoading ? "Loading batches…" : "Select a batch"} />
                       </SelectTrigger>

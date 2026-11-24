@@ -89,6 +89,7 @@ const groupProductSales = (rows: SalesRecordWithOrder[]): ProductSaleEntry[] => 
     byOrder.set(row.sales_order_id, entry);
     entries.push(entry);
   });
+  entries.forEach((entry) => entry.lines.sort((a, b) => a.id - b.id));
   return entries;
 };
 
