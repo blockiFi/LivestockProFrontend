@@ -2,6 +2,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import EditScheduleModal from "@/components/modals/EditScheduleModal"
+import ShareToFarmModal from "@/components/modals/ShareToFarmModal"
+import { ActionGate } from "@/components/general/ActionGate"
+import { ACTIONS } from "@/lib/actionPermissions"
 import { formatFeedingDayRange } from "@/lib/feeding-range"
 import { GetToken, getFarm } from "@/lib/request"
 import type { RootState } from "@/store"
@@ -12,6 +15,7 @@ import {
   Clock,
   Edit,
   Pill,
+  Share2,
   Shield,
   Wheat,
 } from "lucide-react"
@@ -199,6 +203,7 @@ const ScheduleView = ({
 }) => {
   const [expanded, setExpanded] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isShareOpen, setIsShareOpen] = useState(false)
   const reduxToken = useSelector((state: RootState) => state.authentication.token)
   const reduxFarmId = useSelector((state: RootState) => state.authentication.activeFarm?.id)
   const token = reduxToken || GetToken() || ""
@@ -263,6 +268,20 @@ const ScheduleView = ({
                     <Edit className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Edit</span>
                   </Button>
+                ) : null}
+                {token && farmId && !isDefault ? (
+                  <ActionGate anyOf={ACTIONS.schedules.share}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 border-slate-200 text-slate-700"
+                      onClick={() => setIsShareOpen(true)}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Share</span>
+                    </Button>
+                  </ActionGate>
                 ) : null}
                 <Button
                   type="button"
@@ -361,6 +380,18 @@ const ScheduleView = ({
           poultryTypeId={schedule?.poultry_type_id ?? schedule?.poultryType?.id ?? null}
           schedule={schedule}
           onSaved={onUpdated}
+        />
+      ) : null}
+
+      {token && farmId && !isDefault ? (
+        <ShareToFarmModal
+          open={isShareOpen}
+          onClose={() => setIsShareOpen(false)}
+          token={token}
+          farmId={Number(farmId)}
+          kind={kind === "feeding" ? "feeding_schedule" : "schedule"}
+          itemId={schedule.id}
+          itemName={displayName}
         />
       ) : null}
     </Card>

@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Calculator, Trash2, Wheat, Save, X } from "lucide-react";
+import { Plus, Calculator, Trash2, Wheat, Save, X, Share2 } from "lucide-react";
+import ShareToFarmModal from "@/components/modals/ShareToFarmModal";
 import type { FeedComponent, FeedComposition, PoultryFeedProduct } from "@/lib/types";
 import {
   calculateFeedNutrition,
@@ -66,6 +67,7 @@ export default function FeedCompositionsPage() {
   const [filter, setFilter] = useState("");
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<PoultryFeedProduct | null>(null);
 
   const [aiLoading, setAiLoading] = useState<"analyze" | "recommend" | null>(null);
@@ -761,11 +763,11 @@ export default function FeedCompositionsPage() {
 
             {selectedProduct && (
               <div className="rounded-lg border border-gray-100 p-4 space-y-2 bg-gradient-to-br from-white to-slate-50">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="p-2 bg-amber-50 rounded-lg">
                     <Wheat className="h-5 w-5 text-amber-600" />
                   </div>
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <p className="font-semibold text-gray-900">{selectedProduct.name}</p>
                     <p className="text-xs text-gray-500">Nutritional profile {calculatedNutrition ? "(calculated)" : "(saved)"}</p>
                     {!canManageSelectedProduct && (
@@ -773,7 +775,7 @@ export default function FeedCompositionsPage() {
                     )}
                   </div>
                   {canManageSelectedProduct && (
-                    <div className="flex gap-1">
+                    <div className="flex w-full flex-wrap justify-end gap-1 border-t border-gray-100 pt-2">
                       <ActionGate anyOf={ACTIONS.feedProducts.update}>
                         <Button
                           variant="ghost"
@@ -781,6 +783,16 @@ export default function FeedCompositionsPage() {
                           onClick={() => { setEditingProduct(selectedProduct); setIsProductModalOpen(true); }}
                         >
                           Edit
+                        </Button>
+                      </ActionGate>
+                      <ActionGate anyOf={ACTIONS.feedProducts.share}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsShareOpen(true)}
+                        >
+                          <Share2 className="h-3.5 w-3.5 mr-1" />
+                          Share
                         </Button>
                       </ActionGate>
                       <ActionGate anyOf={ACTIONS.feedProducts.delete}>
@@ -1038,6 +1050,18 @@ export default function FeedCompositionsPage() {
         onSubmit={handleUpsertProduct}
         editing={editingProduct}
       />
+
+      {token && farmId && selectedProduct && canManageSelectedProduct && (
+        <ShareToFarmModal
+          open={isShareOpen}
+          onClose={() => setIsShareOpen(false)}
+          token={token}
+          farmId={farmId}
+          kind="feed_product"
+          itemId={selectedProduct.id}
+          itemName={selectedProduct.name}
+        />
+      )}
 
     </div>
   );

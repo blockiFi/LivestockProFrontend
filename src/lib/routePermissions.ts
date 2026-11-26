@@ -13,6 +13,7 @@ import {
   viewMedications,
   viewSales,
   viewSchedules,
+  viewSharedItems,
   viewStatistics,
   viewTeamAccess,
   viewVaccineInventory,
@@ -63,6 +64,7 @@ export const ROUTE_PERMISSION_RULES: RoutePermissionRule[] = [
   { pattern: /^\/dashboard\/poultry\/flock-management/, anyOf: viewFlocks },
   { pattern: /^\/dashboard\/poultry\/houses/, anyOf: viewHouses },
   { pattern: /^\/dashboard\/poultry\/schedules/, anyOf: viewSchedules },
+  { pattern: /^\/dashboard\/poultry\/shared/, anyOf: viewSharedItems },
   { pattern: /^\/dashboard\/poultry\/tasks/, anyOf: viewFarmTasks },
   { pattern: /^\/dashboard\/poultry/, anyOf: [...viewFlocks, ...viewStatistics] },
 
@@ -91,6 +93,7 @@ export const NAV_PERMISSIONS: Record<string, string[]> = {
   "/dashboard/poultry/flock-management": viewFlocks,
   "/dashboard/poultry/houses": viewHouses,
   "/dashboard/poultry/schedules": viewSchedules,
+  "/dashboard/poultry/shared": viewSharedItems,
   "/dashboard/poultry/tasks": viewFarmTasks,
   "/dashboard/poultry/analytics/sales-profit-loss": [...viewSales, ...viewStatistics],
   "/dashboard/poultry/health/medications": viewMedications,
