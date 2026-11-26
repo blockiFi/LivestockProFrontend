@@ -5696,8 +5696,8 @@ export const createVaccine = async (
   farmId: number,
   data: {
     name: string
-    description: string
-    administration_age: number
+    description?: string
+    administration_age?: number
     type?: "default" | "user"
   }
 ): Promise<RequestResponse<vaccine>> => {

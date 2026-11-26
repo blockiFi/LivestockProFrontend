@@ -882,6 +882,8 @@ export type vaccine = {
   export type PoultryVaccineInventory = {
      id: number;
     poultry_vaccine_product_id: number;
+    /** Loaded by the inventory index; links the batch to its vaccine. */
+    product?: { id: number; name: string; poultry_vaccine_id: number } | null;
     farm_id: number;
     quantity: string;
     available_quantity: string; // current available quantity

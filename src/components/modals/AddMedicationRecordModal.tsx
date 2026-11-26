@@ -37,7 +37,10 @@ import {
   formatMedicationDosageSummary,
   suggestedMedicineUnit,
 } from "@/lib/medicationDosage"
-import { GetToken, getPoultryMedicationData } from "@/lib/request"
+import { GetToken, createMedication, getPoultryMedicationData } from "@/lib/request"
+import { usePermissions } from "@/hooks/usePermissions"
+import { ACTIONS } from "@/lib/actionPermissions"
+import InlineAddCatalogItem, { apiErrorText } from "./InlineAddCatalogItem"
 import {
   FAMILY_UNITS,
   batchRemainingLabel,
@@ -49,6 +52,8 @@ import {
 } from "@/lib/medicationPack"
 
 type MedicationOption = Medication | MedicationData
+
+const NEW_TYPE = "__new__"
 
 interface AddMedicationRecordModalProps {
   isOpen: boolean
@@ -167,6 +172,9 @@ const AddMedicationRecordModal = ({
   // Off = record the treatment without drawing on (or needing) inventory stock.
   const [useStock, setUseStock] = useState(true)
   const [costInput, setCostInput] = useState("")
+  const [addingType, setAddingType] = useState(false)
+  const { canAny } = usePermissions()
+  const canAddType = canAny([...ACTIONS.medications.create])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showCalendar, setShowCalendar] = useState(false)
@@ -280,6 +288,13 @@ const AddMedicationRecordModal = ({
   }
 
   const handleMedicationTypeChange = (medicationId: string) => {
+    // Radix can emit "" while the list changes under it; that is not a user choice.
+    if (!medicationId) return
+    if (medicationId === NEW_TYPE) {
+      setAddingType(true)
+      return
+    }
+    setAddingType(false)
     const id = Number.parseInt(medicationId, 10)
     const type = catalog.find((t) => t.id === id)
     const onlyProduct =
@@ -300,6 +315,32 @@ const AddMedicationRecordModal = ({
     clearError("poultry_medication_id")
     clearError("medication_product_id")
     clearError("poultry_medication_inventory_id")
+  }
+
+  /** Create a medication type from inside this form and select it. */
+  const handleAddType = async (values: Record<string, string>): Promise<string | null> => {
+    const token = GetToken()
+    if (!token) return "You are signed out. Sign in again."
+    const res = await createMedication(token, farmId, {
+      name: values.name,
+      description: values.description || undefined,
+    })
+    if (!res.success || !res.data) return apiErrorText(res.error, "Could not add the medication type")
+    const created = { ...res.data, id: Number(res.data.id), products: [] } as unknown as MedicationData
+    setCatalogSource((prev) => [...(prev ?? medications), created])
+    setAddingType(false)
+    // A brand-new type has no products or stock yet.
+    setUseStock(false)
+    setSelectedProductId(0)
+    setFormData((prev) => ({
+      ...prev,
+      poultry_medication_id: created.id,
+      poultry_medication_inventory_id: 0,
+    }))
+    clearError("poultry_medication_id")
+    clearError("medication_product_id")
+    clearError("poultry_medication_inventory_id")
+    return null
   }
 
   const handleProductChange = (productId: string) => {
@@ -365,6 +406,7 @@ const AddMedicationRecordModal = ({
     setSelectedProductId(0)
     setUseStock(true)
     setCostInput("")
+    setAddingType(false)
     setErrors({})
     setShowCalendar(false)
   }
@@ -505,7 +547,7 @@ const AddMedicationRecordModal = ({
         <div className={cn("grid grid-cols-1 gap-4", useStock && "md:grid-cols-3")}>
           <FormField label="Medication type" required error={errors.poultry_medication_id}>
             <Select
-              value={formData.poultry_medication_id ? String(formData.poultry_medication_id) : undefined}
+              value={formData.poultry_medication_id ? String(formData.poultry_medication_id) : ""}
               onValueChange={handleMedicationTypeChange}
               disabled={catalogLoading && catalog.length === 0}
             >
@@ -528,8 +570,22 @@ const AddMedicationRecordModal = ({
                     </SelectItem>
                   )
                 })}
+                {canAddType && (
+                  <SelectItem value={NEW_TYPE} className="border-t border-slate-100 font-medium text-purple-700">
+                    + Add a new medication type
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
+            {canAddType && !addingType && (
+              <button
+                type="button"
+                onClick={() => setAddingType(true)}
+                className="text-[11px] font-medium text-purple-700 hover:underline"
+              >
+                Not in the list? Add it
+              </button>
+            )}
           </FormField>
 
           {useStock && (
@@ -618,6 +674,17 @@ const AddMedicationRecordModal = ({
           </>
           )}
         </div>
+        {addingType && (
+          <InlineAddCatalogItem
+            noun="medication type"
+            fields={[
+              { key: "name", label: "Name", placeholder: "e.g. Tylosin", required: true },
+              { key: "description", label: "Description", placeholder: "Optional" },
+            ]}
+            onSave={handleAddType}
+            onCancel={() => setAddingType(false)}
+          />
+        )}
         <div className="mt-3 space-y-2">
           {catalogError && <p className="text-xs text-amber-700">{catalogError}</p>}
           {useStock && selectedType && productsForMedication.length === 0 && !catalogLoading && (
