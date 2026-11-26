@@ -8,6 +8,7 @@ import FlockPage from "@/pages/poultry/FlockPage";
 import BatchActivitiesReportPage from "@/pages/poultry/BatchActivitiesReportPage";
 import OverviewPage from "@/pages/poultry/OverviewPage";
 import ScheduleManagementPage from "@/pages/poultry/ScheduleManagementPage";
+import SharedItemsPage from "@/pages/poultry/SharedItemsPage";
 import TaskManagementPage from "@/pages/poultry/TaskManagementPage";
 import MedicationsPage from "@/pages/poultry/health/MedicationsPage";
 import MedicationProductsPage from "@/pages/poultry/health/MedicationProductsPage";
@@ -110,6 +111,18 @@ const PoultryRoutes = [
       }
     },
     element : <ScheduleManagementPage />
+},
+{
+    path : "/shared" ,
+    loader : async () => {
+      const authenticated : boolean = await Authenticated();
+      if(!authenticated){
+        toast.error("You must be logged in to access this page.");
+        return redirect('/login')
+      }
+      return null
+    },
+    element : <SharedItemsPage />
 },
 {
     path : "/tasks" ,

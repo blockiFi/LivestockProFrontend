@@ -24,6 +24,7 @@ export const ACTIONS = {
     create: ["create schedules", "manage schedules"],
     update: ["update schedules", "manage schedules"],
     delete: ["delete schedules", "manage schedules"],
+    share: ["share schedules", "manage schedules"],
     manage: manageSchedules,
   },
   farmTasks: {
@@ -131,6 +132,7 @@ export const ACTIONS = {
     create: ["create feed products"],
     update: ["update feed products"],
     delete: ["delete feed products"],
+    share: ["share feed products"],
     manage: manageFeedProducts,
   },
   feedTypes: {

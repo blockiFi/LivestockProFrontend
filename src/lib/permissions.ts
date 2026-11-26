@@ -46,6 +46,7 @@ export const PERM = {
   // Schedules
   VIEW_SCHEDULES: "view schedules",
   MANAGE_SCHEDULES: "manage schedules",
+  SHARE_SCHEDULES: "share schedules",
   CREATE_SCHEDULES: "create schedules",
   UPDATE_SCHEDULES: "update schedules",
   DELETE_SCHEDULES: "delete schedules",
@@ -141,6 +142,7 @@ export const PERM = {
   CREATE_FEED_PRODUCTS: "create feed products",
   UPDATE_FEED_PRODUCTS: "update feed products",
   DELETE_FEED_PRODUCTS: "delete feed products",
+  SHARE_FEED_PRODUCTS: "share feed products",
 
   // Feed usage
   VIEW_FEED_USAGES: "view feed usages",
@@ -333,3 +335,12 @@ export const viewCustomers = [PERM.VIEW_CUSTOMERS, PERM.MANAGE_CUSTOMERS, PERM.C
 export const manageCustomers = [PERM.CREATE_CUSTOMERS, PERM.UPDATE_CUSTOMERS, PERM.DELETE_CUSTOMERS, PERM.MANAGE_CUSTOMERS]
 
 export const manageInvoices = [PERM.CREATE_INVOICES, PERM.UPDATE_INVOICES, PERM.DELETE_INVOICES]
+
+/** Shared Items page: anyone who can share from, or accept into, this farm. */
+export const viewSharedItems = [
+  PERM.SHARE_SCHEDULES,
+  PERM.SHARE_FEED_PRODUCTS,
+  PERM.MANAGE_SCHEDULES,
+  PERM.CREATE_SCHEDULES,
+  PERM.CREATE_FEED_PRODUCTS,
+]

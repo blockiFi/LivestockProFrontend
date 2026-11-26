@@ -75,6 +75,11 @@ const POULTRY_LINKS: NavLink[] = [
     isActive: (p) => p.includes("/schedules"),
   },
   {
+    to: "/dashboard/poultry/shared",
+    label: "Shared Items",
+    isActive: (p) => p.includes("/poultry/shared"),
+  },
+  {
     to: "/dashboard/poultry/tasks",
     label: "Task Management",
     isActive: (p) => p.includes("/poultry/tasks"),

@@ -7924,3 +7924,113 @@ export const getMyPermissions = async (
       return { success: false, error: ["An unexpected error occurred"] }
     }
   }
+// ── Share schedules / feed formulations to other farms ──────────────
+export type ShareKind = "schedule" | "feeding_schedule" | "feed_product";
+export type ShareTargetFarm = { id: number; name: string };
+export type ShareResult = { farm_id: number; farm_name: string; id: number; name: string };
+
+function shareErrorMessages(error: unknown, fallback: string): string[] {
+  if (isAxiosError(error)) {
+    const data = error.response?.data;
+    const errors = data?.errors;
+    if (errors && typeof errors === "object") {
+      const flat = Object.values(errors as Record<string, string[] | string>).flat().filter(Boolean) as string[];
+      if (flat.length) return flat;
+    }
+    if (data?.message) return [data.message];
+  }
+  return [fallback];
+}
+
+export async function getShareTargetFarms(
+  token: string,
+  farmId: number,
+  kind: ShareKind
+): Promise<RequestResponse<ShareTargetFarm[]>> {
+  try {
+    const response = await axios.get(`/api/farms/${farmId}/share-targets`, {
+      params: { kind },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return { success: true, data: response.data.data ?? [] };
+  } catch (error: unknown) {
+    return { success: false, error: shareErrorMessages(error, "Could not load your other farms") };
+  }
+}
+
+export async function shareToFarms(
+  token: string,
+  farmId: number,
+  payload: { kind: ShareKind; id: number; target_farm_ids: number[] }
+): Promise<RequestResponse<ShareResult[]>> {
+  try {
+    const response = await axios.post(`/api/farms/${farmId}/share`, payload, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return { success: true, data: response.data.data ?? [] };
+  } catch (error: unknown) {
+    return { success: false, error: shareErrorMessages(error, "Sharing failed") };
+  }
+}
+
+export type FarmShareRecord = {
+  id: number;
+  kind: ShareKind;
+  kind_label: string;
+  item_name: string;
+  item_subtype: string | null;
+  item_count: number;
+  message: string | null;
+  status: "pending" | "accepted" | "declined" | "cancelled";
+  source_farm: { id: number; name: string | null };
+  target_farm: { id: number; name: string | null };
+  shared_by: { id: number; name: string } | null;
+  responded_by: { id: number; name: string } | null;
+  responded_at: string | null;
+  accepted_item_id: number | null;
+  can_respond: boolean;
+  created_at: string | null;
+};
+
+async function shareCall<T>(
+  token: string,
+  method: "get" | "post",
+  url: string,
+  body?: unknown,
+  params?: Record<string, string>,
+  fallback = "Request failed"
+): Promise<RequestResponse<T>> {
+  try {
+    const headers = { Authorization: `Bearer ${token}` };
+    const response =
+      method === "get"
+        ? await axios.get(url, { headers, params })
+        : await axios.post(url, body ?? {}, { headers });
+    return { success: true, data: response.data.data };
+  } catch (error: unknown) {
+    return { success: false, error: shareErrorMessages(error, fallback) };
+  }
+}
+
+export const getFarmShareCode = (token: string, farmId: number) =>
+  shareCall<{ code: string; farm_name: string }>(token, "get", `/api/farms/${farmId}/share-code`, undefined, undefined, "Could not load the share code");
+
+export const lookupFarmByShareCode = (token: string, farmId: number, code: string) =>
+  shareCall<{ id: number; name: string }>(token, "get", `/api/farms/${farmId}/share-lookup`, undefined, { code }, "No farm has that share code");
+
+export const sendShareToFarm = (
+  token: string,
+  farmId: number,
+  payload: { kind: ShareKind; id: number; farm_code: string; message?: string }
+) => shareCall<FarmShareRecord>(token, "post", `/api/farms/${farmId}/share/send`, payload, undefined, "Sending failed");
+
+export const getIncomingShares = (token: string, farmId: number) =>
+  shareCall<FarmShareRecord[]>(token, "get", `/api/farms/${farmId}/shares/incoming`, undefined, undefined, "Could not load shared items");
+
+export const getOutgoingShares = (token: string, farmId: number) =>
+  shareCall<FarmShareRecord[]>(token, "get", `/api/farms/${farmId}/shares/outgoing`, undefined, undefined, "Could not load sent items");
+
+export const respondToShare = (token: string, farmId: number, shareId: number, action: "accept" | "decline" | "cancel") =>
+  shareCall<FarmShareRecord & { copy?: { id: number; name: string } }>(
+    token, "post", `/api/farms/${farmId}/shares/${shareId}/${action}`, undefined, undefined, "That did not work"
+  );
