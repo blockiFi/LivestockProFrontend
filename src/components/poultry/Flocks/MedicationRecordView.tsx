@@ -19,14 +19,14 @@ interface MedicationRecordFormData {
   farm_id: number
   flock_id: number
   poultry_medication_id: number
-  poultry_medication_inventory_id: number
+  poultry_medication_inventory_id: number | null
   date: string
   administered_by: string
   dosage: number
   dosage_unit: string
   purpose?: "preventive" | "treatment" | ""
   quantity: number
-  cost?: number
+  cost?: number | null
   notes: string
   administration_method_id: number
 }
@@ -287,10 +287,15 @@ const MedicationRecordView = ({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Factory className="h-4 w-4 text-gray-400" />
-                      {record.medication_inventory?.manufacturer || 'Unknown Manufacturer'}
+                      {record.medication_inventory
+                        ? record.medication_inventory.manufacturer || 'Unknown Manufacturer'
+                        : <span className="text-gray-400">—</span>}
                     </div>
                   </TableCell>
                   <TableCell>
+                    {!record.medication_inventory ? (
+                      <span className="text-xs text-gray-500">Not from stock</span>
+                    ) : (
                     <div>
                       <div className="flex items-center gap-2">
                         <Package2 className="h-4 w-4 text-gray-400" />
@@ -308,13 +313,18 @@ const MedicationRecordView = ({
                         )}
                       </div>
                     </div>
+                    )}
                   </TableCell>
                   <TableCell>
+                    {!record.medication_inventory ? (
+                      <span className="text-gray-400 text-xs">—</span>
+                    ) : (
                     <Badge
                       className={`${medicationStatusColors[record.medication_inventory?.status || 'pending'] || 'bg-gray-100 text-gray-800'} font-medium text-xs`}
                     >
                       {record.medication_inventory?.status?.replace("_", " ").toUpperCase() || 'PENDING'}
                     </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     {record.notes && (

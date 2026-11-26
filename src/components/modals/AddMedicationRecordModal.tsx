@@ -11,6 +11,7 @@ import { Input } from "../ui/input"
 import { Textarea } from "../ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Calendar } from "../ui/calendar"
+import { Switch } from "../ui/switch"
 import {
   CalendarIcon,
   Pill,
@@ -20,8 +21,9 @@ import {
   StickyNote,
   ChevronDown,
   ChevronUp,
+  Wallet,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, Naira, formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
 import type {
   Medication,
@@ -63,13 +65,16 @@ export interface MedicationRecordFormData {
   farm_id: number
   flock_id: number
   poultry_medication_id: number
-  poultry_medication_inventory_id: number
+  /** null when the medication was not taken from inventory (no stock is deducted). */
+  poultry_medication_inventory_id: number | null
   date: string
   administered_by: string
   dosage: number
   dosage_unit: string
   purpose?: "preventive" | "treatment" | ""
   quantity: number
+  /** Optional cost. When set it is booked as a medication expense for the batch. */
+  cost?: number | null
   notes: string
   administration_method_id: number
 }
@@ -159,6 +164,9 @@ const AddMedicationRecordModal = ({
 }: AddMedicationRecordModalProps) => {
   const [formData, setFormData] = useState<MedicationRecordFormData>(emptyForm(farmId, flockId))
   const [selectedProductId, setSelectedProductId] = useState(0)
+  // Off = record the treatment without drawing on (or needing) inventory stock.
+  const [useStock, setUseStock] = useState(true)
+  const [costInput, setCostInput] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showCalendar, setShowCalendar] = useState(false)
@@ -217,9 +225,9 @@ const AddMedicationRecordModal = ({
 
   const inventoriesForProduct = selectedProduct?.batches ?? []
 
-  const selectedBatch = inventoriesForProduct.find(
-    (inv) => inv.id === formData.poultry_medication_inventory_id,
-  )
+  const selectedBatch = useStock
+    ? inventoriesForProduct.find((inv) => inv.id === formData.poultry_medication_inventory_id)
+    : undefined
 
   const labelHint = selectedProduct ? formatMedicationDosageSummary(selectedProduct) : null
 
@@ -237,6 +245,14 @@ const AddMedicationRecordModal = ({
       : formData.dosage
   const batchRemaining = selectedBatch ? inventoryQty(selectedBatch) : 0
   const remainingLabel = selectedBatch ? batchRemainingLabel(selectedBatch, packType) : null
+  // What the batch would charge for this amount (same rule as the backend's costOf).
+  const stockCost = (() => {
+    if (!selectedBatch || !deductAmount || deductAmount <= 0) return null
+    const unitCost = Number(selectedBatch.unit_cost) || 0
+    if (unitCost <= 0) return null
+    return batchUnit && batchPackBase ? (deductAmount / batchPackBase) * unitCost : deductAmount * unitCost
+  })()
+  const enteredCost = costInput.trim() === "" ? null : Number.parseFloat(costInput)
   const afterUseLabel =
     batchUnit && deductAmount != null && deductAmount > 0 && deductAmount <= batchRemaining + 1e-6
       ? packBreakdown(batchRemaining - deductAmount, batchPackBase, packType, batchUnit)
@@ -268,6 +284,8 @@ const AddMedicationRecordModal = ({
     const type = catalog.find((t) => t.id === id)
     const onlyProduct =
       type && type.products.length === 1 && type.products[0].totalStock > 0 ? type.products[0] : undefined
+    // Nothing of this type in stock: default to recording it without inventory.
+    if (type) setUseStock(type.products.some((p) => p.totalStock > 0))
     setSelectedProductId(onlyProduct?.id ?? 0)
     setFormData((prev) => ({
       ...prev,
@@ -323,8 +341,8 @@ const AddMedicationRecordModal = ({
 
     if (!formData.date) newErrors.date = "Administration date is required"
     if (!formData.poultry_medication_id) newErrors.poultry_medication_id = "Please select a medication type"
-    if (!selectedProductId) newErrors.medication_product_id = "Please select a medication product"
-    if (!formData.poultry_medication_inventory_id)
+    if (useStock && !selectedProductId) newErrors.medication_product_id = "Please select a medication product"
+    if (useStock && !formData.poultry_medication_inventory_id)
       newErrors.poultry_medication_inventory_id = "Please select an inventory batch"
     if (!formData.administered_by.trim()) newErrors.administered_by = "Administered by is required"
     if (formData.dosage <= 0) newErrors.dosage = "Amount used must be greater than 0"
@@ -335,6 +353,8 @@ const AddMedicationRecordModal = ({
       newErrors.dosage_unit = `This product is measured in ${batchUnit}. Use ${FAMILY_UNITS[batchFamily].join(" or ")}.`
     if (!formData.administration_method_id)
       newErrors.administration_method_id = "Please select administration method"
+    if (enteredCost !== null && (!Number.isFinite(enteredCost) || enteredCost < 0))
+      newErrors.cost = "Enter a cost of 0 or more, or leave it empty"
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -343,8 +363,22 @@ const AddMedicationRecordModal = ({
   const resetLocalState = () => {
     setFormData(emptyForm(farmId, flockId))
     setSelectedProductId(0)
+    setUseStock(true)
+    setCostInput("")
     setErrors({})
     setShowCalendar(false)
+  }
+
+  const handleUseStockChange = (on: boolean) => {
+    setUseStock(on)
+    if (!on) {
+      setSelectedProductId(0)
+      setFormData((prev) => ({ ...prev, poultry_medication_inventory_id: 0 }))
+    }
+    clearError("medication_product_id")
+    clearError("poultry_medication_inventory_id")
+    clearError("dosage")
+    clearError("dosage_unit")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -357,8 +391,10 @@ const AddMedicationRecordModal = ({
       await onSubmit({
         ...formData,
         dosage: amount,
-        quantity: deductAmount ?? amount,
+        poultry_medication_inventory_id: useStock ? formData.poultry_medication_inventory_id : null,
+        quantity: (useStock ? deductAmount : null) ?? amount,
         purpose: formData.purpose || undefined,
+        cost: enteredCost,
       })
       resetLocalState()
       onClose()
@@ -397,7 +433,7 @@ const AddMedicationRecordModal = ({
         if (!open && !isSubmitting) handleClose()
       }}
       title="Add Medication Record"
-      description="Choose medication type, product, then inventory batch. Fields marked with * are required."
+      description="Choose the medication type. Taking it from inventory is optional. Fields marked with * are required."
       icon={Pill}
       tone="health"
       size="xl"
@@ -450,8 +486,23 @@ const AddMedicationRecordModal = ({
         </FormField>
       </FormSection>
 
-      <FormSection step={2} icon={Pill} title="Medication details" description="Pick the type, product and stock batch to draw from.">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <FormSection
+        step={2}
+        icon={Pill}
+        title="Medication details"
+        description={
+          useStock
+            ? "Pick the type, product and stock batch to draw from."
+            : "Pick the type. Nothing will be taken out of inventory."
+        }
+        action={
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+            <Switch checked={useStock} onCheckedChange={handleUseStockChange} aria-label="Take from inventory" />
+            Take from inventory
+          </label>
+        }
+      >
+        <div className={cn("grid grid-cols-1 gap-4", useStock && "md:grid-cols-3")}>
           <FormField label="Medication type" required error={errors.poultry_medication_id}>
             <Select
               value={formData.poultry_medication_id ? String(formData.poultry_medication_id) : undefined}
@@ -481,6 +532,8 @@ const AddMedicationRecordModal = ({
             </Select>
           </FormField>
 
+          {useStock && (
+          <>
           <FormField label="Medication product" required error={errors.medication_product_id}>
             <Select
               value={selectedProductId ? String(selectedProductId) : undefined}
@@ -562,20 +615,24 @@ const AddMedicationRecordModal = ({
               </SelectContent>
             </Select>
           </FormField>
+          </>
+          )}
         </div>
         <div className="mt-3 space-y-2">
           {catalogError && <p className="text-xs text-amber-700">{catalogError}</p>}
-          {selectedType && productsForMedication.length === 0 && !catalogLoading && (
+          {useStock && selectedType && productsForMedication.length === 0 && !catalogLoading && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              No products are registered under {selectedType.name}. Add one under Health → Medications first.
+              No products are registered under {selectedType.name}. Add one under Health → Medications, or turn off
+              “Take from inventory”.
             </p>
           )}
-          {selectedProduct && inventoriesForProduct.length === 0 && (
+          {useStock && selectedProduct && inventoriesForProduct.length === 0 && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {selectedProduct.name} has no usable stock (empty or expired). Add inventory before recording usage.
+              {selectedProduct.name} has no usable stock (empty or expired). Add inventory, or turn off “Take from
+              inventory”.
             </p>
           )}
-          {labelHint && labelHint !== "—" && (
+          {useStock && labelHint && labelHint !== "—" && (
             <p className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs text-slate-600">
               Label: {labelHint}
             </p>
@@ -629,7 +686,12 @@ const AddMedicationRecordModal = ({
         </div>
       </FormSection>
 
-      <FormSection step={4} icon={Beaker} title="Amount used" description="This amount is deducted from inventory.">
+      <FormSection
+        step={4}
+        icon={Beaker}
+        title="Amount used"
+        description={useStock ? "This amount is deducted from inventory." : "For the record only. No stock is deducted."}
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <FormField label="Amount used" required htmlFor="dosage" error={errors.dosage}>
             <div className="relative">
@@ -692,6 +754,44 @@ const AddMedicationRecordModal = ({
             )}
           </p>
         )}
+      </FormSection>
+
+      <FormSection
+        step={5}
+        icon={Wallet}
+        title="Cost"
+        description="Optional. A cost entered here is added to this batch's expenses."
+      >
+        <FormField
+          label="Cost"
+          htmlFor="cost"
+          error={errors.cost}
+          hint={
+            stockCost !== null
+              ? `Leave empty to use the stock price: ${Naira}${formatCurrency(stockCost)}`
+              : "Leave empty if there was no cost to record."
+          }
+        >
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+              {Naira}
+            </span>
+            <Input
+              id="cost"
+              type="number"
+              step="0.01"
+              min="0"
+              inputMode="decimal"
+              value={costInput}
+              onChange={(e) => {
+                setCostInput(e.target.value)
+                clearError("cost")
+              }}
+              placeholder={stockCost !== null ? formatCurrency(stockCost) : "e.g. 2500"}
+              className={formInputClass(!!errors.cost, "pl-8")}
+            />
+          </div>
+        </FormField>
       </FormSection>
 
       <FormSection icon={StickyNote} title="Notes" description="Anything else worth recording.">

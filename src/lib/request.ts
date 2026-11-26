@@ -1918,14 +1918,14 @@ export const createFarm = async (
       farm_id: number
       flock_id: number
       poultry_medication_id: number
-      poultry_medication_inventory_id: number
+      poultry_medication_inventory_id: number | null
       date: string
       administered_by: string
       dosage: number
       dosage_unit: string
       purpose?: "preventive" | "treatment" | null
       quantity: number
-      cost?: number
+      cost?: number | null
       notes: string
       administration_method_id: number
     }
@@ -6018,13 +6018,13 @@ export const createVaccinationRecord = async (
     farm_id: number
     flock_id: number
     poultry_vaccine_id: number
-    poultry_vaccine_inventory_id: number
+    poultry_vaccine_inventory_id: number | null
     date: string
     administered_by: number | string
     dosage: number
     dosage_unit: string
     quantity: number
-    cost: number
+    cost?: number | null
     notes: string | number
     administration_method_id: number
   }

@@ -12,6 +12,7 @@ import { Input } from "../ui/input"
 import { Textarea } from "../ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Calendar } from "../ui/calendar"
+import { Switch } from "../ui/switch"
 import {
   CalendarIcon,
   Syringe,
@@ -21,7 +22,8 @@ import {
   StickyNote,
   DollarSign,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Wallet,
 } from "lucide-react"
 import { cn, Naira, formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
@@ -43,12 +45,15 @@ interface VaccinationRecordFormData {
   farm_id: number
   flock_id: number
   poultry_vaccine_id: number
-  poultry_vaccine_inventory_id: number
+  /** null when the vaccine was not taken from inventory (no stock is deducted). */
+  poultry_vaccine_inventory_id: number | null
   date: string
   administered_by: string
   dosage: number
   dosage_unit: string
   quantity: number
+  /** Optional cost. When set it is booked as a vaccination expense for the batch. */
+  cost?: number | null
   notes: string
   administration_method_id: number
 }
@@ -81,6 +86,9 @@ const AddVaccinationRecordModal = ({
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [filteredInventories, setFilteredInventories] = useState<PoultryVaccineInventory[]>([])
   const [showCalendar, setShowCalendar] = useState(false)
+  // Off = record the vaccination without drawing on (or needing) inventory stock.
+  const [useStock, setUseStock] = useState(true)
+  const [costInput, setCostInput] = useState("")
 
   // Filter vaccine inventories based on selected vaccine
   useEffect(() => {
@@ -114,18 +122,42 @@ const AddVaccinationRecordModal = ({
     }
   }
 
+  const handleVaccineChange = (value: string) => {
+    const id = parseInt(value)
+    handleInputChange('poultry_vaccine_id', id)
+    // Nothing of this vaccine in stock: default to recording it without inventory.
+    setUseStock(vaccineInventories.some(inv => inv.poultry_vaccine_product_id === id && Number(inv.quantity) > 0))
+  }
+
+  const handleUseStockChange = (on: boolean) => {
+    setUseStock(on)
+    if (!on) setFormData(prev => ({ ...prev, poultry_vaccine_inventory_id: 0 }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.poultry_vaccine_id || !formData.poultry_vaccine_inventory_id || 
+    if (!formData.poultry_vaccine_id || (useStock && !formData.poultry_vaccine_inventory_id) ||
         !formData.administered_by || !formData.administration_method_id) {
       toast.error("Please fill in all required fields")
+      return
+    }
+    if (useStock && selectedInventory && formData.quantity > availableQuantity) {
+      toast.error(`Only ${availableQuantity} left in this batch`)
+      return
+    }
+    if (enteredCost !== null && (!Number.isFinite(enteredCost) || enteredCost < 0)) {
+      toast.error("Enter a cost of 0 or more, or leave it empty")
       return
     }
 
     setIsSubmitting(true)
     try {
-      await onSubmit(formData)
+      await onSubmit({
+        ...formData,
+        poultry_vaccine_inventory_id: useStock ? formData.poultry_vaccine_inventory_id : null,
+        cost: enteredCost,
+      })
       handleClose()
     } catch (error) {
       console.error("Error adding vaccination record:", error)
@@ -149,13 +181,22 @@ const AddVaccinationRecordModal = ({
       administration_method_id: 0,
     })
     setSelectedDate(new Date())
+    setUseStock(true)
+    setCostInput("")
     setIsSubmitting(false)
     setShowCalendar(false)
     onClose()
   }
 
-  const selectedInventory = filteredInventories.find(inv => inv.id === formData.poultry_vaccine_inventory_id)
+  const selectedInventory = useStock
+    ? filteredInventories.find(inv => inv.id === formData.poultry_vaccine_inventory_id)
+    : undefined
   const availableQuantity = selectedInventory ? Number(selectedInventory.quantity) : 0
+  const stockCost =
+    selectedInventory && formData.quantity > 0 && Number(selectedInventory.unit_cost) > 0
+      ? Number(selectedInventory.unit_cost) * formData.quantity
+      : null
+  const enteredCost = costInput.trim() === "" ? null : parseFloat(costInput)
 
   return (
     <FormModal
@@ -178,12 +219,27 @@ const AddVaccinationRecordModal = ({
         />
       }
     >
-      <FormSection step={1} icon={Syringe} title="Vaccine details" description="Choose the vaccine and the stock batch to use.">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <FormSection
+        step={1}
+        icon={Syringe}
+        title="Vaccine details"
+        description={
+          useStock
+            ? "Choose the vaccine and the stock batch to use."
+            : "Choose the vaccine. Nothing will be taken out of inventory."
+        }
+        action={
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+            <Switch checked={useStock} onCheckedChange={handleUseStockChange} aria-label="Take from inventory" />
+            Take from inventory
+          </label>
+        }
+      >
+        <div className={cn("grid grid-cols-1 gap-4", useStock && "sm:grid-cols-2")}>
           <FormField label="Vaccine" required>
             <Select
               value={formData.poultry_vaccine_id.toString()}
-              onValueChange={(value) => handleInputChange('poultry_vaccine_id', parseInt(value))}
+              onValueChange={handleVaccineChange}
             >
               <SelectTrigger className={formInputClass()}>
                 <SelectValue placeholder="Select vaccine..." />
@@ -198,9 +254,10 @@ const AddVaccinationRecordModal = ({
             </Select>
           </FormField>
 
+          {useStock && (
           <FormField label="Vaccine Inventory" required>
             <Select
-              value={formData.poultry_vaccine_inventory_id.toString()}
+              value={(formData.poultry_vaccine_inventory_id ?? 0).toString()}
               onValueChange={(value) => handleInputChange('poultry_vaccine_inventory_id', parseInt(value))}
               disabled={!formData.poultry_vaccine_id}
             >
@@ -216,7 +273,13 @@ const AddVaccinationRecordModal = ({
               </SelectContent>
             </Select>
           </FormField>
+          )}
         </div>
+        {useStock && formData.poultry_vaccine_id > 0 && filteredInventories.length === 0 && (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            There is no stock of this vaccine. Add inventory, or turn off “Take from inventory”.
+          </p>
+        )}
       </FormSection>
 
       <FormSection step={2} icon={CalendarIcon} title="Date & administration" description="When it was given, by whom and how.">
@@ -284,7 +347,12 @@ const AddVaccinationRecordModal = ({
         </div>
       </FormSection>
 
-      <FormSection step={3} icon={Beaker} title="Dosage & quantity" description="How much was given and drawn from stock.">
+      <FormSection
+        step={3}
+        icon={Beaker}
+        title="Dosage & quantity"
+        description={useStock ? "How much was given and drawn from stock." : "How much was given. No stock is deducted."}
+      >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField label="Dosage" htmlFor="dosage">
             <div className="relative">
@@ -314,7 +382,7 @@ const AddVaccinationRecordModal = ({
 
           <FormField
             label="Quantity Used"
-            required
+            required={useStock}
             htmlFor="quantity"
             hint={selectedInventory ? `Available: ${availableQuantity} units` : undefined}
           >
@@ -324,12 +392,12 @@ const AddVaccinationRecordModal = ({
                 id="quantity"
                 type="number"
                 min={0}
-                max={availableQuantity}
+                max={selectedInventory ? availableQuantity : undefined}
                 step="0.01"
                 value={formData.quantity}
                 onChange={(e) => handleInputChange('quantity', parseFloat(e.target.value) || 0)}
                 placeholder="0.0"
-                required
+                required={useStock}
                 className={formInputClass(false, "pl-9")}
               />
             </div>
@@ -349,9 +417,44 @@ const AddVaccinationRecordModal = ({
             />
             <p className="px-1 text-[11px] text-slate-500">
               Unit Cost: {Naira}{formatCurrency(Number(selectedInventory.unit_cost) || 0)} × Quantity: {formData.quantity}
+              {enteredCost !== null && " · the cost you enter below is used instead"}
             </p>
           </div>
         )}
+      </FormSection>
+
+      <FormSection
+        step={4}
+        icon={Wallet}
+        title="Cost"
+        description="Optional. A cost entered here is added to this batch's expenses."
+      >
+        <FormField
+          label="Cost"
+          htmlFor="cost"
+          hint={
+            stockCost !== null
+              ? `Leave empty to use the stock price: ${Naira}${formatCurrency(stockCost)}`
+              : "Leave empty if there was no cost to record."
+          }
+        >
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+              {Naira}
+            </span>
+            <Input
+              id="cost"
+              type="number"
+              step="0.01"
+              min="0"
+              inputMode="decimal"
+              value={costInput}
+              onChange={(e) => setCostInput(e.target.value)}
+              placeholder={stockCost !== null ? formatCurrency(stockCost) : "e.g. 2500"}
+              className={formInputClass(false, "pl-8")}
+            />
+          </div>
+        </FormField>
       </FormSection>
 
       <FormSection icon={StickyNote} title="Notes" description="Any additional observations.">
