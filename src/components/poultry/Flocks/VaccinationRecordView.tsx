@@ -470,8 +470,9 @@ const VaccinationRecordView = ({
             </TableHeader>
             <TableBody>
               {paginatedRecords.map((record) => {
+                const inv = record.vaccine_inventory
                 const isExpiringSoon =
-                  new Date(record.vaccine_inventory.expiry_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                  !!inv?.expiry_date && new Date(inv.expiry_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
                 return (
                   <TableRow key={record.id}>
@@ -519,19 +520,22 @@ const VaccinationRecordView = ({
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Factory className="h-4 w-4 text-gray-400" />
-                        {record.vaccine_inventory.manufacturer}
+                        {inv?.manufacturer || <span className="text-gray-400">—</span>}
                       </div>
                     </TableCell>
                     <TableCell>
+                      {!inv ? (
+                        <span className="text-xs text-gray-500">Not from stock</span>
+                      ) : (
                       <div>
                         <div className="flex items-center gap-2">
                           <Package2 className="h-4 w-4 text-gray-400" />
-                          <span className="font-mono text-sm">{record.vaccine_inventory.batch_number}</span>
+                          <span className="font-mono text-sm">{inv.batch_number}</span>
                         </div>
                         <div
                           className={`text-xs mt-1 ${isExpiringSoon ? "text-orange-600 font-medium" : "text-gray-500"}`}
                         >
-                          Exp: {formatDate(record.vaccine_inventory.expiry_date)}
+                          Exp: {formatDate(inv.expiry_date)}
                           {isExpiringSoon && (
                             <div className="flex items-center gap-1 mt-1">
                               <AlertTriangle className="h-3 w-3 text-orange-500" />
@@ -540,11 +544,16 @@ const VaccinationRecordView = ({
                           )}
                         </div>
                       </div>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={`${vaccineStatusColors[record.vaccine_inventory.status.toLowerCase()]} font-medium text-xs`}>
-                        {record.vaccine_inventory.status.replace("_", " ").toUpperCase()}
-                      </Badge>
+                      {inv?.status ? (
+                        <Badge className={`${vaccineStatusColors[inv.status.toLowerCase()]} font-medium text-xs`}>
+                          {inv.status.replace("_", " ").toUpperCase()}
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {record.notes && (

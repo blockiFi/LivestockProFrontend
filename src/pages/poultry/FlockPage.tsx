@@ -791,7 +791,7 @@ const FlockPage = () => {
             const response = await deleteVaccinationRecord(token, farmId, recordId);
             if (response.success) {
                 console.log("Vaccination record deleted successfully");
-                toast.success("Vaccination record deleted successfully! Inventory has been restored.");
+                toast.success("Vaccination record deleted successfully!");
                 
                 // Update the local flock state by removing the deleted vaccination record
                 setFlock(prevFlock => ({
@@ -875,7 +875,7 @@ const FlockPage = () => {
             const response = await deleteMedicationRecord(token, farmId, recordId);
             if (response.success) {
                 console.log("Medication record deleted successfully");
-                toast.success("Medication record deleted successfully! Inventory has been restored.");
+                toast.success("Medication record deleted successfully!");
                 
                 // Update the local flock state by removing the deleted medication record
                 setFlock(prevFlock => ({

@@ -852,7 +852,7 @@ export type PoultryMedicationRecord = {
   farm_id: number;
   flock_id: number;
   poultry_medication_id: number;
-  poultry_medication_inventory_id: number;
+  poultry_medication_inventory_id: number | null;
   date: string;                // ISO datetime string, e.g. "2025-06-27T00:00:00.000000Z"
   administered_by: string;     // e.g., "Vet 4"
   dosage: number;
@@ -865,7 +865,8 @@ export type PoultryMedicationRecord = {
   created_at: string;          // ISO datetime string
   updated_at: string;
   medication: Medication; 
-  medication_inventory: MedicationInventory; 
+  /** null when the medication was not taken from inventory. */
+  medication_inventory: MedicationInventory | null;
   administration_method: AdministrationMethod; 
 }
 export type vaccine = {
@@ -881,6 +882,8 @@ export type vaccine = {
   export type PoultryVaccineInventory = {
      id: number;
     poultry_vaccine_product_id: number;
+    /** Loaded by the inventory index; links the batch to its vaccine. */
+    product?: { id: number; name: string; poultry_vaccine_id: number } | null;
     farm_id: number;
     quantity: string;
     available_quantity: string; // current available quantity
@@ -1018,7 +1021,7 @@ export type PoultryVaccinationRecord ={
   farm_id: number;
   flock_id: number;
   poultry_vaccine_id: number;
-  poultry_vaccine_inventory_id: number;
+  poultry_vaccine_inventory_id: number | null;
   date: string; // ISO datetime string
   administered_by: number;
   dosage: number;
@@ -1030,7 +1033,8 @@ export type PoultryVaccinationRecord ={
   created_at: string;
   updated_at: string;
   vaccine: vaccine;
-  vaccine_inventory: PoultryVaccineInventory;
+  /** null when the vaccine was not taken from inventory. */
+  vaccine_inventory: PoultryVaccineInventory | null;
   administration_method: AdministrationMethod;
 }
 
