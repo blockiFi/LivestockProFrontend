@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLoaderData, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/store";
@@ -37,7 +37,15 @@ import {
   type ProductSaleFormPayload,
 } from "@/lib/request";
 import AddProductSaleModal from "@/components/modals/AddProductSaleModal";
-import { Bird, DollarSign, Edit, Egg, Percent, Plus, ShoppingBag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import RecordSaleModal from "@/components/modals/RecordSaleModal";
+import {
+  createSaleOrder,
+  deleteSaleOrder,
+  updateSaleOrder,
+  type SaleOrderPayload,
+  type SalesRecordWithOrder,
+} from "@/lib/salesOrderRequest";
+import { Bird, ChevronDown, ChevronRight, DollarSign, Edit, Egg, Layers, Percent, Plus, ShoppingBag, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { ExportDataButton } from "@/components/general/ExportDataButton";
 import { buildExportFilename, formatExportDate, type ExportColumn } from "@/lib/exportData";
 import { Button } from "@/components/ui/button";
@@ -56,6 +64,34 @@ import { CustomerNameLink } from "@/components/crm/CustomerNameLink";
 import Pagination from "@/components/general/Pagination";
 
 type FlockPnlRow = FarmSalesProfitLoss["flocks"][number]
+
+/** A row in the product sales table: a single-batch sale, or a sale order with one line per batch. */
+type ProductSaleEntry = {
+  key: string;
+  orderId: number | null;
+  lines: SalesRecordWithOrder[];
+};
+
+const groupProductSales = (rows: SalesRecordWithOrder[]): ProductSaleEntry[] => {
+  const entries: ProductSaleEntry[] = [];
+  const byOrder = new Map<number, ProductSaleEntry>();
+  rows.forEach((row) => {
+    if (!row.sales_order_id) {
+      entries.push({ key: `r${row.id}`, orderId: null, lines: [row] });
+      return;
+    }
+    const existing = byOrder.get(row.sales_order_id);
+    if (existing) {
+      existing.lines.push(row);
+      return;
+    }
+    const entry = { key: `o${row.sales_order_id}`, orderId: row.sales_order_id, lines: [row] };
+    byOrder.set(row.sales_order_id, entry);
+    entries.push(entry);
+  });
+  entries.forEach((entry) => entry.lines.sort((a, b) => a.id - b.id));
+  return entries;
+};
 
 const PRODUCT_SALES_PAGE_SIZE = 10;
 
@@ -107,6 +143,10 @@ const SalesProfitLossPage = () => {
   const [productSales, setProductSales] = useState<SalesRecord[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
+  const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
   const [editingProduct, setEditingProduct] = useState<SalesRecord | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [productTypeFilter, setProductTypeFilter] = useState<string>("all");
@@ -176,12 +216,25 @@ const SalesProfitLossPage = () => {
     });
   }, [productSales, productCustomerSearch]);
 
-  const productSalesTotalPages = Math.max(1, Math.ceil(filteredProductSales.length / PRODUCT_SALES_PAGE_SIZE));
+  const productSaleEntries = useMemo(
+    () => groupProductSales(filteredProductSales as SalesRecordWithOrder[]),
+    [filteredProductSales]
+  );
+
+  const productSalesTotalPages = Math.max(1, Math.ceil(productSaleEntries.length / PRODUCT_SALES_PAGE_SIZE));
 
   const paginatedProductSales = useMemo(() => {
     const start = (productSalesPage - 1) * PRODUCT_SALES_PAGE_SIZE;
-    return filteredProductSales.slice(start, start + PRODUCT_SALES_PAGE_SIZE);
-  }, [filteredProductSales, productSalesPage]);
+    return productSaleEntries.slice(start, start + PRODUCT_SALES_PAGE_SIZE);
+  }, [productSaleEntries, productSalesPage]);
+
+  const toggleOrder = (orderId: number) =>
+    setExpandedOrders((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
 
   useEffect(() => {
     setProductSalesPage(1);
@@ -251,6 +304,45 @@ const SalesProfitLossPage = () => {
     }
   };
 
+  const handleSaveOrder = async (payload: SaleOrderPayload) => {
+    if (!token || !farmId) return;
+    const res = editingOrderId
+      ? await updateSaleOrder(token, farmId, editingOrderId, payload)
+      : await createSaleOrder(token, farmId, payload);
+    if (res.success) {
+      const batches = res.data?.lines.length ?? payload.lines.length;
+      toast.success(
+        editingOrderId
+          ? "Sale updated"
+          : batches > 1
+            ? `Sale recorded across ${batches} batches`
+            : "Sale recorded"
+      );
+      setEditingOrderId(null);
+      applyDateFilter();
+    } else {
+      const msg = (res.error || ["Could not save sale"]).join(", ");
+      toast.error(msg);
+      throw new Error(msg);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: number) => {
+    if (!token || !farmId) return;
+    setDeletingOrderId(orderId);
+    try {
+      const res = await deleteSaleOrder(token, farmId, orderId);
+      if (res.success) {
+        toast.success("Sale deleted");
+        applyDateFilter();
+      } else {
+        toast.error((res.error || ["Could not delete sale"]).join(", "));
+      }
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
+
   const handleDeleteProductSale = async (record: SalesRecord) => {
     if (!token || !farmId) return;
     setDeletingId(record.id);
@@ -266,6 +358,96 @@ const SalesProfitLossPage = () => {
       setDeletingId(null);
     }
   };
+
+  const renderFlockCell = (row: SalesRecord) =>
+    row.flock_id ? (
+      <Link to={`/dashboard/poultry/flock-management/${row.flock_id}`} className="text-sky-700 hover:underline">
+        {row.flock?.name || `Flock #${row.flock_id}`}
+      </Link>
+    ) : (
+      "Farm-level"
+    );
+
+  const renderOrderActions = (orderId: number) => (
+    <div className="flex justify-end gap-1">
+      <ActionGate anyOf={ACTIONS.sales.update}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0"
+          aria-label="Edit sale"
+          onClick={() => {
+            setEditingOrderId(orderId);
+            setOrderModalOpen(true);
+          }}
+        >
+          <Edit className="h-3.5 w-3.5" />
+        </Button>
+      </ActionGate>
+      <ActionGate anyOf={ACTIONS.sales.delete}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 text-rose-600"
+          aria-label="Delete sale"
+          disabled={deletingOrderId === orderId}
+          onClick={() => void handleDeleteOrder(orderId)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </ActionGate>
+    </div>
+  );
+
+  /** A single-batch sale: a legacy sales record, or an order with one line. */
+  const renderSaleRow = (row: SalesRecord, orderId: number | null) => (
+    <TableRow key={orderId ? `o${orderId}` : row.id}>
+      <TableCell>{new Date(row.date).toLocaleDateString("en-GB")}</TableCell>
+      <TableCell>
+        <Badge variant="outline" className="capitalize">{row.type}</Badge>
+      </TableCell>
+      <TableCell>{renderFlockCell(row)}</TableCell>
+      <TableCell className="text-right">
+        {row.type === "egg" ? formatSaleCrates(row.quantity) : Number(row.quantity).toLocaleString()}
+      </TableCell>
+      <TableCell className="text-right font-medium">{formatCurrency(row.total_amount)}</TableCell>
+      <TableCell>
+        <CustomerNameLink customerId={row.customer_id} name={row.customer_name || row.customer?.name} />
+      </TableCell>
+      <TableCell className="text-right">
+        {orderId ? (
+          renderOrderActions(orderId)
+        ) : (
+          <div className="flex justify-end gap-1">
+            <ActionGate anyOf={ACTIONS.sales.update}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                onClick={() => {
+                  setEditingProduct(row);
+                  setProductModalOpen(true);
+                }}
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </Button>
+            </ActionGate>
+            <ActionGate anyOf={ACTIONS.sales.delete}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 text-rose-600"
+                disabled={deletingId === row.id}
+                onClick={() => void handleDeleteProductSale(row)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </ActionGate>
+          </div>
+        )}
+      </TableCell>
+    </TableRow>
+  );
 
   if (!data) {
     return (
@@ -598,8 +780,8 @@ const SalesProfitLossPage = () => {
               <Button
                 size="sm"
                 onClick={() => {
-                  setEditingProduct(null);
-                  setProductModalOpen(true);
+                  setEditingOrderId(null);
+                  setOrderModalOpen(true);
                 }}
               >
                 <Plus className="h-4 w-4 mr-1" />
@@ -656,7 +838,7 @@ const SalesProfitLossPage = () => {
 
           <div className="flex items-center justify-between text-sm text-slate-600">
             <span>
-              {filteredProductSales.length} sale{filteredProductSales.length === 1 ? "" : "s"}
+              {productSaleEntries.length} sale{productSaleEntries.length === 1 ? "" : "s"}
               {filteredProductSales.length !== productSales.length
                 ? ` (of ${productSales.length} loaded)`
                 : ""}
@@ -690,72 +872,73 @@ const SalesProfitLossPage = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedProductSales.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{new Date(row.date).toLocaleDateString("en-GB")}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">{row.type}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {row.flock_id ? (
-                          <Link
-                            to={`/dashboard/poultry/flock-management/${row.flock_id}`}
-                            className="text-sky-700 hover:underline"
-                          >
-                            {row.flock?.name || `Flock #${row.flock_id}`}
-                          </Link>
-                        ) : (
-                          "Farm-level"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {row.type === "egg"
-                          ? formatSaleCrates(row.quantity)
-                          : Number(row.quantity).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(row.total_amount)}</TableCell>
-                      <TableCell>
-                        <CustomerNameLink
-                          customerId={row.customer_id}
-                          name={row.customer_name || row.customer?.name}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <ActionGate anyOf={ACTIONS.sales.update}>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => {
-                                setEditingProduct(row);
-                                setProductModalOpen(true);
-                              }}
+                  paginatedProductSales.map((entry) => {
+                    if (entry.orderId == null) return renderSaleRow(entry.lines[0], null);
+                    const orderId = entry.orderId;
+                    const first = entry.lines[0];
+                    const expanded = expandedOrders.has(orderId);
+                    const qty = entry.lines.reduce((sum, l) => sum + Number(l.quantity || 0), 0);
+                    const total = entry.lines.reduce((sum, l) => sum + Number(l.total_amount || 0), 0);
+                    if (entry.lines.length === 1) return renderSaleRow(first, orderId);
+                    return (
+                      <Fragment key={entry.key}>
+                        <TableRow className="bg-slate-50/60">
+                          <TableCell>{new Date(first.date).toLocaleDateString("en-GB")}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">{first.type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <button
+                              type="button"
+                              onClick={() => toggleOrder(orderId)}
+                              className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 hover:bg-sky-100"
+                              aria-expanded={expanded}
                             >
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                          </ActionGate>
-                          <ActionGate anyOf={ACTIONS.sales.delete}>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 text-rose-600"
-                              disabled={deletingId === row.id}
-                              onClick={() => void handleDeleteProductSale(row)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </ActionGate>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                              {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              <Layers className="h-3 w-3" />
+                              {entry.lines.length} batches
+                            </button>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {first.type === "egg" ? formatSaleCrates(qty) : qty.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(total)}</TableCell>
+                          <TableCell>
+                            <CustomerNameLink
+                              customerId={first.customer_id}
+                              name={first.customer_name || first.customer?.name}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">{renderOrderActions(orderId)}</TableCell>
+                        </TableRow>
+                        {expanded
+                          ? entry.lines.map((line) => (
+                              <TableRow key={line.id} className="text-sm text-slate-600">
+                                <TableCell />
+                                <TableCell />
+                                <TableCell className="pl-6">{renderFlockCell(line)}</TableCell>
+                                <TableCell className="text-right">
+                                  {line.type === "egg"
+                                    ? formatSaleCrates(line.quantity)
+                                    : Number(line.quantity).toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right">{formatCurrency(line.total_amount)}</TableCell>
+                                <TableCell className="text-xs text-slate-500">
+                                  @ {formatCurrency(line.unit_price)}
+                                </TableCell>
+                                <TableCell />
+                              </TableRow>
+                            ))
+                          : null}
+                      </Fragment>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
           </div>
 
-          {filteredProductSales.length > 0 && (
+          {productSaleEntries.length > 0 && (
             <Pagination
               currentPage={productSalesPage}
               totalPages={productSalesTotalPages}
@@ -773,6 +956,16 @@ const SalesProfitLossPage = () => {
         }}
         onSubmit={editingProduct ? handleUpdateProductSale : handleCreateProductSale}
         editing={editingProduct}
+      />
+
+      <RecordSaleModal
+        isOpen={orderModalOpen}
+        onClose={() => {
+          setOrderModalOpen(false);
+          setEditingOrderId(null);
+        }}
+        onSubmit={handleSaveOrder}
+        editingOrderId={editingOrderId}
       />
     </div>
   );
