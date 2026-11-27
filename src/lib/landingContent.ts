@@ -150,7 +150,7 @@ export const pricingTiers = [
   {
     name: "Basic",
     tagline: "One farmer, one batch at a time.",
-    price: "5,000",
+    price: 5000,
     highlight: false,
     points: [
       "1 user account",
@@ -162,7 +162,7 @@ export const pricingTiers = [
   {
     name: "Standard",
     tagline: "Growing farms with a team.",
-    price: "10,000",
+    price: 10000,
     highlight: false,
     points: [
       "Unlimited team members",
@@ -174,7 +174,7 @@ export const pricingTiers = [
   {
     name: "Premium",
     tagline: "AI working alongside your team.",
-    price: "15,000",
+    price: 15000,
     highlight: true,
     points: [
       "Everything in Standard",
@@ -207,6 +207,7 @@ export const faqItems = [
   },
   {
     question: "Can I change plans or cancel?",
-    answer: "Yes, any time. There are no long-term contracts or hidden fees.",
+    answer:
+      "Yes, any time. Pay monthly, or pay every 6 months to save 5% or yearly to save 10%. There are no hidden fees.",
   },
 ]
