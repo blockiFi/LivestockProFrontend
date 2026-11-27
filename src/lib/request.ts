@@ -1,4 +1,5 @@
 import axios from "./axios"
+import type { BillingCycle } from "@/lib/billingCycles"
 import type {    LoginData,  PaginatedRequestType,  RequestResponse } from "./interfaces"
 import type { AuthResponse, DetailedFlockRecord, DetailedSchedule, Farm, FarmSettings, FarmStatsDataType, FlockRecord, PoultryDashboardData, UserSettings, WeatherDataType, PoultryType, PoultryHouse, FlockStage, WeightReport, WeightReportPayload, WeightSex, WeightLastTarget, WeightExtractionResult, EggReport, MortalityReport, PoultryFeedUsageRecord, FeedInventoryType, FeedType, Medication, VaccineProduct, MedicationData, VaccineData, MedicationProduct, AdministrationMethod, vaccine, PoultryVaccineInventory, MedicationInventory, VaccineInventory, PermissionGroup, Role, FeedingSchedule, PoultryFeedProduct, FeedComponent, FeedComposition, FlockExpenditure, FlockExpenditureSummary, FlockSale, FlockProfitLoss, FlockPerformanceMetrics, FlockMetricsAiResponse, FlockComparativeReport, FlockComparativeAiInsights, FlockComparativeMetrics, FlockComparativeRow, FlockComparativeAggregate, FarmSalesProfitLoss, SalesRecord, FarmUserRoleSummary, User, FarmDashboard, FarmAlerts, DashboardKpis, DashboardDatePreset, SubscriptionPlan, FarmSubscriptionSummary, SubscriptionTransaction, PaystackCheckout, BatchChatSessionSummary, BatchChatMessage, BatchChatTurnResponse, BatchChatMemory } from "./types"
 import  { isAxiosError } from "axios"
@@ -7602,12 +7603,13 @@ export const getSubscriptionTransactions = async (
 export const startSubscriptionCheckout = async (
   token: string,
   farmId: number,
-  planSlug: string
+  planSlug: string,
+  billingCycle: BillingCycle = "monthly"
 ): Promise<RequestResponse<PaystackCheckout>> => {
   try {
     const response = await axios.post(
       `/api/farms/${farmId}/subscription/checkout`,
-      { plan_slug: planSlug },
+      { plan_slug: planSlug, billing_cycle: billingCycle },
       { headers: { Authorization: `Bearer ${token}` } }
     )
 

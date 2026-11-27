@@ -64,6 +64,17 @@ export type SubscriptionStatus =
   | "read_only"
   | "cancelled"
 
+export type SubscriptionPlanCycle = {
+  cycle: "monthly" | "biannual" | "annual"
+  label: string
+  months: number
+  discount_percent: number
+  price: number
+  price_kobo: number
+  monthly_equivalent: number
+  savings: number
+}
+
 export type SubscriptionPlan = {
   slug: string
   name: string
@@ -76,6 +87,8 @@ export type SubscriptionPlan = {
   /** Null means unlimited. */
   max_active_flocks: number | null
   ai_enabled: boolean
+  /** Price per billing cycle. Only the plan catalog returns these. */
+  billing_cycles?: SubscriptionPlanCycle[]
 }
 
 export type SubscriptionUsage = {
@@ -97,6 +110,11 @@ export type SubscriptionWaiverSummary = {
 
 export type FarmSubscriptionSummary = {
   plan: SubscriptionPlan
+  billing_cycle?: "monthly" | "biannual" | "annual"
+  billing_cycle_label?: string
+  /** What one payment costs on the farm's current cycle, in naira. */
+  billing_amount?: number
+  billing_amount_kobo?: number
   status: SubscriptionStatus
   is_read_only: boolean
   ai_enabled: boolean
@@ -119,6 +137,7 @@ export type SubscriptionTransaction = {
   currency: string | null
   status: string | null
   reference: string | null
+  billing_cycle?: "monthly" | "biannual" | "annual" | null
   created_at: string
   plan?: { slug: string; name: string } | null
 }
@@ -127,6 +146,8 @@ export type PaystackCheckout = {
   authorization_url: string
   access_code: string
   reference: string
+  amount_kobo?: number
+  billing_cycle?: "monthly" | "biannual" | "annual"
 }
 
 export type FarmUserRoleSummary = {
